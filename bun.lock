@@ -77,50 +77,50 @@
     },
     "frontend/packages/cli": {
       "name": "golet-cli",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "bin": {
         "golet": "bin/golet.js",
       },
       "optionalDependencies": {
-        "@golet/cli-darwin-arm64": "0.1.1",
-        "@golet/cli-darwin-x64": "0.1.1",
-        "@golet/cli-linux-arm64": "0.1.1",
-        "@golet/cli-linux-x64": "0.1.1",
-        "@golet/cli-win32-arm64": "0.1.1",
-        "@golet/cli-win32-x64": "0.1.1",
+        "@golet/cli-darwin-arm64": "0.1.2",
+        "@golet/cli-darwin-x64": "0.1.2",
+        "@golet/cli-linux-arm64": "0.1.2",
+        "@golet/cli-linux-x64": "0.1.2",
+        "@golet/cli-win32-arm64": "0.1.2",
+        "@golet/cli-win32-x64": "0.1.2",
       },
     },
     "frontend/packages/cli/npm/darwin-arm64": {
       "name": "@golet/cli-darwin-arm64",
-      "version": "0.1.1",
+      "version": "0.1.2",
     },
     "frontend/packages/cli/npm/darwin-x64": {
       "name": "@golet/cli-darwin-x64",
-      "version": "0.1.1",
+      "version": "0.1.2",
     },
     "frontend/packages/cli/npm/linux-arm64": {
       "name": "@golet/cli-linux-arm64",
-      "version": "0.1.1",
+      "version": "0.1.2",
     },
     "frontend/packages/cli/npm/linux-x64": {
       "name": "@golet/cli-linux-x64",
-      "version": "0.1.1",
+      "version": "0.1.2",
     },
     "frontend/packages/cli/npm/win32-arm64": {
       "name": "@golet/cli-win32-arm64",
-      "version": "0.1.1",
+      "version": "0.1.2",
     },
     "frontend/packages/cli/npm/win32-x64": {
       "name": "@golet/cli-win32-x64",
-      "version": "0.1.1",
+      "version": "0.1.2",
     },
     "frontend/packages/runtime": {
       "name": "golet-runtime",
-      "version": "0.1.1",
+      "version": "0.1.2",
     },
     "frontend/plugins/fetch": {
       "name": "@golet-plugins/fetch",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "devDependencies": {
         "golet-runtime": "^0.1.0",
       },
@@ -130,7 +130,7 @@
     },
     "frontend/plugins/sqlite": {
       "name": "@golet-plugins/sqlite",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "devDependencies": {
         "golet-runtime": "^0.1.0",
       },
@@ -140,7 +140,7 @@
     },
     "frontend/plugins/watch": {
       "name": "@golet-plugins/watch",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "devDependencies": {
         "golet-runtime": "^0.1.0",
       },
@@ -150,7 +150,7 @@
     },
     "frontend/plugins/websocket": {
       "name": "@golet-plugins/websocket",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "devDependencies": {
         "golet-runtime": "^0.1.0",
       },

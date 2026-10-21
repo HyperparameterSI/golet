@@ -152,3 +152,24 @@ func TestExtractPinnedSDK(t *testing.T) {
 		t.Fatalf("version mismatch: %v", err)
 	}
 }
+
+func TestProductBundleMetadata(t *testing.T) {
+	root := t.TempDir()
+	binary := filepath.Join(root, "host")
+	if err := os.WriteFile(binary, []byte("fixture"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	app := filepath.Join(root, "app")
+	if err := bundle(app, "Golet Browser", binary, "", false, options{appName: "feo & 测试", identifier: "dev.feo.browser"}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(app, "Contents/Info.plist"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"<key>CFBundleDisplayName</key><string>feo &amp; 测试</string>", "<key>CFBundleExecutable</key><string>Golet Browser</string>", "<key>CFBundleIdentifier</key><string>dev.feo.browser</string>"} {
+		if !strings.Contains(string(data), want) {
+			t.Fatalf("missing %s", want)
+		}
+	}
+}

@@ -61,6 +61,9 @@ func extensionArguments(opts Options) ([]string, error) {
 		return nil, err
 	}
 	var args []string
+	if opts.AppName != "" {
+		args = append(args, "--golet-app-name="+opts.AppName)
+	}
 	if opts.AppMode {
 		if style != StyleAlloy || len(opts.Extensions) != 0 || opts.AssistantURL != "" {
 			return nil, errors.New("chromium: AppMode requires Alloy without extensions or AssistantURL")

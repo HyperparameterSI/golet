@@ -25,7 +25,7 @@ type runtimeEntry struct {
 	Size    int64  `json:"size"`
 }
 
-type options struct{ root, sdk, cmake, output string }
+type options struct{ root, sdk, cmake, output, appName, icon, newTabDir, identifier string }
 
 func main() {
 	var opts options
@@ -33,6 +33,10 @@ func main() {
 	flag.StringVar(&opts.sdk, "cef-dir", "", "use an extracted, matching CEF minimal SDK")
 	flag.StringVar(&opts.cmake, "cmake", "cmake", "CMake executable")
 	flag.StringVar(&opts.output, "output", "", "runtime installation directory")
+	flag.StringVar(&opts.appName, "app-name", "Golet Browser", "displayed product name")
+	flag.StringVar(&opts.icon, "icon", "", "product icon PNG (used by the app and new-tab page)")
+	flag.StringVar(&opts.newTabDir, "new-tab-dir", "", "custom new-tab assets directory containing index.html")
+	flag.StringVar(&opts.identifier, "identifier", "dev.golet.chromium", "application bundle identifier")
 	flag.Parse()
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -158,7 +162,7 @@ func install(ctx context.Context, opts options) error {
 	}
 	defer os.RemoveAll(staging)
 	prepared := filepath.Join(staging, "runtime")
-	if err = packageApp(ctx, root, sdk, work, prepared, staging); err != nil {
+	if err = packageApp(ctx, root, sdk, work, prepared, staging, opts); err != nil {
 		return err
 	}
 	marker, err := json.MarshalIndent(entry, "", "  ")

@@ -11,6 +11,12 @@ NSColor* Color(unsigned value) {
                             blue:(value & 255) / 255.0 alpha:1];
 }
 NSString* Text(const std::string& text) { return [NSString stringWithUTF8String:text.c_str()] ?: @""; }
+NSString* ProductName() {
+  auto name = CefCommandLine::GetGlobalCommandLine()->GetSwitchValue("golet-app-name");
+  if (!name.empty()) return Text(name.ToString());
+  NSString* bundled = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleDisplayName"];
+  return bundled.length ? bundled : @"Golet Browser";
+}
 NSString* Navigation(NSString* input) {
   NSString* text = [input stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
   if (!text.length) return nil;
@@ -95,7 +101,7 @@ NSString* Navigation(NSString* input) {
      backing:NSBackingStoreBuffered defer:NO];
   self.window.releasedWhenClosed = NO;
   self.window.delegate = self;
-  self.window.title = self.appMode ? @"应用" : @"Golet Browser";
+  self.window.title = ProductName();
   self.window.titleVisibility = self.appMode ? NSWindowTitleVisible : NSWindowTitleHidden;
   self.window.titlebarAppearsTransparent = !self.appMode;
   self.window.minSize = NSMakeSize(720, 500);
@@ -114,7 +120,7 @@ NSString* Navigation(NSString* input) {
     self.home = [self button:@"house" label:@"首页" action:@selector(goHome:)];
     self.fullscreen = [self button:@"arrow.up.left.and.arrow.down.right" label:@"全屏" action:@selector(fullscreen:)];
     self.add = [self button:@"plus" label:@"新建标签页" action:@selector(newTab:)];
-    self.brand = [NSTextField labelWithString:@"golet browser"];
+    self.brand = [NSTextField labelWithString:ProductName()];
     self.brand.font = [NSFont systemFontOfSize:12 weight:NSFontWeightRegular]; self.brand.textColor = Color(0x9aa493);
     [self.root addSubview:self.brand];
     self.addressBackground = [[NSView alloc] initWithFrame:NSZeroRect];
@@ -144,8 +150,8 @@ NSString* Navigation(NSString* input) {
 - (void)installMenu {
   NSMenu* main = [[NSMenu alloc] init];
   NSMenuItem* appItem = [[NSMenuItem alloc] init]; [main addItem:appItem];
-  NSMenu* appMenu = [[NSMenu alloc] initWithTitle:self.appMode ? @"应用" : @"Golet Browser"];
-  [appMenu addItemWithTitle:self.appMode ? @"退出应用" : @"退出 Golet Browser" action:@selector(terminate:) keyEquivalent:@"q"];
+  NSMenu* appMenu = [[NSMenu alloc] initWithTitle:ProductName()];
+  [appMenu addItemWithTitle:[@"退出 " stringByAppendingString:ProductName()] action:@selector(terminate:) keyEquivalent:@"q"];
   appItem.submenu = appMenu;
   NSMenuItem* fileItem = [[NSMenuItem alloc] init]; [main addItem:fileItem];
   NSMenu* fileMenu = [[NSMenu alloc] initWithTitle:@"文件"];
@@ -199,7 +205,7 @@ NSString* Navigation(NSString* input) {
   NSDictionary* state = self.states[@(self.selected)];
   if (self.appMode) {
     NSString* title = state[@"title"];
-    self.window.title = title.length ? title : @"应用";
+    self.window.title = title.length ? title : ProductName();
     return;
   }
   NSString* url = state[@"url"] ?: @"";
@@ -209,7 +215,7 @@ NSString* Navigation(NSString* input) {
   self.back.enabled = [state[@"back"] boolValue]; self.forward.enabled = [state[@"forward"] boolValue];
   BOOL loading = [state[@"loading"] boolValue];
   self.reload.image = [NSImage imageWithSystemSymbolName:loading ? @"xmark" : @"arrow.clockwise" accessibilityDescription:loading ? @"停止加载" : @"刷新"];
-  self.window.title = home ? @"Golet Browser" : [NSString stringWithFormat:@"%@ · Golet Browser", state[@"title"] ?: @"网页"];
+  self.window.title = home ? ProductName() : [NSString stringWithFormat:@"%@ · %@", state[@"title"] ?: @"网页", ProductName()];
 }
 - (BOOL)windowShouldClose:(NSWindow*)sender { if (self.closing) return YES; BrowserUIAction("close"); return NO; }
 - (void)windowDidResize:(NSNotification*)notification { [self layout]; }
@@ -285,5 +291,8 @@ void ShellDestroy() { shell.closing = YES; [shell.window close]; shell = nil; }
 std::string ShellHomeURL() {
   NSURL* url = [[[NSBundle mainBundle] resourceURL] URLByAppendingPathComponent:@"newtab/index.html"];
   NSString* version = [NSString stringWithFormat:@"?version=%d.%d.%d.%d", CHROME_VERSION_MAJOR, CHROME_VERSION_MINOR, CHROME_VERSION_BUILD, CHROME_VERSION_PATCH];
-  return [[url.absoluteString stringByAppendingString:version] UTF8String];
+  NSURLComponents* components = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:YES];
+  components.queryItems = @[[NSURLQueryItem queryItemWithName:@"version" value:[version substringFromIndex:9]],
+                            [NSURLQueryItem queryItemWithName:@"appName" value:ProductName()]];
+  return components.URL.absoluteString.UTF8String;
 }

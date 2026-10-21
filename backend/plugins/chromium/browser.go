@@ -42,6 +42,9 @@ type Options struct {
 	// It hides browser controls and rejects new tabs and popups.
 	// It cannot be combined with StyleChrome, Extensions, or AssistantURL.
 	AppMode bool
+	// AppName overrides the displayed product name. Empty uses the bundled name.
+	// Set setup --app-name and --icon as well to brand the macOS application.
+	AppName string
 	// Extensions contains explicitly trusted unpacked extension directories.
 	Extensions []string
 	// AssistantURL is a local assistant page exposed by the embedding application.

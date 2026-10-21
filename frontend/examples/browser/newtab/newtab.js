@@ -21,3 +21,17 @@ form.addEventListener("submit", (event) => {
 const version = new URLSearchParams(location.search).get("version");
 if (version && /^[\d.]+$/.test(version))
   document.querySelector("#version").textContent = `Chromium ${version}`;
+
+const branding = window.browserBranding || {};
+const appName = new URLSearchParams(location.search).get("appName") || branding.name || "Golet Browser";
+const brand = document.querySelector(".brand");
+const logo = brand.querySelector("img");
+logo.alt = appName;
+logo.hidden = false;
+if (appName !== "Golet Browser" || branding.icon) {
+  brand.querySelector("strong").textContent = appName;
+  brand.querySelector("strong").hidden = false;
+  brand.querySelector("span").hidden = true;
+  logo.hidden = !branding.icon;
+  if (branding.icon) { logo.src = branding.icon; logo.classList.add("product-icon"); }
+}

@@ -262,3 +262,35 @@ func TestAppModeE2E(t *testing.T) {
 		t.Fatal("app must have one page")
 	}
 }
+
+func TestProductBrandingE2E(t *testing.T) {
+	if os.Getenv("GOLET_CHROMIUM_E2E") != "1" || runtime.GOOS != "darwin" {
+		t.Skip("requires real CEF host")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	name := "feo & <测试>"
+	b, err := Launch(ctx, Options{AppName: name, EphemeralDemo: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close(context.Background())
+	for b.State().Loading || b.State().Title != "新标签页" {
+		select {
+		case _, ok := <-b.Events():
+			if !ok {
+				t.Fatal(b.Wait())
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	var got string
+	if err := b.Evaluate(ctx, b.State().BrowserID, `document.querySelector('.brand').innerText.trim()`, &got); err != nil || got != name {
+		t.Fatalf("brand=%q: %v", got, err)
+	}
+	var valid bool
+	if err := b.Evaluate(ctx, b.State().BrowserID, `document.querySelector('.brand img').alt === new URLSearchParams(location.search).get('appName') && document.querySelector('.brand strong').children.length === 0`, &valid); err != nil || !valid {
+		t.Fatalf("unsafe branding: %v %v", valid, err)
+	}
+}

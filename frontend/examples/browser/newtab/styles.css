@@ -208,3 +208,6 @@ button:focus-visible {
     transition: none !important;
   }
 }
+
+.brand strong { font-size: 42px; letter-spacing: 1px; }
+.brand img.product-icon { width: 64px; height: 64px; object-fit: contain; }

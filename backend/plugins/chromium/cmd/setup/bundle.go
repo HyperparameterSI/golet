@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -83,15 +84,23 @@ func xmlText(s string) string {
 	return b.String()
 }
 
-func bundle(directory, name, binary, helperSuffix string, helper bool) error {
+func bundle(directory, name, binary, helperSuffix string, helper bool, opts options) error {
 	contents := filepath.Join(directory, "Contents")
 	if err := copyFile(binary, filepath.Join(contents, "MacOS", name)); err != nil {
 		return err
 	}
-	id := "dev.golet.chromium"
+	id := opts.identifier
+	if id == "" {
+		id = "dev.golet.chromium"
+	}
+	display := opts.appName
+	if display == "" {
+		display = "Golet Browser"
+	}
 	extra := "<key>CFBundleIconFile</key><string>AppIcon.icns</string><key>NSPrincipalClass</key><string>GoletChromiumApplication</string>"
 	if helper {
 		id += ".helper" + helperSuffix
+		display += " Helper" + helperSuffix
 		extra = "<key>LSUIElement</key><true/>"
 	}
 	plist := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
@@ -108,13 +117,13 @@ func bundle(directory, name, binary, helperSuffix string, helper bool) error {
 <key>LSMinimumSystemVersion</key><string>12.0</string>
 %s
 </dict></plist>
-`, xmlText(name), xmlText(name), xmlText(name), xmlText(id), extra)
+`, xmlText(display), xmlText(display), xmlText(name), xmlText(id), extra)
 	return os.WriteFile(filepath.Join(contents, "Info.plist"), []byte(plist), 0644)
 }
 
-func packageApp(ctx context.Context, root, sdk, work, destination, temp string) error {
+func packageApp(ctx context.Context, root, sdk, work, destination, temp string, opts options) error {
 	app := filepath.Join(destination, "Golet Browser.app")
-	if err := bundle(app, "Golet Browser", filepath.Join(work, "golet-chromium"), "", false); err != nil {
+	if err := bundle(app, "Golet Browser", filepath.Join(work, "golet-chromium"), "", false, opts); err != nil {
 		return err
 	}
 	frameworks := filepath.Join(app, "Contents/Frameworks")
@@ -128,7 +137,7 @@ func packageApp(ctx context.Context, root, sdk, work, destination, temp string) 
 			name += " (" + role + ")"
 			suffix = "." + strings.ToLower(role)
 		}
-		if err := bundle(filepath.Join(frameworks, name+".app"), name, filepath.Join(work, "golet-chromium-helper"), suffix, true); err != nil {
+		if err := bundle(filepath.Join(frameworks, name+".app"), name, filepath.Join(work, "golet-chromium-helper"), suffix, true, opts); err != nil {
 			return err
 		}
 	}
@@ -136,8 +145,40 @@ func packageApp(ctx context.Context, root, sdk, work, destination, temp string) 
 	if err := os.MkdirAll(resources, 0755); err != nil {
 		return err
 	}
-	if err := copyTree(ctx, filepath.Join(root, "frontend/examples/browser/newtab"), filepath.Join(resources, "newtab")); err != nil {
+	newTab := opts.newTabDir
+	if newTab == "" {
+		newTab = filepath.Join(root, "frontend/examples/browser/newtab")
+	}
+	if _, err := os.Stat(filepath.Join(newTab, "index.html")); err != nil {
 		return err
+	}
+	if err := copyTree(ctx, newTab, filepath.Join(resources, "newtab")); err != nil {
+		return err
+	}
+	icon := opts.icon
+	if icon == "" {
+		icon = filepath.Join(root, "backend/cmd/golet/assets/icon.png")
+	}
+	if opts.newTabDir == "" {
+		logo := ""
+		if opts.icon != "" {
+			logo = "product-icon.png"
+			if err := copyFile(icon, filepath.Join(resources, "newtab", logo)); err != nil {
+				return err
+			}
+		}
+		branding, err := json.Marshal(map[string]string{"name": opts.appName, "icon": logo})
+		if err != nil {
+			return err
+		}
+		// Replace the copied (possibly read-only module-cache) default atomically.
+		file := filepath.Join(resources, "newtab/branding.js")
+		if err := os.Remove(file); err != nil {
+			return err
+		}
+		if err := os.WriteFile(file, append(append([]byte("window.browserBranding = "), branding...), ';'), 0644); err != nil {
+			return err
+		}
 	}
 	iconset := filepath.Join(temp, "AppIcon.iconset")
 	if err := os.Mkdir(iconset, 0755); err != nil {
@@ -151,7 +192,7 @@ func packageApp(ctx context.Context, root, sdk, work, destination, temp string) 
 			}
 			name += ".png"
 			pixels := strconv.Itoa(size * scale)
-			if err := run(ctx, "sips", "-z", pixels, pixels, filepath.Join(root, "backend/cmd/golet/assets/icon.png"), "--out", filepath.Join(iconset, name)); err != nil {
+			if err := run(ctx, "sips", "-z", pixels, pixels, icon, "--out", filepath.Join(iconset, name)); err != nil {
 				return err
 			}
 		}
