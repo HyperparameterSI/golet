@@ -77,85 +77,85 @@
     },
     "frontend/packages/cli": {
       "name": "golet-cli",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "bin": {
         "golet": "bin/golet.js",
       },
       "optionalDependencies": {
-        "@golet/cli-darwin-arm64": "0.1.2",
-        "@golet/cli-darwin-x64": "0.1.2",
-        "@golet/cli-linux-arm64": "0.1.2",
-        "@golet/cli-linux-x64": "0.1.2",
-        "@golet/cli-win32-arm64": "0.1.2",
-        "@golet/cli-win32-x64": "0.1.2",
+        "@golet/cli-darwin-arm64": "0.1.3",
+        "@golet/cli-darwin-x64": "0.1.3",
+        "@golet/cli-linux-arm64": "0.1.3",
+        "@golet/cli-linux-x64": "0.1.3",
+        "@golet/cli-win32-arm64": "0.1.3",
+        "@golet/cli-win32-x64": "0.1.3",
       },
     },
     "frontend/packages/cli/npm/darwin-arm64": {
       "name": "@golet/cli-darwin-arm64",
-      "version": "0.1.2",
+      "version": "0.1.3",
     },
     "frontend/packages/cli/npm/darwin-x64": {
       "name": "@golet/cli-darwin-x64",
-      "version": "0.1.2",
+      "version": "0.1.3",
     },
     "frontend/packages/cli/npm/linux-arm64": {
       "name": "@golet/cli-linux-arm64",
-      "version": "0.1.2",
+      "version": "0.1.3",
     },
     "frontend/packages/cli/npm/linux-x64": {
       "name": "@golet/cli-linux-x64",
-      "version": "0.1.2",
+      "version": "0.1.3",
     },
     "frontend/packages/cli/npm/win32-arm64": {
       "name": "@golet/cli-win32-arm64",
-      "version": "0.1.2",
+      "version": "0.1.3",
     },
     "frontend/packages/cli/npm/win32-x64": {
       "name": "@golet/cli-win32-x64",
-      "version": "0.1.2",
+      "version": "0.1.3",
     },
     "frontend/packages/runtime": {
       "name": "golet-runtime",
-      "version": "0.1.2",
+      "version": "0.1.3",
     },
     "frontend/plugins/fetch": {
       "name": "@golet-plugins/fetch",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "devDependencies": {
-        "golet-runtime": "^0.1.0",
+        "golet-runtime": "^0.1.3",
       },
       "peerDependencies": {
-        "golet-runtime": "^0.1.0",
+        "golet-runtime": "^0.1.3",
       },
     },
     "frontend/plugins/sqlite": {
       "name": "@golet-plugins/sqlite",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "devDependencies": {
-        "golet-runtime": "^0.1.0",
+        "golet-runtime": "^0.1.3",
       },
       "peerDependencies": {
-        "golet-runtime": "^0.1.0",
+        "golet-runtime": "^0.1.3",
       },
     },
     "frontend/plugins/watch": {
       "name": "@golet-plugins/watch",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "devDependencies": {
-        "golet-runtime": "^0.1.0",
+        "golet-runtime": "^0.1.3",
       },
       "peerDependencies": {
-        "golet-runtime": "^0.1.0",
+        "golet-runtime": "^0.1.3",
       },
     },
     "frontend/plugins/websocket": {
       "name": "@golet-plugins/websocket",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "devDependencies": {
-        "golet-runtime": "^0.1.0",
+        "golet-runtime": "^0.1.3",
       },
       "peerDependencies": {
-        "golet-runtime": "^0.1.0",
+        "golet-runtime": "^0.1.3",
       },
     },
     "frontend/website": {
