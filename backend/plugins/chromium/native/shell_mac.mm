@@ -2,6 +2,7 @@
 #import <Cocoa/Cocoa.h>
 #include "shell.h"
 #include "include/cef_version.h"
+#include "include/cef_command_line.h"
 
 namespace {
 NSColor* Color(unsigned value) {
@@ -52,6 +53,7 @@ NSString* Navigation(NSString* input) {
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSDictionary*>* states;
 @property(nonatomic) NSInteger selected;
 @property(nonatomic) BOOL closing;
+@property(nonatomic) BOOL appMode;
 - (void)layout;
 - (void)updateAddress;
 - (void)focusAddress:(id)sender;
@@ -66,6 +68,7 @@ NSString* Navigation(NSString* input) {
 - (void)layout { [super layout]; [self.owner layout]; }
 - (void)drawRect:(NSRect)dirtyRect {
   [Color(0xfbfcfa) setFill]; NSRectFill(self.bounds);
+  if (self.owner.appMode) return;
   [Color(0xf0f3ee) setFill]; NSRectFill(NSMakeRect(0, 0, self.bounds.size.width, 50));
   [Color(0xe5e9df) setFill]; NSRectFill(NSMakeRect(0, 113, self.bounds.size.width, 1));
 }
@@ -83,17 +86,18 @@ NSString* Navigation(NSString* input) {
 }
 - (instancetype)init {
   if (!(self = [super init])) return nil;
+  self.appMode = CefCommandLine::GetGlobalCommandLine()->HasSwitch("golet-app-mode");
   self.order = [NSMutableArray array]; self.views = [NSMutableDictionary dictionary];
   self.tabs = [NSMutableDictionary dictionary]; self.labels = [NSMutableDictionary dictionary];
   self.closes = [NSMutableDictionary dictionary]; self.states = [NSMutableDictionary dictionary];
   self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 1200, 820)
-     styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable | NSWindowStyleMaskFullSizeContentView
+     styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable | (self.appMode ? 0 : NSWindowStyleMaskFullSizeContentView)
      backing:NSBackingStoreBuffered defer:NO];
   self.window.releasedWhenClosed = NO;
   self.window.delegate = self;
-  self.window.title = @"Golet Browser";
-  self.window.titleVisibility = NSWindowTitleHidden;
-  self.window.titlebarAppearsTransparent = YES;
+  self.window.title = self.appMode ? @"应用" : @"Golet Browser";
+  self.window.titleVisibility = self.appMode ? NSWindowTitleVisible : NSWindowTitleHidden;
+  self.window.titlebarAppearsTransparent = !self.appMode;
   self.window.minSize = NSMakeSize(720, 500);
   self.window.backgroundColor = Color(0xfbfcfa);
   self.window.appearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
@@ -102,34 +106,36 @@ NSString* Navigation(NSString* input) {
   self.window.contentView = self.root;
   self.pages = [[NSView alloc] initWithFrame:NSZeroRect];
   [self.root addSubview:self.pages];
-  self.back = [self button:@"arrow.left" label:@"后退" action:@selector(goBack:)];
-  self.forward = [self button:@"arrow.right" label:@"前进" action:@selector(goForward:)];
-  self.reload = [self button:@"arrow.clockwise" label:@"刷新" action:@selector(refresh:)];
-  self.assistant = [self button:@"sparkles" label:@"AI 助手与扩展" action:@selector(assistant:)];
-  self.home = [self button:@"house" label:@"首页" action:@selector(goHome:)];
-  self.fullscreen = [self button:@"arrow.up.left.and.arrow.down.right" label:@"全屏" action:@selector(fullscreen:)];
-  self.add = [self button:@"plus" label:@"新建标签页" action:@selector(newTab:)];
-  self.brand = [NSTextField labelWithString:@"golet browser"];
-  self.brand.font = [NSFont systemFontOfSize:12 weight:NSFontWeightRegular]; self.brand.textColor = Color(0x9aa493);
-  [self.root addSubview:self.brand];
-  self.addressBackground = [[NSView alloc] initWithFrame:NSZeroRect];
-  self.addressBackground.wantsLayer = YES; self.addressBackground.layer.cornerRadius = 20;
-  self.addressBackground.layer.backgroundColor = Color(0xf0f3ec).CGColor;
-  self.addressBackground.layer.borderWidth = 1; self.addressBackground.layer.borderColor = Color(0xe3e9db).CGColor;
-  [self.root addSubview:self.addressBackground];
-  self.searchIcon = [[NSImageView alloc] initWithFrame:NSZeroRect];
-  self.searchIcon.image = [NSImage imageWithSystemSymbolName:@"magnifyingglass" accessibilityDescription:nil];
-  self.searchIcon.contentTintColor = Color(0x98a58b); [self.addressBackground addSubview:self.searchIcon];
-  self.address = [[NSTextField alloc] initWithFrame:NSZeroRect];
-  self.address.bordered = NO; self.address.drawsBackground = NO; self.address.focusRingType = NSFocusRingTypeNone;
-  self.address.font = [NSFont systemFontOfSize:14]; self.address.textColor = Color(0x46513e);
-  self.address.placeholderString = @"搜索或输入网址"; self.address.delegate = self;
-  self.address.target = self; self.address.action = @selector(navigate:);
-  [self.address setAccessibilityLabel:@"地址栏"];
-  [self.addressBackground addSubview:self.address];
-  self.engine = [NSTextField labelWithString:@"Google"];
-  self.engine.font = [NSFont systemFontOfSize:12]; self.engine.textColor = Color(0x95a286);
-  [self.addressBackground addSubview:self.engine];
+  if (!self.appMode) {
+    self.back = [self button:@"arrow.left" label:@"后退" action:@selector(goBack:)];
+    self.forward = [self button:@"arrow.right" label:@"前进" action:@selector(goForward:)];
+    self.reload = [self button:@"arrow.clockwise" label:@"刷新" action:@selector(refresh:)];
+    self.assistant = [self button:@"sparkles" label:@"AI 助手与扩展" action:@selector(assistant:)];
+    self.home = [self button:@"house" label:@"首页" action:@selector(goHome:)];
+    self.fullscreen = [self button:@"arrow.up.left.and.arrow.down.right" label:@"全屏" action:@selector(fullscreen:)];
+    self.add = [self button:@"plus" label:@"新建标签页" action:@selector(newTab:)];
+    self.brand = [NSTextField labelWithString:@"golet browser"];
+    self.brand.font = [NSFont systemFontOfSize:12 weight:NSFontWeightRegular]; self.brand.textColor = Color(0x9aa493);
+    [self.root addSubview:self.brand];
+    self.addressBackground = [[NSView alloc] initWithFrame:NSZeroRect];
+    self.addressBackground.wantsLayer = YES; self.addressBackground.layer.cornerRadius = 20;
+    self.addressBackground.layer.backgroundColor = Color(0xf0f3ec).CGColor;
+    self.addressBackground.layer.borderWidth = 1; self.addressBackground.layer.borderColor = Color(0xe3e9db).CGColor;
+    [self.root addSubview:self.addressBackground];
+    self.searchIcon = [[NSImageView alloc] initWithFrame:NSZeroRect];
+    self.searchIcon.image = [NSImage imageWithSystemSymbolName:@"magnifyingglass" accessibilityDescription:nil];
+    self.searchIcon.contentTintColor = Color(0x98a58b); [self.addressBackground addSubview:self.searchIcon];
+    self.address = [[NSTextField alloc] initWithFrame:NSZeroRect];
+    self.address.bordered = NO; self.address.drawsBackground = NO; self.address.focusRingType = NSFocusRingTypeNone;
+    self.address.font = [NSFont systemFontOfSize:14]; self.address.textColor = Color(0x46513e);
+    self.address.placeholderString = @"搜索或输入网址"; self.address.delegate = self;
+    self.address.target = self; self.address.action = @selector(navigate:);
+    [self.address setAccessibilityLabel:@"地址栏"];
+    [self.addressBackground addSubview:self.address];
+    self.engine = [NSTextField labelWithString:@"Google"];
+    self.engine.font = [NSFont systemFontOfSize:12]; self.engine.textColor = Color(0x95a286);
+    [self.addressBackground addSubview:self.engine];
+  }
   [self installMenu];
   [self.window center]; [self layout]; [self.window makeKeyAndOrderFront:nil];
   [NSApp activateIgnoringOtherApps:YES];
@@ -138,8 +144,8 @@ NSString* Navigation(NSString* input) {
 - (void)installMenu {
   NSMenu* main = [[NSMenu alloc] init];
   NSMenuItem* appItem = [[NSMenuItem alloc] init]; [main addItem:appItem];
-  NSMenu* appMenu = [[NSMenu alloc] initWithTitle:@"Golet Browser"];
-  [appMenu addItemWithTitle:@"退出 Golet Browser" action:@selector(terminate:) keyEquivalent:@"q"];
+  NSMenu* appMenu = [[NSMenu alloc] initWithTitle:self.appMode ? @"应用" : @"Golet Browser"];
+  [appMenu addItemWithTitle:self.appMode ? @"退出应用" : @"退出 Golet Browser" action:@selector(terminate:) keyEquivalent:@"q"];
   appItem.submenu = appMenu;
   NSMenuItem* fileItem = [[NSMenuItem alloc] init]; [main addItem:fileItem];
   NSMenu* fileMenu = [[NSMenu alloc] initWithTitle:@"文件"];
@@ -147,7 +153,8 @@ NSString* Navigation(NSString* input) {
   NSArray* keys = @[@"t", @"w", @"l", @"r"];
   SEL actions[] = {@selector(newTab:), @selector(closeActive:), @selector(focusAddress:), @selector(refresh:)};
   for (NSUInteger i = 0; i < titles.count; ++i) {
-    NSMenuItem* item = [fileMenu addItemWithTitle:titles[i] action:actions[i] keyEquivalent:keys[i]]; item.target = self;
+    if (self.appMode && (i == 0 || i == 2)) continue;
+    NSMenuItem* item = [fileMenu addItemWithTitle:(self.appMode && i == 1) ? @"关闭窗口" : titles[i] action:actions[i] keyEquivalent:keys[i]]; item.target = self;
   }
   fileItem.submenu = fileMenu;
   NSMenuItem* editItem = [[NSMenuItem alloc] init]; [main addItem:editItem];
@@ -161,6 +168,11 @@ NSString* Navigation(NSString* input) {
 }
 - (void)layout {
   CGFloat width = self.root.bounds.size.width, height = self.root.bounds.size.height;
+  if (self.appMode) {
+    self.pages.frame = self.root.bounds;
+    for (NSView* view in self.views.allValues) view.frame = self.pages.bounds;
+    return;
+  }
   self.pages.frame = NSMakeRect(0, 114, width, MAX(0, height - 114));
   for (NSView* view in self.views.allValues) view.frame = self.pages.bounds;
   self.back.frame = NSMakeRect(18, 65, 30, 32); self.forward.frame = NSMakeRect(54, 65, 30, 32);
@@ -185,6 +197,11 @@ NSString* Navigation(NSString* input) {
 }
 - (void)updateAddress {
   NSDictionary* state = self.states[@(self.selected)];
+  if (self.appMode) {
+    NSString* title = state[@"title"];
+    self.window.title = title.length ? title : @"应用";
+    return;
+  }
   NSString* url = state[@"url"] ?: @"";
   BOOL home = [url hasPrefix:Text(ShellHomeURL())] || [url isEqualToString:@"about:blank"];
   // Do not overwrite text while the user is editing the location field.
@@ -224,6 +241,7 @@ void ShellAttachBrowser(int id, CefWindowHandle handle) {
   NSNumber* key = @(id); NSView* view = (__bridge NSView*)handle;
   shell.views[key] = view; view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
   [shell.order addObject:key];
+  if (shell.appMode) { [shell layout]; return; }
   NSView* tab = [[NSView alloc] initWithFrame:NSZeroRect]; tab.wantsLayer = YES; tab.layer.cornerRadius = 11;
   shell.tabs[key] = tab; [shell.root addSubview:tab];
   NSButton* label = [NSButton buttonWithTitle:@"新标签页" target:shell action:@selector(chooseTab:)];

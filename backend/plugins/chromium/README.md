@@ -72,6 +72,12 @@ return browser.Wait()
 
 `Events()` 是容量为 1 的最新状态流，消费者较慢时跳过中间状态；不是完整事件日志。没有轮询线程、调试 HTTP 端口或 WebSocket 控制端口。公开导航接口接受 HTTP、HTTPS 和 `about:blank`，自定义地址栏支持网址与 Google 搜索。
 
+## 应用窗口
+
+设置 `Options{AppMode: true, URL: appURL, ProfileDir: appProfile}` 可使用只有内容和系统标题栏的独立应用窗口。地址栏、导航按钮、标签栏及对应菜单不会创建，网页标题作为窗口标题。新增标签命令返回错误，网页弹窗被拒绝；刷新、编辑、窗口缩放和关闭仍然可用。
+
+AppMode 只支持默认的 Alloy，不可与 Chrome 样式、扩展或 AssistantURL 同用。这是窗口呈现模式，不是页面权限或导航隔离机制。更新 Go 包后需重新运行 Chromium setup 构建匹配的原生宿主。
+
 ## 自定义界面
 
 - 首页：`frontend/examples/browser/newtab/` 中的 HTML、CSS、JavaScript 和 Logo；无需前端运行时服务。

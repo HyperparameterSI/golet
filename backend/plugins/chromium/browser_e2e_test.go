@@ -27,7 +27,7 @@ func TestBrowserE2E(t *testing.T) {
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	browser, err := Launch(ctx, Options{URL: server.URL + "/first", ProfileDir: t.TempDir()})
+	browser, err := Launch(ctx, Options{URL: server.URL + "/first", EphemeralDemo: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,5 +219,46 @@ func TestEphemeralDemoE2E(t *testing.T) {
 				t.Fatalf("temporary profile not removed: %v", err)
 			}
 		})
+	}
+}
+
+func TestAppModeE2E(t *testing.T) {
+	if os.Getenv("GOLET_CHROMIUM_E2E") != "1" || runtime.GOOS != "darwin" {
+		t.Skip("requires an installed CEF host and macOS desktop")
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "<!doctype html><title>Mini app</title><h1>Application content</h1>")
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	b, err := Launch(ctx, Options{AppMode: true, URL: server.URL, EphemeralDemo: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close(context.Background())
+	for b.State().Loading || b.State().Title != "Mini app" {
+		select {
+		case _, ok := <-b.Events():
+			if !ok {
+				t.Fatalf("host exited: %v", b.Wait())
+			}
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	var height int
+	if err := b.Evaluate(ctx, b.State().BrowserID, "innerHeight", &height); err != nil || height != 820 {
+		t.Fatalf("content should fill the 820px client area, got %d: %v", height, err)
+	}
+	if err := b.NewTab(ctx, server.URL); err == nil || !strings.Contains(err.Error(), "AppMode") {
+		t.Fatalf("new tab should be rejected: %v", err)
+	}
+	var blocked bool
+	if err := b.Evaluate(ctx, b.State().BrowserID, "window.open(location.href) === null", &blocked); err != nil || !blocked {
+		t.Fatalf("popup should be rejected: %v %v", blocked, err)
+	}
+	if len(b.State().Tabs) != 1 {
+		t.Fatal("app must have one page")
 	}
 }

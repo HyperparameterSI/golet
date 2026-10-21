@@ -1,6 +1,6 @@
 {
   "name": "@golet/cli-darwin-x64",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The macOS x64 binary of golet-cli",
   "repository": {
     "type": "git",

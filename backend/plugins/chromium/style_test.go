@@ -17,6 +17,11 @@ func TestBrowserStyle(t *testing.T) {
 		invalid bool
 	}{
 		{name: "default"},
+		{name: "app", opts: Options{AppMode: true}, args: []string{"--golet-app-mode"}},
+		{name: "app chrome", opts: Options{AppMode: true, Style: StyleChrome}, invalid: true},
+		{name: "app legacy chrome", opts: Options{AppMode: true, ChromeStyle: true}, invalid: true},
+		{name: "app extensions", opts: Options{AppMode: true, Extensions: []string{"unused"}}, invalid: true},
+		{name: "app assistant", opts: Options{AppMode: true, AssistantURL: "http://localhost"}, invalid: true},
 		{name: "alloy", opts: Options{Style: StyleAlloy}},
 		{name: "chrome", opts: Options{Style: StyleChrome}, args: []string{"--golet-chrome-style"}},
 		{name: "legacy", opts: Options{ChromeStyle: true}, args: []string{"--golet-chrome-style"}},

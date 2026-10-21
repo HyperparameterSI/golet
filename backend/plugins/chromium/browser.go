@@ -38,6 +38,10 @@ type Options struct {
 	// ChromeStyle enables the standard Chrome window.
 	// Deprecated: use Style: StyleChrome instead.
 	ChromeStyle bool
+	// AppMode uses a single content-only Alloy window with a native title bar.
+	// It hides browser controls and rejects new tabs and popups.
+	// It cannot be combined with StyleChrome, Extensions, or AssistantURL.
+	AppMode bool
 	// Extensions contains explicitly trusted unpacked extension directories.
 	Extensions []string
 	// AssistantURL is a local assistant page exposed by the embedding application.

@@ -29,6 +29,7 @@ class Host final : public CefApp, public CefBrowserProcessHandler,
   void OnContextInitialized() override {
     CEF_REQUIRE_UI_THREAD();
     chrome_style_ = CefCommandLine::GetGlobalCommandLine()->HasSwitch("golet-chrome-style");
+    app_mode_ = CefCommandLine::GetGlobalCommandLine()->HasSwitch("golet-app-mode");
     if (!chrome_style_) CreateBrowserShell();
     auto url = CefCommandLine::GetGlobalCommandLine()->GetSwitchValue("url");
     NewTab(url.ToString());
@@ -67,6 +68,7 @@ class Host final : public CefApp, public CefBrowserProcessHandler,
                      bool user_gesture, const CefPopupFeatures& features, CefWindowInfo& info,
                      CefRefPtr<CefClient>& client, CefBrowserSettings& settings,
                      CefRefPtr<CefDictionaryValue>& extra_info, bool* no_javascript_access) override {
+    if (app_mode_) return true;
     if (chrome_style_) info.runtime_style = CEF_RUNTIME_STYLE_CHROME;
     else ConfigureShellChild(info);
     return false;
@@ -107,11 +109,13 @@ class Host final : public CefApp, public CefBrowserProcessHandler,
   }
 
   void NewTab(const std::string& target = "") {
+    if (app_mode_ && tab_requested_) return;
+    tab_requested_ = true;
     CefWindowInfo window;
     if (chrome_style_) window.runtime_style = CEF_RUNTIME_STYLE_CHROME;
     else ConfigureShellChild(window);
     CefBrowserSettings settings;
-    const auto url = target.empty() || target == "about:blank" ? ShellHomeURL() : target;
+    const auto url = target.empty() || target == "about:blank" ? (app_mode_ ? "about:blank" : ShellHomeURL()) : target;
     CefBrowserHost::CreateBrowser(window, this, url, settings, nullptr, nullptr);
   }
   void Action(const std::string& method, int id, const std::string& value) {
@@ -194,7 +198,11 @@ class Host final : public CefApp, public CefBrowserProcessHandler,
     reply->SetValue("id", request->GetValue("id"));
     const auto method = request->GetString("method").ToString();
     if (method == "close") { Write(reply); CloseAll(); return; }
-    if (method == "newtab") { NewTab(request->GetString("url").ToString()); Write(reply); return; }
+    if (method == "newtab") {
+      if (app_mode_) reply->SetString("error", "new tabs are unavailable in AppMode");
+      else NewTab(request->GetString("url").ToString());
+      Write(reply); return;
+    }
     if (method == "select-tab" || method == "close-tab") {
       const int id = request->GetInt("browserId");
       if (!browsers_.count(id)) reply->SetString("error", "tab not found");
@@ -241,6 +249,8 @@ class Host final : public CefApp, public CefBrowserProcessHandler,
     Write(reply);
   }
   bool chrome_style_ = false;
+  bool app_mode_ = false;
+  bool tab_requested_ = false;
   int devtools_id_ = 0;
   std::map<int, CefRefPtr<CefRegistration>> observers_;
   std::map<int, std::pair<int, CefRefPtr<CefDictionaryValue>>> pending_;
