@@ -1,0 +1,26 @@
+// Author: HyperparameterSI
+
+//go:build js
+
+package ui
+
+import (
+	"github.com/HyperparameterSI/golet/backend/internal/gpu/gl"
+	"github.com/HyperparameterSI/golet/backend/internal/platform"
+)
+
+// newGPURenderer returns a WebGL 2 renderer, package gl's, for a canvas
+// whose context is current while it draws a frame. Canvases draw in
+// memory where the browser has no WebGL 2, which the backend tells.
+func newGPURenderer(n platform.SurfaceNative) (gpuRenderer, error) {
+	if n.Canvas == 0 {
+		return nil, nil
+	}
+	r, err := gl.New()
+	if err != nil {
+		return nil, err
+	}
+	// The canvas's drawing buffer keeps what was drawn (gl.NewContext).
+	r.Partial = true
+	return r, nil
+}

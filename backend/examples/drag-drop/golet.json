@@ -1,0 +1,5 @@
+{
+  "name": "Golet Drag Demo",
+  "identifier": "dev.golet.examples.drag-drop",
+  "out": "build"
+}

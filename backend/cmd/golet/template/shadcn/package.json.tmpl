@@ -1,0 +1,38 @@
+{
+  "name": "{{.Slug}}",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": {{json (print .Golet " dev")}},
+    "build": {{json (print .Golet " build")}},
+    "generate": {{json (print .Golet " generate")}},
+    "dev:web": "cd frontend && vite",
+    "build:web": "cd frontend && vite build && tsc --noEmit",
+    "typecheck": "tsc --noEmit -p frontend/tsconfig.json"
+  },
+  "dependencies": {
+    "golet-runtime": {{json .Runtime}},
+    "@tanstack/react-start": "^1.168.59",
+    "@tanstack/react-router": "^1.170.40",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.3.1",
+    "lucide-react": "^0.468.0",
+    "@radix-ui/react-slot": "^1.2.3"
+  },
+  "devDependencies": {
+{{- if .CLI}}
+    "golet-cli": {{json .CLI}},
+{{- end}}
+    "typescript": "^7",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/node": "^24",
+    "@vitejs/plugin-react": "^6",
+    "tailwindcss": "^4.1",
+    "@tailwindcss/vite": "^4.1",
+    "vite": "^8"
+  }
+}

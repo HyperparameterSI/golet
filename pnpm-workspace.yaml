@@ -1,0 +1,19 @@
+packages:
+  - 'frontend/packages/*'
+  - 'frontend/packages/cli/npm/*'
+  - 'frontend/plugins/*'
+  - 'frontend/examples/*'
+  - 'frontend/website'
+
+# Resolve unpublished Golet packages from this checkout.
+linkWorkspacePackages: true
+preferWorkspacePackages: true
+
+# Platform binaries are unpublished workspace packages too.
+overrides:
+  '@golet/cli-darwin-arm64': 'workspace:*'
+  '@golet/cli-darwin-x64': 'workspace:*'
+  '@golet/cli-linux-arm64': 'workspace:*'
+  '@golet/cli-linux-x64': 'workspace:*'
+  '@golet/cli-win32-arm64': 'workspace:*'
+  '@golet/cli-win32-x64': 'workspace:*'

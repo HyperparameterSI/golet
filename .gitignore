@@ -1,0 +1,16 @@
+node_modules
+dist/
+.golet/
+backend/examples/*/dist/
+backend/examples/*/build/
+/golet
+/backend/cmd/golet/golet
+frontend/packages/cli/npm/*/bin/
+.DS_Store
+golet.ts
+
+!frontend/examples/studio/src/golet.ts
+!frontend/examples/dashboard/src/golet.ts
+
+frontend/examples/*/dist/
+.tanstack/

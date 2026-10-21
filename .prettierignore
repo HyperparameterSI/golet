@@ -1,0 +1,7 @@
+**/node_modules/**
+**/dist/**
+**/build/**
+**/.tanstack/**
+**/routeTree.gen.ts
+**/golet.ts
+**/testdata/**

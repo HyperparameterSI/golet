@@ -1,0 +1,42 @@
+{
+  "name": "@golet-plugins/watch",
+  "version": "0.1.0",
+  "description": "Watches for changes to files in the directories a Golet desktop app lets its pages watch",
+  "keywords": [
+    "golet",
+    "desktop",
+    "webview",
+    "go",
+    "watch",
+    "filesystem"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HyperparameterSI/golet.git",
+    "directory": "frontend/plugins/watch"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun run ../build.ts",
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "golet-runtime": "^0.1.0"
+  },
+  "devDependencies": {
+    "golet-runtime": "^0.1.0"
+  }
+}

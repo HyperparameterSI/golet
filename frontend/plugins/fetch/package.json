@@ -1,0 +1,41 @@
+{
+  "name": "@golet-plugins/fetch",
+  "version": "0.1.0",
+  "description": "A fetch that makes HTTP requests from Go, for Golet desktop apps",
+  "keywords": [
+    "golet",
+    "desktop",
+    "webview",
+    "go",
+    "fetch"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HyperparameterSI/golet.git",
+    "directory": "frontend/plugins/fetch"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun run ../build.ts",
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "golet-runtime": "^0.1.0"
+  },
+  "devDependencies": {
+    "golet-runtime": "^0.1.0"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "golet-runtime",
+  "version": "0.1.0",
+  "description": "Typed access to the Golet runtime in the pages of Golet desktop apps",
+  "keywords": [
+    "golet",
+    "desktop",
+    "webview",
+    "go"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HyperparameterSI/golet.git",
+    "directory": "frontend/packages/runtime"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./i18n": {
+      "types": "./dist/i18n.d.ts",
+      "default": "./dist/i18n.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json --emitDeclarationOnly false",
+    "test": "bun test"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Terminal",
+  "identifier": "dev.golet.examples.terminal",
+  "macos": { "minimumSystemVersion": "13.0" }
+}

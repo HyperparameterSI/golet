@@ -1,0 +1,32 @@
+{
+  "name": "golet-dev",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "frontend/packages/*",
+    "frontend/packages/cli/npm/*",
+    "frontend/plugins/*",
+    "frontend/examples/*",
+    "frontend/website"
+  ],
+  "scripts": {
+    "dev": "go run ./backend/cmd/golet dev backend/examples/studio",
+    "build": "bun run --filter \"./frontend/packages/*\" --filter \"./frontend/plugins/*\" build",
+    "build:app": "go run ./backend/cmd/golet build backend/examples/studio",
+    "build:web": "npm --prefix frontend/packages/runtime run build && npm --prefix frontend/examples/studio run build:web",
+    "test": "bun test frontend/packages frontend/plugins frontend/examples/dashboard/src/lib scripts",
+    "test:go": "go test ./backend/...",
+    "typecheck": "tsc --noEmit",
+    "dev:website": "npm --prefix frontend/website run dev",
+    "dev:dashboard": "go run ./backend/cmd/golet dev backend/examples/dashboard",
+    "build:dashboard": "go run ./backend/cmd/golet build backend/examples/dashboard",
+    "format": "prettier --write \"frontend/**/*.{ts,tsx,js,css}\" \"scripts/**/*.ts\"",
+    "format:check": "prettier --check \"frontend/**/*.{ts,tsx,js,css}\" \"scripts/**/*.ts\""
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^7",
+    "prettier": "3.9.9"
+  },
+  "version": "0.1.0"
+}

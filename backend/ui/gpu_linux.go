@@ -1,0 +1,27 @@
+// Author: HyperparameterSI
+
+//go:build linux && (amd64 || arm64)
+
+package ui
+
+import (
+	"github.com/HyperparameterSI/golet/backend/internal/gpu/gl"
+	"github.com/HyperparameterSI/golet/backend/internal/platform"
+)
+
+// newGPURenderer returns an OpenGL renderer for a surface drawing in a
+// GtkGLArea's render signal. Surfaces draw in memory where OpenGL does
+// not run on a GPU, which the backend tells.
+func newGPURenderer(n platform.SurfaceNative) (gpuRenderer, error) {
+	if n.GLArea == 0 {
+		return nil, nil
+	}
+	r, err := gl.New()
+	if err != nil {
+		return nil, err
+	}
+	// GTK keeps what the area's framebuffer holds from render to render,
+	// but as it allocates the area (SurfaceResize, see invalidator).
+	r.Partial = true
+	return r, nil
+}

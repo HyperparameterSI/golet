@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - LICENSE
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - LICENSE
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest }
+          - { name: Linux, os: ubuntu-latest }
+          - { name: Windows, os: windows-latest }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: oven-sh/setup-bun@v2
+      - name: Install WebKitGTK and a virtual display
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-0 xvfb xauth dbus-x11 libgl1-mesa-dri libglx-mesa0 libegl-mesa0
+      - run: bun install --frozen-lockfile
+      - name: Build the JavaScript packages
+        run: bun run build
+      - name: Build and vet every platform
+        if: runner.os == 'Linux'
+        run: |
+          for os in darwin linux windows; do
+            GOOS=$os go build ./...
+            GOOS=$os go vet ./...
+            # Production builds leave the inspector of native UI out.
+            GOOS=$os go vet -tags golet_noinspector ./...
+          done
+          GOOS=freebsd go build ./...
+          # Browsers run native UI; the CLI is for desktops.
+          export GOOS=js GOARCH=wasm
+          go build $(go list -f '{{if .GoFiles}}{{.ImportPath}}{{end}}' ./... | grep -v /cmd/golet)
+          go vet $(go list ./... | grep -v /cmd/golet)
+          go test -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./backend/internal/web ./backend/internal/gpu/gl
+      # The plugins' tests load the native libraries their golet-plugin.json
+      # pins, and on Windows the installer tests run the NSIS that
+      # internal/nsis pins, all of which they download into the user's cache
+      # when it lacks them. Downloading them here, before the tests, and
+      # keeping them in the Actions cache under a key of what pins them,
+      # keeps the tests off the network and its hosts' passing failures.
+      - name: Restore the downloads of the tests
+        id: downloads
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ${{ runner.os == 'Windows' && '~/AppData/Local' || runner.os == 'macOS' && '~/Library/Caches' || '~/.cache' }}/golet/natives
+            ${{ runner.os == 'Windows' && '~/AppData/Local' || runner.os == 'macOS' && '~/Library/Caches' || '~/.cache' }}/golet/nsis-*
+          key: downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('backend/plugins/*/golet-plugin.json', 'backend/internal/nsis/nsis.go') }}
+      - name: Download what the tests need
+        run: go run ./backend/internal/prefetch
+      - name: Save the downloads of the tests
+        if: steps.downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ${{ runner.os == 'Windows' && '~/AppData/Local' || runner.os == 'macOS' && '~/Library/Caches' || '~/.cache' }}/golet/natives
+            ${{ runner.os == 'Windows' && '~/AppData/Local' || runner.os == 'macOS' && '~/Library/Caches' || '~/.cache' }}/golet/nsis-*
+          key: ${{ steps.downloads.outputs.cache-primary-key }}
+      - run: go test ./...
+      - name: Test without the inspector, as production builds
+        if: runner.os == 'Linux'
+        run: go test -tags golet_noinspector ./backend/ui ./backend
+      - run: bun run test
+      - run: bun run typecheck
+      - name: Check frontend formatting
+        if: runner.os == 'Linux'
+        run: bun run format:check
+      - name: Build the shadcn desktop frontend
+        run: |
+          go run ./backend/cmd/golet generate backend/examples/studio
+          bun run --cwd frontend/examples/studio build:web
+      - name: GUI tests
+        if: runner.os != 'Linux'
+        env:
+          GOLET_E2E: 1
+        run: go test ./backend/internal/e2e
+      - name: GUI tests
+        if: runner.os == 'Linux'
+        env:
+          GOLET_E2E: 1
+          XDG_DATA_HOME: ${{ runner.temp }}/xdg-data
+          XDG_CONFIG_HOME: ${{ runner.temp }}/xdg-config
+        run: xvfb-run -a dbus-run-session -- go test ./backend/internal/e2e
+      # Runners have no GPU, so native UI draws on the CPU above; GOLET_GPU=1
+      # draws it with OpenGL all the same, on Mesa's llvmpipe.
+      - name: GUI tests of native UI drawn with OpenGL
+        if: runner.os == 'Linux'
+        env:
+          GOLET_E2E: 1
+          GOLET_GPU: 1
+        run: xvfb-run -a dbus-run-session -- go test -run 'TestContentWindow' ./backend/internal/e2e
+
+  # Windows on ARM64, which no machine of the maintainers runs: DirectWrite's
+  # methods taking floats go through purego, which sets the floating point
+  # registers syscall leaves alone there, and Direct3D 11 draws native UI.
+  # The JavaScript packages are the same everywhere, so Bun is left out.
+  windows-arm64:
+    name: Windows ARM64
+    runs-on: windows-11-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      # As in the job above.
+      - name: Restore the downloads of the tests
+        id: downloads
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ${{ runner.os == 'Windows' && '~/AppData/Local' || runner.os == 'macOS' && '~/Library/Caches' || '~/.cache' }}/golet/natives
+            ${{ runner.os == 'Windows' && '~/AppData/Local' || runner.os == 'macOS' && '~/Library/Caches' || '~/.cache' }}/golet/nsis-*
+          key: downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('backend/plugins/*/golet-plugin.json', 'backend/internal/nsis/nsis.go') }}
+      - name: Download what the tests need
+        run: go run ./backend/internal/prefetch
+      - name: Save the downloads of the tests
+        if: steps.downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ${{ runner.os == 'Windows' && '~/AppData/Local' || runner.os == 'macOS' && '~/Library/Caches' || '~/.cache' }}/golet/natives
+            ${{ runner.os == 'Windows' && '~/AppData/Local' || runner.os == 'macOS' && '~/Library/Caches' || '~/.cache' }}/golet/nsis-*
+          key: ${{ steps.downloads.outputs.cache-primary-key }}
+      - run: go test ./...
+      - name: Test without the inspector, as production builds
+        if: runner.os == 'Linux'
+        run: go test -tags golet_noinspector ./backend/ui ./backend
+      - name: GUI tests of native UI
+        env:
+          GOLET_E2E: 1
+        run: go test -run 'TestContentWindow' ./backend/internal/e2e

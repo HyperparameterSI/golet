@@ -1,0 +1,50 @@
+{
+  "name": "golet-cli",
+  "version": "0.1.0",
+  "description": "The golet command line tool: create, develop and package Golet desktop apps",
+  "keywords": [
+    "golet",
+    "desktop",
+    "webview",
+    "go",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HyperparameterSI/golet.git",
+    "directory": "frontend/packages/cli"
+  },
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "golet": "bin/golet.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "types": "./index.d.ts",
+  "files": [
+    "bin",
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "binaries": "bun run build.ts",
+    "test": "bun test"
+  },
+  "optionalDependencies": {
+    "@golet/cli-darwin-arm64": "0.1.0",
+    "@golet/cli-darwin-x64": "0.1.0",
+    "@golet/cli-linux-arm64": "0.1.0",
+    "@golet/cli-linux-x64": "0.1.0",
+    "@golet/cli-win32-arm64": "0.1.0",
+    "@golet/cli-win32-x64": "0.1.0"
+  }
+}

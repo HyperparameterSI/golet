@@ -1,0 +1,21 @@
+{
+  "name": "@golet/cli-darwin-arm64",
+  "version": "0.1.0",
+  "description": "The macOS arm64 binary of golet-cli",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HyperparameterSI/golet.git",
+    "directory": "frontend/packages/cli/npm/darwin-arm64"
+  },
+  "license": "MIT",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "bin"
+  ],
+  "preferUnplugged": true
+}

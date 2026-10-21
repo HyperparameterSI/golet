@@ -1,0 +1,21 @@
+{
+  "name": "@golet/cli-linux-arm64",
+  "version": "0.1.0",
+  "description": "The Linux arm64 binary of golet-cli",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HyperparameterSI/golet.git",
+    "directory": "frontend/packages/cli/npm/linux-arm64"
+  },
+  "license": "MIT",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "bin"
+  ],
+  "preferUnplugged": true
+}

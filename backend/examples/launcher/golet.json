@@ -1,0 +1,8 @@
+{
+  "name": "Launcher",
+  "identifier": "dev.golet.examples.launcher",
+  "out": "build",
+  "macos": {
+    "infoPlist": { "LSUIElement": true }
+  }
+}
