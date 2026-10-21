@@ -7,7 +7,7 @@
 // keeps what it downloads in the Actions cache, under a key of the files
 // that pin them, so that the tests do not depend on the network:
 //
-//	go run ./internal/prefetch
+//	go run ./backend/internal/prefetch
 //
 // It downloads them where the plugins and the CLI look:
 // <cache>/golet/natives/<sha256>/<name> and <cache>/golet/nsis-<version>.
@@ -34,12 +34,12 @@ func main() {
 		log.Fatal(err)
 	}
 	ctx := context.Background()
-	manifests, err := filepath.Glob(filepath.Join("plugins", "*", "golet-plugin.json"))
+	manifests, err := filepath.Glob(filepath.Join("backend", "plugins", "*", "golet-plugin.json"))
 	if err != nil {
 		log.Fatal(err)
 	}
 	if len(manifests) == 0 {
-		log.Fatal("no plugins/*/golet-plugin.json: run it at the root of the repository")
+		log.Fatal("no backend/plugins/*/golet-plugin.json: run it at the root of the repository")
 	}
 	target := runtime.GOOS + "-" + runtime.GOARCH
 	for _, manifest := range manifests {
