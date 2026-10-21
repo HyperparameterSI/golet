@@ -327,6 +327,35 @@ go run ./backend/cmd/golet init -golet "$PWD" -template native ../my-native-app
 
 **尚未发布到 npm 或 GitHub Releases**：当前使用本地源码工作流。仓库中的发布配置是待配置的基础设施，不代表包已经存在。可选 SQLite / terminal 插件及 NSIS 使用原项目固定版本、SHA-256 校验的二进制下载；SQLite 的底层 ABI 符号保留原名以保持兼容。
 
+## 使用 AI 生成 Golet 应用
+
+Web 桌面应用默认使用 **TanStack Start + React + TypeScript + Vite + shadcn/ui + Tailwind CSS**。`golet init` 默认选择 `shadcn` 模板，也可以显式指定：
+
+```sh
+golet init -template shadcn -module example.com/my-app my-app
+cd my-app
+pnpm install
+pnpm dev
+```
+
+新生成的 shadcn 项目会携带以下 AI 开发指引：
+
+| 文件 | 用途 |
+| --- | --- |
+| `AGENTS.md` | 技术栈、目录边界、IPC、SPA 打包、代码注释与验证规则的统一来源 |
+| `CLAUDE.md` | 引导 Claude Code 读取项目规则 |
+| `.github/copilot-instructions.md` | 引导 GitHub Copilot 读取项目规则 |
+| `README.md` | 启动、构建及可直接复制的 AI 提示词 |
+| `.agents/skills/` | CLI 随项目安装的 Golet 维护技能与参考资料 |
+
+可以把下面这段话交给 AI：
+
+> 使用 Golet 构建跨平台桌面应用。先读取项目 AGENTS.md 和 golet.config.ts。前端使用现有 TanStack Start + React + TypeScript + Vite + shadcn/ui，保持 SPA 模式；前端源码放 frontend/，Go 业务与系统能力放 backend/，通过生成的 Golet 客户端通信。复用 components/ui 和主题变量，不另建框架或 Node 服务。完成后运行相关类型检查、测试与构建，并说明未验证的平台。我要实现的功能是：……
+
+README 负责说明，项目规则负责提示 AI，模板里的依赖、路由和构建配置提供实际默认实现。AI 工具是否自动加载规则取决于其支持情况；未自动读取时，应显式附上 `AGENTS.md`。这些文件不能强制所有模型遵循，也不能替代类型检查和构建验证。用户明确要求其他技术栈时，以用户要求为准。
+
+已有项目可以按实际技术栈合并这些规则，不要覆盖原有项目约定。`golet install-skills .` 仅更新内置技能，不会自动补写或覆盖项目根目录的 `AGENTS.md`、`CLAUDE.md` 和 README。纯 Go 原生 UI 仍使用 `-template native`，轻量 TypeScript 前端使用 `-template web`。
+
 ## shadcn 与原生主题
 
 Web 模板的 `components.json`、`@/` 路径别名和 CSS 语义变量已配置：

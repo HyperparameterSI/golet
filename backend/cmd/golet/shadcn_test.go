@@ -18,6 +18,22 @@ func TestShadcnTemplate(t *testing.T) {
 	if err := writeTemplate(dir, shadcnTemplate, data); err != nil {
 		t.Fatal(err)
 	}
+	for name, required := range map[string][]string{
+		"AGENTS.md":                       {"TanStack Start", "shadcn/ui", "frontend/dist/client", "pnpm typecheck", "backend/"},
+		"README.md":                       {"AGENTS.md", "pnpm dev"},
+		"CLAUDE.md":                       {"AGENTS.md"},
+		".github/copilot-instructions.md": {"AGENTS.md"},
+	} {
+		content, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, text := range required {
+			if !strings.Contains(string(content), text) {
+				t.Errorf("generated %s is missing %q", name, text)
+			}
+		}
+	}
 	for _, name := range []string{"package.json", "frontend/tsconfig.json", "frontend/components.json"} {
 		b, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil || !json.Valid(b) {

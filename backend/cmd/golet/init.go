@@ -47,11 +47,11 @@ const (
 const cliTool = "github.com/HyperparameterSI/golet/backend/cmd/golet"
 
 func runInit(args []string) error {
-	flags := newFlags("init", "[flags] <dir>", "Creates a new Golet project. The default shadcn template uses React, Tailwind and\neditable UI components. The web template has a TypeScript frontend built\nwith Vite: Bun installs its dependencies, the golet-cli package among them,\nand runs its scripts, bun run dev and bun run build. The native template\nshows a user interface Golet draws itself, written in Go with package ui:\nthe module has the CLI as a tool, for go tool golet dev and go tool golet\nbuild.")
+	flags := newFlags("init", "[flags] <dir>", "Creates a new Golet project. The default shadcn template uses TanStack Start, React, Vite, Tailwind and\neditable shadcn UI components, with project instructions for AI tools. The web template has a TypeScript frontend built\nwith Vite: Bun installs its dependencies, the golet-cli package among them,\nand runs its scripts, bun run dev and bun run build. The native template\nshows a user interface Golet draws itself, written in Go with package ui:\nthe module has the CLI as a tool, for go tool golet dev and go tool golet\nbuild.")
 	name := flags.String("name", "", "application name (default: directory name)")
 	module := flags.String("module", "", "Go module path (default: directory name)")
 	local := flags.String("golet", "", "path to a local checkout of Golet to use via a replace directive")
-	tmpl := flags.String("template", shadcnTemplate, "the project: shadcn (React + Tailwind, default), web (vanilla TypeScript), or native (Go UI)")
+	tmpl := flags.String("template", shadcnTemplate, "the project: shadcn (TanStack Start + React + Vite, default), web (vanilla TypeScript), or native (Go UI)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
