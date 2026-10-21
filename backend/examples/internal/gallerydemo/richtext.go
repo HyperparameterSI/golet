@@ -1,6 +1,6 @@
 // Author: HyperparameterSI
 
-package main
+package gallerydemo
 
 import (
 	"github.com/HyperparameterSI/golet/backend/ui"

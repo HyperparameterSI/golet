@@ -153,7 +153,7 @@ func button(c *context, label string, primary bool) *node {
 // segment in a ToggleGroup or Segmented.
 func styleButton(c *context, b *node, primary bool) {
 	t := c.theme
-	b.Padding(t.Space(1.5), t.Space(3.5)).Gap(t.Space(1.5)).Radius(t.Radius)
+	b.Padding(t.Space(2), t.Space(4)).Gap(t.Space(2)).Radius(t.Radius).FontWeight(500)
 	base, hover, pressed, fg, border := t.Surface, t.SurfaceHover, t.SurfacePressed, t.Text, t.Border
 	switch {
 	case primary:
@@ -222,7 +222,7 @@ func coreCheckbox(c *context, checked *bool, label string) *node {
 		if on {
 			box.Background(t.Accent)
 		} else {
-			box.Background(t.Background).Border(1, t.Border.Mix(t.Text, 0.25))
+			box.Background(t.Surface).Border(1, t.Border.Mix(t.Text, 0.12))
 		}
 		box.DrawOver(func(p *Painter, r Rect) {
 			if on {
@@ -253,14 +253,14 @@ func coreRadio[T comparable](c *context, selected *T, value T, label string) *no
 	row.Children(func() {
 		dot := coreBox(c).Size(t.Space(4), t.Space(4)).Radius(t.Space(2)).Shrink(0)
 		if on {
-			dot.Background(t.Accent)
+			dot.Background(t.Surface).Border(1, t.Accent)
 		} else {
-			dot.Background(t.Background).Border(1, t.Border.Mix(t.Text, 0.25))
+			dot.Background(t.Surface).Border(1, t.Border.Mix(t.Text, 0.12))
 		}
 		dot.DrawOver(func(p *Painter, r Rect) {
 			if on {
 				d := t.Space(1.5)
-				p.Fill(Rect{r.X + (r.W-d)/2, r.Y + (r.H-d)/2, d, d}, t.AccentText, d/2)
+				p.Fill(Rect{r.X + (r.W-d)/2, r.Y + (r.H-d)/2, d, d}, t.Accent, d/2)
 			}
 			if row.FocusVisible() {
 				p.FocusRing(r, dot.radius)
@@ -296,7 +296,7 @@ func coreSwitch(c *context, on *bool) *node {
 		}
 		knob := Rect{r.X + in + at*(r.W-r.H), r.Y + in, d, d}
 		p.Shadow(knob, d/2, 0, 1, 3, 0, RGBA(0, 0, 0, 0.25))
-		p.Fill(knob, RGB(255, 255, 255), d/2)
+		p.Fill(knob, RGB(255, 255, 255).Mix(t.AccentText, pos), d/2)
 	})
 	return sw
 }
@@ -624,8 +624,8 @@ func corePopover(c *context, anchor *node, open *bool, fn func()) *node {
 // stylePanel gives the panel of a popup the theme's look.
 func stylePanel(c *context, panel *node) {
 	t := c.theme
-	panel.Margin(t.Space(1), 0, 0, 0).Padding(t.Space(1)).Radius(t.Radius+2).Background(t.Background).Border(1, t.Border)
-	panel.Shadow(0, 6, 20, 0, RGBA(0, 0, 0, 0.18))
+	panel.Margin(t.Space(1), 0, 0, 0).Padding(t.Space(1)).Radius(t.Radius+2).Background(t.Surface).Border(1, t.Border)
+	panel.Shadow(0, 4, 12, 0, RGBA(0, 0, 0, 0.12))
 }
 
 // Select creates a drop-down choosing one of options into *selected.

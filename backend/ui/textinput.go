@@ -17,7 +17,7 @@ func coreTextArea(c *context, value *string) *node { return textInput(c, value, 
 func textInput(c *context, value *string, multiline bool) *node {
 	t := c.theme
 	e := textInputBase(c, value, multiline)
-	e.Padding(t.Space(1.5), t.Space(2.5)).Radius(t.Radius).Background(t.Surface).Border(1, t.Border)
+	e.Padding(t.Space(2), t.Space(3)).Radius(t.Radius).Background(t.Surface).Border(1, t.Border)
 	if multiline {
 		e.MinHeight(t.Space(20))
 	}

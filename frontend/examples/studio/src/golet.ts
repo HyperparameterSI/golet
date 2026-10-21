@@ -4,11 +4,47 @@ import { call } from "golet-runtime";
 
 // ---- Types ----
 
+export interface BrowserStatus {
+  installed: boolean;
+  supported: boolean;
+  running: boolean;
+  host: string;
+  state: State;
+}
+
+/** Demo describes a real, runnable component demonstration. */
+export interface Demo {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  controls: string[];
+  source: string;
+}
+
+/** State describes the focused tab and open tabs. Events are snapshots, not a durable log. */
+export interface State {
+  tabs: Tab[];
+  browserId: number;
+  url: string;
+  title: string;
+  loading: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+}
+
 /** SystemInfo describes the machine the app runs on. */
 export interface SystemInfo {
   os: string;
   arch: string;
   goVersion: string;
+}
+
+/** Tab identifies one open page within the browser window. */
+export interface Tab {
+  browserId: number;
+  url: string;
+  title: string;
 }
 
 // ---- Services ----
@@ -25,5 +61,31 @@ export const Greeter = {
   /** Info returns information about the system. */
   info(): Promise<SystemInfo> {
     return call("Greeter.Info");
+  },
+} as const;
+
+/**
+ * Showcase exposes the catalog and opens native demos in the Studio process.
+ * windows is accessed exclusively on the main UI thread.
+ */
+export const Showcase = {
+  catalog(): Promise<Demo[]> {
+    return call("Showcase.Catalog");
+  },
+  open(id: string): Promise<void> {
+    return call("Showcase.Open", id);
+  },
+} as const;
+
+/** BrowserDemo controls one opt-in CEF host owned by Studio. */
+export const BrowserDemo = {
+  command(action: string, target: string): Promise<void> {
+    return call("BrowserDemo.Command", action, target);
+  },
+  start(style: string, target: string): Promise<void> {
+    return call("BrowserDemo.Start", style, target);
+  },
+  status(): Promise<BrowserStatus> {
+    return call("BrowserDemo.Status");
   },
 } as const;

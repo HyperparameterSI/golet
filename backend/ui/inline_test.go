@@ -16,7 +16,10 @@ func center(r Rect) (x, y float32) { return r.X + r.W/2, r.Y + r.H/2 }
 func TestInlineLink(t *testing.T) {
 	const url = "https://example.com/guide"
 	var para, link *node
+	theme := LightTheme()
+	theme.Focus = RGBA(37, 99, 235, 0.55)
 	tt := coreNewTester(func(c *context) {
+		c.SetTheme(theme)
 		coreColumn(c).Padding(10).Children(func() {
 			para = coreRichText(c).Children(func() {
 				coreText(c, "Read ")

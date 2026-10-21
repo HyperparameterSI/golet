@@ -1,6 +1,6 @@
 // Author: HyperparameterSI
 
-package main
+package gallerydemo
 
 import (
 	"strings"
@@ -104,3 +104,6 @@ func orDefault(s, def string) string {
 	}
 	return s
 }
+
+// ConfigureLanguages registers the languages offered by the shared gallery.
+func ConfigureLanguages() { golet.App.SetLanguages(galleryLanguages...) }

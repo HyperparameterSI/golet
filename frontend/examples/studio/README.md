@@ -1,13 +1,13 @@
-# Golet Studio frontend
+# Studio frontend
 
-TanStack Start SPA + React + shadcn-style components + Vite.
+Author: HyperparameterSI
 
-- Routes: `src/routes/`
-- Application: `src/components/app.tsx`
-- UI components: `src/components/ui/`
-- Go client: `src/golet.ts` (generated; do not edit)
-- Go service: `../../../backend/examples/studio/main.go`
+TanStack Start + React + shadcn 组件目录。包含分类筛选、API 搜索、原生演示入口、Browser 控制面板和 Go IPC 交互。
 
-From the repository root: `bun run dev` starts both Go and the frontend, `bun run build:web` checks and builds the frontend, and `bun run build:app` creates the desktop app. From this directory, `bun run dev:web` opens a browser-only preview; Go calls require the desktop WebView.
+从仓库根目录运行 `pnpm dev` 启动完整桌面示例。单独运行 `npm --prefix frontend/examples/studio run dev:web` 只有前端，没有 Go 桥，不能打开原生控件。构建完整应用使用 `pnpm build:app`。
 
-The SPA shell is emitted at `dist/client/index.html`. The Go build embeds that directory; `dist/server` is build-time output only. To add components, run `bunx shadcn@latest add dialog` here.
+组件目录来自 Go 的 `Showcase.Catalog`，由 `golet generate` 生成类型化绑定。修改服务后运行：
+
+```sh
+go run ./backend/cmd/golet generate backend/examples/studio
+```

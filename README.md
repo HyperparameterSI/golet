@@ -388,3 +388,14 @@ pnpm build:dashboard   # 打包独立监控示例
 Go 后端在 `backend/examples/dashboard`，Web 前端在 `frontend/examples/dashboard`。
 展示真实进程 CPU、Go 堆/栈内存、分配速率、Goroutine、GC 暂停与事件、环境信息和健康检查，支持趋势窗口、暂停和 JSON 导出。
 指标不包含 WebView 子进程；Go 运行时内存不等于 RSS。完整口径见 [Dashboard 说明](backend/examples/dashboard/README.md)。
+
+## 可选 Chromium 浏览器（实验性）
+
+```sh
+pnpm setup:chromium  # 首次构建 CEF 宿主，需要 Go、CMake 和 Xcode 命令行工具
+pnpm dev:browser     # 已安装后直接运行
+```
+
+提供自定义原生标签栏、圆角地址栏和离线搜索首页，使用 CEF Alloy 渲染网页；Go 侧支持多标签管理、导航、历史、刷新、停止、状态订阅和生命周期管理。首页可在 `frontend/examples/browser/newtab/` 自定义，修改后重新运行安装命令。只有选择该插件才需携带 CEF；当前原生宿主支持 macOS，Apple Silicon 已实测。它是独立浏览器窗口，嵌入 Golet 布局、Windows/Linux 宿主和自动集成 `golet build` 尚未实现。详情见 [Chromium 插件](backend/plugins/chromium/README.md) 与 [浏览器示例](backend/examples/browser/README.md)。
+
+Golet Browser 还提供可选 AI 助手、确认后执行的页面操作、按网站授权的用户脚本，以及 Chrome 风格窗口下的本地 Manifest V3 插件加载。模型配置、扩展格式和兼容范围见 [浏览器使用说明](backend/examples/browser/README.md#ai-助手与页面操作)。

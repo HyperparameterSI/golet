@@ -3,6 +3,7 @@
 package ui
 
 import (
+	"math"
 	"runtime"
 	"slices"
 	"testing"
@@ -472,7 +473,7 @@ func TestRTLAccessibility(t *testing.T) {
 		}
 	}
 	ok, cancel := accessNode(t, tree, platform.RoleButton, "OK"), accessNode(t, tree, platform.RoleButton, "Cancel")
-	if ok.Bounds.X+ok.Bounds.W != 390 || cancel.Bounds.X >= ok.Bounds.X {
+	if math.Abs(ok.Bounds.X+ok.Bounds.W-390) > 0.001 || cancel.Bounds.X >= ok.Bounds.X {
 		t.Errorf("right to left, OK is at %+v and Cancel at %+v", ok.Bounds, cancel.Bounds)
 	}
 	// The wide button, scrolled to its start at the right, shows its right.

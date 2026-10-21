@@ -1,0 +1,6 @@
+{
+  "name": "阅读模式",
+  "description": "增加正文行距、限制阅读宽度，适用于 Go 官方文档。",
+  "origins": ["https://go.dev"],
+  "script": "content.js"
+}

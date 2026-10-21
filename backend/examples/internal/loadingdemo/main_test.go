@@ -1,6 +1,6 @@
 // Author: HyperparameterSI
 
-package main
+package loadingdemo
 
 import (
 	"testing"

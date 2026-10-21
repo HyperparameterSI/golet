@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"github.com/HyperparameterSI/golet/backend"
+	"github.com/HyperparameterSI/golet/backend/examples/internal/gallerydemo"
 )
 
 // Greeter is callable from the frontend: `golet generate` turns its methods
@@ -34,14 +35,19 @@ func (Greeter) Info() SystemInfo {
 }
 
 func main() {
+	gallerydemo.ConfigureLanguages()
+	browser := &BrowserDemo{}
+	defer browser.shutdown()
 	golet.Bind(Greeter{})
+	golet.Bind(&Showcase{})
+	golet.Bind(browser)
 
 	golet.App.WhenReady(func() {
 		golet.NewWindow(golet.WindowOptions{
 			Title:           "Golet Studio",
-			Width:           1080,
+			Width:           1280,
 			Height:          800,
-			MinWidth:        480,
+			MinWidth:        760,
 			MinHeight:       360,
 			BackgroundColor: "light-dark(#fafafa, #0a0a0a)", // the page's --bg in src/style.css
 			// Opens where the user left it last time.

@@ -1,0 +1,74 @@
+<!doctype html>
+<!-- Author: HyperparameterSI -->
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Golet AI · 助手与扩展</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <aside>
+      <div class="brand">golet<span>✦</span></div>
+      <p>浏览器工作空间</p>
+      <a href="#assistant">✦ AI 助手</a><a href="#extensions">◇ 用户扩展</a
+      ><small>你的浏览器，由你掌控。</small>
+    </aside>
+    <main>
+      <header>
+        <div>
+          <span class="eyebrow">GOLET BROWSER</span>
+          <h1>让浏览，更进一步。</h1>
+          <p>理解页面，探索想法，协助完成操作。</p>
+        </div>
+        <span id="model" class="pill">正在连接</span>
+      </header>
+      <section id="assistant">
+        <div class="section-title">
+          <h2>AI 助手</h2>
+          <button id="refresh">刷新页面列表</button>
+        </div>
+        <label>操作目标<select id="tabs"></select></label
+        ><label class="consent"
+          ><input id="share" type="checkbox" />
+          将所选页面文本与可操作元素发送给配置的模型服务</label
+        >
+        <p class="hint">
+          默认仅发送你的问题。页面可能包含私人信息，请确认后共享。操作建议不会自动执行。
+        </p>
+        <div id="conversation" aria-live="polite">
+          <div class="welcome">
+            ✦
+            <h3>有什么可以帮你？</h3>
+            <p>总结文章、解释概念，或描述你想在页面上完成的操作。</p>
+          </div>
+        </div>
+        <form id="chat">
+          <textarea
+            id="question"
+            required
+            maxlength="8000"
+            placeholder="例如：总结当前页面，或找到页面里的搜索框"
+            aria-label="问题"
+          ></textarea>
+          <footer>
+            <span>操作需确认 · 页面内容不作为指令</span
+            ><button type="submit" id="send">发送 ↗</button>
+          </footer>
+        </form>
+        <p id="status" role="status"></p>
+      </section>
+      <section id="extensions">
+        <div class="section-title">
+          <h2>用户扩展</h2>
+          <span class="pill">按需运行</span>
+        </div>
+        <p class="hint">
+          通过启动参数加载你信任的本地脚本；仅在声明的网站运行。Chrome 插件请使用兼容模式。
+        </p>
+        <div id="extension-list"></div>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

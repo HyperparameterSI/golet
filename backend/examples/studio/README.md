@@ -1,5 +1,53 @@
-# Golet Studio backend
+# Golet Studio
 
-Go service: `main.go`. Web frontend: `../../../frontend/examples/studio`.
-From the repository root, run `bun run dev` or `bun run build:app`.
-`golet.config.ts` connects the two directories, including generated TypeScript bindings and `dist/client`.
+Author: HyperparameterSI
+
+Studio 是框架的交互式组件目录，使用 TanStack Start + React + shadcn 作为入口，通过类型化 Go 绑定打开真实原生控件窗口。不是以 HTML 仿制原生控件。
+
+```sh
+pnpm dev         # 开发运行
+pnpm build:app   # 构建 Studio 桌面应用
+```
+
+## 演示范围
+
+- 基础布局：Row、Column、Grid、Box、Spacer、滚动、分栏与主题。
+- 表单控件：按钮、输入、复选、开关、单选、选择器、组合框、自动补全、搜索、标签输入、数值、滑块、评分、进度、日期、时间和颜色选择。
+- 数据与导航：虚拟列表、表格、树、Outline、网格、Tabs、Sidebar、Breadcrumbs、Router、拖放和选择。
+- 反馈：对话框、弹层、菜单、Tooltip、Toast、折叠面板和手风琴。
+- 高级内容：文本缓冲区、富文本、Markdown、代码编辑器、Diff、图表、绘图、SVG、动画和国际化。
+- 插件：玻璃效果、全部 29 种 Loading 指示器、真实终端和 Golet Browser。
+- Web：shadcn Button / Input / Card 与 Go IPC；原生窗口中的系统 WebView。
+
+当前共 19 个演示分组，可按名称、API 名称和分类搜索。选择卡片后点击“打开原生演示”。再次打开同一分组会聚焦原窗口。关闭后再次打开重置状态。
+
+## Browser
+
+首次构建浏览器宿主：
+
+```sh
+brew install cmake  # 已有 CMake 3.21+ 可跳过
+pnpm setup:chromium
+```
+
+在 Studio 的 Browser 分组选择 Alloy 或 Chrome，输入 HTTP(S) 地址并启动。面板支持导航、前进、后退、刷新、停止、新建标签、状态检查与关闭。切换风格前先关闭当前实例。
+
+Browser 使用独立 CEF 窗口，目前宿主仅支持 macOS。它不是嵌入 Studio 的 WebView。Studio 启动时不自动下载或运行 Chromium；没有宿主时会显示安装提示，其他控件仍可用。Studio 使用 `EphemeralDemo: true`，每次启动创建独立临时配置，macOS 下不访问系统钥匙串，正常关闭后删除临时配置，不保留登录状态。该开发模式不提供钥匙串加密保护，请勿用于真实账号；原有持久配置不会被修改或删除。Studio 进程退出会关闭其浏览器实例。完整 AI 助手和扩展管理演示仍见 `backend/examples/browser`。
+
+Terminal 运行真实 Shell，输入命令会影响本机；运行库仅在打开终端时加载。系统 WebView 示例使用离线 HTML，不依赖外部网站。
+
+## 代码结构与验证
+
+- `backend/examples/studio/`：组件目录、Go 服务、Browser 生命周期及补充原生演示。
+- `frontend/examples/studio/`：React 页面、shadcn 组件及生成的 TypeScript 绑定。
+- `backend/examples/internal/gallerydemo/`：Gallery 与 Studio 共用的原生组件示例。
+- `backend/examples/internal/editordemo/`、`loadingdemo/`：共用编辑器和 Loading 示例。
+
+原 `go run ./backend/examples/gallery`、`code-editor` 和 `loading` 命令保留。共享 Gallery 的定时采样会在窗口关闭后停止。
+
+```sh
+go test ./backend/examples/studio ./backend/examples/internal/...
+go vet ./backend/examples/studio ./backend/examples/internal/...
+```
+
+覆盖检查会检查生成的公开 UI 函数是否出现在演示中，排除非可视辅助函数和与样式控件对应的 Base 构件；它不代表每个参数组合、每个平台或第三方 Chrome 插件都经过验证。

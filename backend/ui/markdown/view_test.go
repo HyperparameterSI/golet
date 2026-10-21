@@ -195,9 +195,11 @@ func TestThemeOverrides(t *testing.T) {
 // theme's accent.
 func TestThemeLink(t *testing.T) {
 	o := &Options{Theme: &Theme{Link: ui.RGB(255, 0, 0)}}
-	tt := ui.NewTester(func(c *ui.Context) { View(c, "plain [a link](https://example.com)", o) }, 300, 80)
+	theme := ui.LightTheme()
+	theme.Accent = ui.RGB(37, 99, 235)
+	tt := ui.NewTester(func(c *ui.Context) { c.SetTheme(theme); View(c, "plain [a link](https://example.com)", o) }, 300, 80)
 	img := tt.Image()
-	acc := ui.LightTheme().Accent
+	acc := theme.Accent
 	reds, accent := 0, 0
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {

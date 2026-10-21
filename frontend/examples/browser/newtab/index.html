@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- Author: HyperparameterSI -->
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; form-action https://www.google.com"
+    />
+    <title>新标签页</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="newtab.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <div class="brand"><img src="logo.svg" alt="Golet" /><span>browser</span></div>
+      <h1>从这里，探索更多。</h1>
+      <p class="intro">搜索、阅读与思考，都在一个熟悉的空间。</p>
+      <form role="search" action="https://www.google.com/search">
+        <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="10.5" cy="10.5" r="7.5" />
+          <path d="m16 16 5 5" />
+        </svg>
+        <input
+          name="q"
+          aria-label="搜索或输入网址"
+          placeholder="使用 Google 搜索，或输入网址"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button type="submit" aria-label="搜索或前往">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18 18 6M6 6h12v12" /></svg>
+        </button>
+      </form>
+      <nav class="shortcuts" aria-label="常用网站">
+        <a href="https://www.google.com"><span class="tile google">G</span><span>Google</span></a>
+        <a href="https://www.bing.com"><span class="tile bing">b</span><span>Bing</span></a>
+        <a href="https://www.producthunt.com"
+          ><span class="tile product">P</span><span>Product Hunt</span></a
+        >
+        <a href="https://github.com"><span class="tile github">⌘</span><span>GitHub</span></a>
+      </nav>
+    </main>
+    <footer>
+      <span id="version">Chromium</span><span>⌘L 地址栏</span><span>⌘T 新标签页</span>
+    </footer>
+  </body>
+</html>

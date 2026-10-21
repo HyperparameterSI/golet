@@ -1,6 +1,6 @@
 // Author: HyperparameterSI
 
-package main
+package gallerydemo
 
 import (
 	"math/rand/v2"

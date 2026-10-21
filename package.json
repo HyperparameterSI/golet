@@ -21,7 +21,9 @@
     "dev:dashboard": "go run ./backend/cmd/golet dev backend/examples/dashboard",
     "build:dashboard": "go run ./backend/cmd/golet build backend/examples/dashboard",
     "format": "prettier --write \"frontend/**/*.{ts,tsx,js,css}\" \"scripts/**/*.ts\"",
-    "format:check": "prettier --check \"frontend/**/*.{ts,tsx,js,css}\" \"scripts/**/*.ts\""
+    "format:check": "prettier --check \"frontend/**/*.{ts,tsx,js,css}\" \"scripts/**/*.ts\"",
+    "setup:chromium": "go run ./backend/plugins/chromium/cmd/setup",
+    "dev:browser": "go run ./backend/examples/browser"
   },
   "devDependencies": {
     "@types/bun": "latest",

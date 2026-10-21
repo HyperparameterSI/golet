@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Golet Reading Mode",
+  "version": "0.1.0",
+  "author": "HyperparameterSI",
+  "description": "Improve reading spacing on Go documentation.",
+  "content_scripts": [
+    { "matches": ["https://go.dev/*"], "js": ["content.js"], "run_at": "document_idle" }
+  ]
+}

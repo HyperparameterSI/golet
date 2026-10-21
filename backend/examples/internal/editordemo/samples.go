@@ -1,6 +1,6 @@
 // Author: HyperparameterSI
 
-package main
+package editordemo
 
 var samples = []struct{ name, text string }{
 	{"server.go", `// Package server serves greetings over HTTP.
