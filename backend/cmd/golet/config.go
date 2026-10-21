@@ -49,6 +49,8 @@ type Config struct {
 	// frontend, usually the dev server that DevCommand starts, e.g.
 	// "http://localhost:5173". Windows load it with relative URLs such as
 	// "/" (see golet.WindowOptions.URL).
+	// Port 0 selects a free port and passes GOLET_DEV_PORT and GOLET_DEV_URL
+	// to DevCommand, which must use that address for its server.
 	DevURL string `json:"devUrl"`
 	// DevCommand runs in the project directory while `golet dev` runs, e.g.
 	// "bun run --cwd frontend dev". golet dev launches the app once DevURL

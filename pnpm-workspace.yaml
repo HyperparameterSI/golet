@@ -17,3 +17,7 @@ overrides:
   '@golet/cli-linux-x64': 'workspace:*'
   '@golet/cli-win32-arm64': 'workspace:*'
   '@golet/cli-win32-x64': 'workspace:*'
+
+allowBuilds:
+  esbuild: true
+  workerd: true

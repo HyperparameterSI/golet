@@ -6,7 +6,7 @@ export default defineConfig({
   name: "Todo",
   identifier: "dev.golet.todo",
   version: "1.0.0",
-  devUrl: "http://localhost:5173",
+  devUrl: "http://localhost:0",
   devCommand: "npm --prefix ../../../frontend/packages/runtime run build && npm --prefix ../../../frontend/examples/todo run dev:web",
   buildCommand: "npm --prefix ../../../frontend/packages/runtime run build && npm --prefix ../../../frontend/examples/todo run build:web",
   frontendDist: "../../../frontend/examples/todo/dist",

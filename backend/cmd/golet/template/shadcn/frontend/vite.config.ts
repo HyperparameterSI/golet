@@ -9,5 +9,5 @@ export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
   plugins: [tailwindcss(), tanstackStart({ spa: { enabled: true, prerender: { outputPath: "/index.html" } } }), react()],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
-  server: { port: 5173, strictPort: true, watch: { ignored: ["**/.golet/**", "**/build/**"] } },
+  server: { port: Number(process.env.GOLET_DEV_PORT ?? 0), strictPort: true, watch: { ignored: ["**/.golet/**", "**/build/**"] } },
 });

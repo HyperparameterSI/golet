@@ -204,25 +204,25 @@ importers:
   frontend/plugins/fetch:
     devDependencies:
       golet-runtime:
-        specifier: ^0.1.0
+        specifier: ^0.1.2
         version: link:../../packages/runtime
 
   frontend/plugins/sqlite:
     devDependencies:
       golet-runtime:
-        specifier: ^0.1.0
+        specifier: ^0.1.2
         version: link:../../packages/runtime
 
   frontend/plugins/watch:
     devDependencies:
       golet-runtime:
-        specifier: ^0.1.0
+        specifier: ^0.1.2
         version: link:../../packages/runtime
 
   frontend/plugins/websocket:
     devDependencies:
       golet-runtime:
-        specifier: ^0.1.0
+        specifier: ^0.1.2
         version: link:../../packages/runtime
 
   frontend/website:
@@ -344,7 +344,7 @@ importers:
         version: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)
       wrangler:
         specifier: ^4.145.0
-        version: 4.151.3(@types/node@26.6.5)
+        version: 4.151.2(@types/node@26.6.5)
 
 packages:
 
@@ -2054,8 +2054,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  electron-to-chromium@1.5.462:
-    resolution: {integrity: sha512-9qpCBlXPy5v7n1Q7WTO5rW2StI4WNQhl96HpgXRZLPlNoXAD0LbsQUflovQYAO44Yia073ISusqohncvGSMbGA==}
+  electron-to-chromium@1.5.461:
+    resolution: {integrity: sha512-3WZFARz1By+/rYcqQ0OLj4UcEdhd6tz2LEcDtKBUq7ey77EeJ1OtetY/5hjSUxw7dC5r5mA7FfkhRbqO9vnTCg==}
 
   emoji-regex@10.6.0:
     resolution: {integrity: sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A==}
@@ -2800,8 +2800,8 @@ packages:
     resolution: {integrity: sha512-VP79XUPxV2CigYP3jWwAUFSku2aKqBH7uTAapFWCBqutsbmDo96KY5o8uh6U+/YSIn5OxJnXp73beVkpqMIGhA==}
     engines: {node: '>=18'}
 
-  miniflare@5.20261019.1-beta:
-    resolution: {integrity: sha512-1n7MN2UqZnPniyYAqNuV1YEAaja66ozKGVCc5ZTmYQhTubnoAwGLccwb+ZWYLOajuw3pOaJ70u//bZMuURlRew==}
+  miniflare@5.20261019.0-beta:
+    resolution: {integrity: sha512-NmE6Yz7MSdjrfr3lMaMAVO55rIm3+6YXllOkJOMy6pPQITDuDeo0PYRedp7pju2olNWmrAlf1i1LIWYfGQvvuw==}
     engines: {node: '>=22.0.0'}
 
   minimatch@10.2.6:
@@ -3526,8 +3526,8 @@ packages:
     engines: {node: '>=16'}
     hasBin: true
 
-  wrangler@4.151.3:
-    resolution: {integrity: sha512-mzPQLmkAhZUV7CdiAhE+hiIAJlS9xPL6vZe1B8oQFuWxFu7nmQnvHAVjcAcabwSGkXFXH9uspzXwHOFrfbQmqQ==}
+  wrangler@4.151.2:
+    resolution: {integrity: sha512-yIT5Q08eVP2ZSE4XHGZ81Y+Y1b25uzp7LANwV2siaEt/O7TpeiFiEih/xHwARHGQo8sufs2ZaILGxCccHgjQPg==}
     engines: {node: '>=22.0.0'}
     hasBin: true
     peerDependencies:
@@ -5042,7 +5042,7 @@ snapshots:
     dependencies:
       baseline-browser-mapping: 2.11.30
       caniuse-lite: 1.0.30001817
-      electron-to-chromium: 1.5.462
+      electron-to-chromium: 1.5.461
       node-releases: 2.0.59
       update-browserslist-db: 1.3.4(browserslist@4.29.4)
 
@@ -5222,7 +5222,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  electron-to-chromium@1.5.462: {}
+  electron-to-chromium@1.5.461: {}
 
   emoji-regex@10.6.0: {}
 
@@ -6084,7 +6084,7 @@ snapshots:
 
   mimic-function@5.0.1: {}
 
-  miniflare@5.20261019.1-beta(@types/node@26.6.5):
+  miniflare@5.20261019.0-beta(@types/node@26.6.5):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.5(@types/node@26.6.5)
@@ -6869,13 +6869,13 @@ snapshots:
       '@cloudflare/workerd-linux-arm64': 1.20261019.1
       '@cloudflare/workerd-windows-64': 1.20261019.1
 
-  wrangler@4.151.3(@types/node@26.6.5):
+  wrangler@4.151.2(@types/node@26.6.5):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.5.0
       '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20261019.1)
       blake3-wasm: 2.1.5
       esbuild: 0.28.2
-      miniflare: 5.20261019.1-beta(@types/node@26.6.5)
+      miniflare: 5.20261019.0-beta(@types/node@26.6.5)
       path-to-regexp: 6.3.0
       unenv: 2.0.0-rc.24
       workerd: 1.20261019.1

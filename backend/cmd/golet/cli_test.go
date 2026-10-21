@@ -224,7 +224,7 @@ func TestTemplate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if c.Name != data.Name || c.DevURL != "http://localhost:5173" || c.FrontendDist != "dist" || c.Out != "build" || c.Bindings != "src/golet.ts" {
+		if c.Name != data.Name || c.DevURL != "http://localhost:0" || c.FrontendDist != "dist" || c.Out != "build" || c.Bindings != "src/golet.ts" {
 			t.Errorf("template configuration: %+v", c)
 		}
 		// devCommand and buildCommand run scripts of package.json, which

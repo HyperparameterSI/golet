@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -20,6 +22,53 @@ import (
 
 	"github.com/HyperparameterSI/golet/backend/internal/wait"
 )
+
+func TestPrepareDevServer(t *testing.T) {
+	c := &Config{DevURL: "http://localhost:0/app?mode=dev", DevCommand: "vite"}
+	env, err := prepareDevServer(c, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, err := url.Parse(c.DevURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Hostname() != "localhost" || u.Port() == "" || u.Port() == "0" || u.Path != "/app" || u.RawQuery != "mode=dev" {
+		t.Fatalf("resolved dev URL: %s", c.DevURL)
+	}
+	if !slices.Contains(env, "GOLET_DEV_URL="+c.DevURL) || !slices.Contains(env, "GOLET_DEV_PORT="+u.Port()) {
+		t.Fatalf("frontend environment: %v", env)
+	}
+	// The frontend can bind the selected port. A second session must
+	// choose another port while the first frontend is still running.
+	server, err := net.Listen("tcp", u.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	other := &Config{DevURL: "http://localhost:0", DevCommand: "vite"}
+	if _, err := prepareDevServer(other, false); err != nil {
+		t.Fatal(err)
+	}
+	v, _ := url.Parse(other.DevURL)
+	if v.Port() == u.Port() {
+		t.Fatalf("second session reused occupied port %s", u.Port())
+	}
+
+	fixed := &Config{DevURL: "http://localhost:5173"}
+	if _, err := prepareDevServer(fixed, true); err != nil || fixed.DevURL != "http://localhost:5173" {
+		t.Fatalf("fixed URL changed: %s (%v)", fixed.DevURL, err)
+	}
+	for _, skip := range []bool{false, true} {
+		invalid := &Config{DevURL: "http://localhost:0"}
+		if skip {
+			invalid.DevCommand = "vite"
+		}
+		if _, err := prepareDevServer(invalid, skip); err == nil {
+			t.Fatalf("port zero without a managed dev command (skip=%v) was accepted", skip)
+		}
+	}
+}
 
 // TestMain lets the test binary play a development build of an app for
 // the launch tests, and golet for makensis, which runs it to sign

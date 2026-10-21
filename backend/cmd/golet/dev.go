@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -73,6 +75,10 @@ keep it: the app's own setting is left as it is.`)
 		con.startBanner("dev")
 		return runWebDev(ctx, c, *port, *openPage, locale)
 	}
+	serverEnv, err := prepareDevServer(c, *skipDevCommand)
+	if err != nil {
+		return err
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -111,7 +117,7 @@ keep it: the app's own setting is left as it is.`)
 	var quitting atomic.Bool
 	if c.DevCommand != "" && !*skipDevCommand {
 		starting = con.start("Starting the dev server")
-		cmd := shellCommand(c.root, c.DevCommand)
+		cmd := shellCommand(c.root, c.DevCommand, serverEnv...)
 		out, errOut := labeledOutput(cmd, "web")
 		if err := cmd.Start(); err != nil {
 			starting.fail()
@@ -182,6 +188,45 @@ keep it: the app's own setting is left as it is.`)
 		s.env = append(s.env, "GOLET_FRONTEND_DIST="+c.path(c.FrontendDist))
 	}
 	return s.run(ctx, c)
+}
+
+// prepareDevServer resolves port zero before starting the frontend so that
+// the frontend and the app use the same address.
+func prepareDevServer(c *Config, skipCommand bool) ([]string, error) {
+	if c.DevURL == "" {
+		return nil, nil
+	}
+	u, err := url.Parse(c.DevURL)
+	if err != nil {
+		return nil, err
+	}
+	if u.Port() == "0" {
+		if skipCommand || c.DevCommand == "" {
+			return nil, fmt.Errorf("devUrl with port 0 requires devCommand; use a fixed port with -skip-dev-command")
+		}
+		listener, err := net.Listen("tcp", u.Host)
+		if err != nil {
+			return nil, fmt.Errorf("choose a dev server port: %w", err)
+		}
+		_, port, err := net.SplitHostPort(listener.Addr().String())
+		closeErr := listener.Close()
+		if err != nil {
+			return nil, err
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+		u.Host = net.JoinHostPort(u.Hostname(), port)
+		c.DevURL = u.String()
+	}
+	port := u.Port()
+	if port == "" {
+		port = "80"
+		if u.Scheme == "https" {
+			port = "443"
+		}
+	}
+	return []string{"GOLET_DEV_URL=" + c.DevURL, "GOLET_DEV_PORT=" + port}, nil
 }
 
 // devSession builds and runs development builds of an app.

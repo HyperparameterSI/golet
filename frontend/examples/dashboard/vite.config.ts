@@ -13,5 +13,9 @@ export default defineConfig({
     react(),
   ],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
-  server: { port: 5174, strictPort: true, watch: { ignored: ["**/.golet/**", "**/build/**"] } },
+  server: {
+    port: Number(process.env.GOLET_DEV_PORT ?? 0),
+    strictPort: true,
+    watch: { ignored: ["**/.golet/**", "**/build/**"] },
+  },
 });

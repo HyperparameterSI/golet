@@ -76,6 +76,8 @@ export interface Config {
   /**
    * The dev server `golet dev` points the app at, such as
    * `http://localhost:5173`: windows load it for URLs without a scheme.
+   * Use `http://localhost:0` to select a free port. `devCommand` receives
+   * `GOLET_DEV_PORT` and `GOLET_DEV_URL` and must use that server address.
    */
   devUrl?: string;
   /** Runs in the project while `golet dev` runs, e.g. the dev server; the app starts once `devUrl` answers. */
