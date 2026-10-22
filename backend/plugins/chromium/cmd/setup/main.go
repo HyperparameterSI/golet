@@ -81,8 +81,8 @@ func run(ctx context.Context, name string, args ...string) error {
 }
 
 func install(ctx context.Context, opts options) error {
-	if runtime.GOOS != "darwin" {
-		return errors.New("native host packaging currently supports macOS only")
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		return errors.New("native host packaging currently supports macOS and Windows")
 	}
 	root, err := repositoryRoot(opts.root)
 	if err != nil {
@@ -150,10 +150,18 @@ func install(ctx context.Context, opts options) error {
 	if runtime.GOARCH == "amd64" {
 		arch = "x86_64"
 	}
-	if err = run(ctx, cmake, "-S", source, "-B", work, "-DCEF_ROOT="+sdk, "-DPROJECT_ARCH="+arch, "-DCMAKE_BUILD_TYPE=Release"); err != nil {
+	configure := []string{"-S", source, "-B", work, "-DCEF_ROOT=" + sdk, "-DPROJECT_ARCH=" + arch, "-DCMAKE_BUILD_TYPE=Release"}
+	if runtime.GOOS == "windows" {
+		platform := "x64"
+		if runtime.GOARCH == "arm64" {
+			platform = "ARM64"
+		}
+		configure = append(configure, "-G", "Visual Studio 17 2022", "-A", platform)
+	}
+	if err = run(ctx, cmake, configure...); err != nil {
 		return err
 	}
-	if err = run(ctx, cmake, "--build", work, "--parallel", strconv.Itoa(min(runtime.NumCPU(), 6))); err != nil {
+	if err = run(ctx, cmake, "--build", work, "--config", "Release", "--parallel", strconv.Itoa(min(runtime.NumCPU(), 6))); err != nil {
 		return err
 	}
 	staging, err := os.MkdirTemp(filepath.Dir(output), ".golet-chromium-")
@@ -162,7 +170,12 @@ func install(ctx context.Context, opts options) error {
 	}
 	defer os.RemoveAll(staging)
 	prepared := filepath.Join(staging, "runtime")
-	if err = packageApp(ctx, root, sdk, work, prepared, staging, opts); err != nil {
+	if runtime.GOOS == "windows" {
+		err = packageWindows(ctx, root, sdk, work, prepared, opts)
+	} else {
+		err = packageApp(ctx, root, sdk, work, prepared, staging, opts)
+	}
+	if err != nil {
 		return err
 	}
 	marker, err := json.MarshalIndent(entry, "", "  ")
@@ -175,7 +188,7 @@ func install(ctx context.Context, opts options) error {
 	if err = replaceRuntime(prepared, output); err != nil {
 		return err
 	}
-	fmt.Println("Installed:", filepath.Join(output, "Golet Browser.app"))
+	fmt.Println("Installed:", output)
 	fmt.Println("Run: pnpm dev:browser")
 	return nil
 }

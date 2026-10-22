@@ -61,6 +61,12 @@ func extensionArguments(opts Options) ([]string, error) {
 		return nil, err
 	}
 	var args []string
+	if opts.EnableComputerUse {
+		if opts.AppMode || style != StyleAlloy {
+			return nil, errors.New("chromium: computer-use requires the Alloy browser shell")
+		}
+		args = append(args, "--golet-computer-use")
+	}
 	if opts.AppName != "" {
 		args = append(args, "--golet-app-name="+opts.AppName)
 	}
@@ -102,4 +108,30 @@ func extensionArguments(opts Options) ([]string, error) {
 		paths = append(paths, path)
 	}
 	return append(args, "--load-extension="+strings.Join(paths, ",")), nil
+}
+
+// Author: HyperparameterSI. NativeTarget is queried over the private host pipe,
+// never inferred from a title or a renderer PID. Enabled is native user consent.
+type NativeTarget struct {
+	PID       int  `json:"pid"`
+	WindowID  int  `json:"windowId"`
+	BrowserID int  `json:"browserId"`
+	Enabled   bool `json:"computerUse"`
+}
+
+// ComputerUseTarget queries fresh consent and the active native window on the
+// CEF UI thread. Call before every computer-use action, including observations.
+func (b *Browser) ComputerUseTarget(ctx context.Context) (NativeTarget, error) {
+	var target NativeTarget
+	raw, err := b.request(ctx, message{Method: "computer-use-target"})
+	if err != nil {
+		return target, err
+	}
+	if err = json.Unmarshal(raw, &target); err != nil {
+		return NativeTarget{}, err
+	}
+	if b.cmd == nil || b.cmd.Process == nil || target.PID != b.cmd.Process.Pid || target.WindowID <= 0 || target.BrowserID <= 0 {
+		return NativeTarget{}, errors.New("chromium: native computer-use target unavailable")
+	}
+	return target, nil
 }

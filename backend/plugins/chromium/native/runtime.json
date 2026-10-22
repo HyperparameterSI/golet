@@ -10,5 +10,17 @@
     "url": "https://cef-builds.spotifycdn.com/cef_binary_154.0.34+g14c5a08+chromium-154.0.8037.98_macosx64_minimal.tar.bz2",
     "sha1": "51d90349e24360b8e0daecc2d026ad150c620db5",
     "size": 138623289
+  },
+  "windows-amd64": {
+    "version": "154.0.34+g14c5a08+chromium-154.0.8037.98",
+    "url": "https://cef-builds.spotifycdn.com/cef_binary_154.0.34+g14c5a08+chromium-154.0.8037.98_windows64_minimal.tar.bz2",
+    "sha1": "be54bbaf3222191dec59ffd9c9ec7e8a7f44a26d",
+    "size": 172752666
+  },
+  "windows-arm64": {
+    "version": "154.0.34+g14c5a08+chromium-154.0.8037.98",
+    "url": "https://cef-builds.spotifycdn.com/cef_binary_154.0.34+g14c5a08+chromium-154.0.8037.98_windowsarm64_minimal.tar.bz2",
+    "sha1": "09c6b6807da289b18704bc6d66f8c24e13562b6d",
+    "size": 169083796
   }
 }

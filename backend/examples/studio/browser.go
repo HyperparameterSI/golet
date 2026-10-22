@@ -30,7 +30,7 @@ func (b *BrowserDemo) Status() BrowserStatus {
 	defer b.mu.Unlock()
 	host, _ := chromium.DefaultHostPath()
 	info, err := os.Stat(host)
-	status := BrowserStatus{Host: host, Installed: err == nil && !info.IsDir(), Supported: runtime.GOOS == "darwin"}
+	status := BrowserStatus{Host: host, Installed: err == nil && !info.IsDir(), Supported: runtime.GOOS == "darwin" || runtime.GOOS == "windows"}
 	if b.browser != nil {
 		select {
 		case <-b.browser.Done():

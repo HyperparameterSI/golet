@@ -297,7 +297,14 @@ pnpm install
 pnpm dev         # 启动 Studio
 pnpm build:web   # 构建 Web 静态资源
 pnpm build:app   # 打包桌面应用
+pnpm build:app:mac:intel      # Intel Mac：darwin/amd64
+pnpm build:app:mac:arm64      # Apple Silicon：darwin/arm64
+pnpm build:app:mac:universal  # 双架构安装包：Intel + Apple Silicon
 ```
+
+Intel 和 Universal 打包命令可在 Apple Silicon 或 Intel Mac 上运行；签名与生成 DMG 需要 macOS。Studio 产物分别位于 `backend/examples/studio/build/darwin-amd64/` 和 `darwin-universal/`。Universal 同时包含 x86_64 与 arm64。可选 Chromium 宿主仍需在目标机器单独安装，不会随 Studio 自动打包。
+
+新生成的 shadcn 应用提供对应的 `pnpm build:mac:intel`、`pnpm build:mac:arm64` 和 `pnpm build:mac:universal`。已有应用也可直接执行 `golet build -platform darwin/amd64`。
 
 上述 Studio 命令会自动编译本地 `golet-runtime`。开发框架自身时可继续使用 Bun：
 
@@ -425,6 +432,6 @@ pnpm setup:chromium  # 首次构建 CEF 宿主，需要 Go、CMake 和 Xcode 命
 pnpm dev:browser     # 已安装后直接运行
 ```
 
-提供自定义原生标签栏、圆角地址栏和离线搜索首页，使用 CEF Alloy 渲染网页；Go 侧支持多标签管理、导航、历史、刷新、停止、状态订阅和生命周期管理。首页可在 `frontend/examples/browser/newtab/` 自定义，修改后重新运行安装命令。只有选择该插件才需携带 CEF；当前原生宿主支持 macOS，Apple Silicon 已实测。它是独立浏览器窗口，嵌入 Golet 布局、Windows/Linux 宿主和自动集成 `golet build` 尚未实现。详情见 [Chromium 插件](backend/plugins/chromium/README.md) 与 [浏览器示例](backend/examples/browser/README.md)。
+提供自定义原生标签栏、圆角地址栏和离线搜索首页，使用 CEF Alloy 渲染网页；Go 侧支持多标签管理、导航、历史、刷新、停止、状态订阅和生命周期管理。首页可在 `frontend/examples/browser/newtab/` 自定义，修改后重新运行安装命令。只有选择该插件才需携带 CEF；当前 macOS 宿主的 Apple Silicon 已实测；Windows amd64/arm64 已提供实验性宿主与安装流程，尚待 Windows 原生编译和实机验证。它是独立浏览器窗口，嵌入 Golet 布局、Linux 宿主和自动集成 `golet build` 尚未实现。详情见 [Chromium 插件](backend/plugins/chromium/README.md) 与 [浏览器示例](backend/examples/browser/README.md)。
 
 Golet Browser 还提供可选 AI 助手、确认后执行的页面操作、按网站授权的用户脚本，以及 Chrome 风格窗口下的本地 Manifest V3 插件加载。模型配置、扩展格式和兼容范围见 [浏览器使用说明](backend/examples/browser/README.md#ai-助手与页面操作)。

@@ -50,6 +50,7 @@ NSString* Navigation(NSString* input) {
 @property(nonatomic, strong) NSButton* add;
 @property(nonatomic, strong) NSButton* home;
 @property(nonatomic, strong) NSButton* assistant;
+@property(nonatomic, strong) NSButton* computerUse;
 @property(nonatomic, strong) NSButton* fullscreen;
 @property(nonatomic, strong) NSMutableArray<NSNumber*>* order;
 @property(nonatomic, strong) NSMutableDictionary<NSNumber*, NSView*>* views;
@@ -117,6 +118,14 @@ NSString* Navigation(NSString* input) {
     self.forward = [self button:@"arrow.right" label:@"前进" action:@selector(goForward:)];
     self.reload = [self button:@"arrow.clockwise" label:@"刷新" action:@selector(refresh:)];
     self.assistant = [self button:@"sparkles" label:@"AI 助手与扩展" action:@selector(assistant:)];
+    if (CefCommandLine::GetGlobalCommandLine()->HasSwitch("golet-computer-use")) {
+      self.computerUse = [NSButton buttonWithTitle:@"AI 操作：关闭" target:self action:@selector(toggleComputerUse:)];
+      [self.computerUse setButtonType:NSButtonTypePushOnPushOff];
+      self.computerUse.state = NSControlStateValueOff;
+      [self.computerUse setAccessibilityLabel:@"允许 AI 操作此浏览器"];
+      self.computerUse.toolTip = @"仅授权当前浏览器窗口；再次点击立即关闭 AI 操作";
+      [self.root addSubview:self.computerUse];
+    }
     self.home = [self button:@"house" label:@"首页" action:@selector(goHome:)];
     self.fullscreen = [self button:@"arrow.up.left.and.arrow.down.right" label:@"全屏" action:@selector(fullscreen:)];
     self.add = [self button:@"plus" label:@"新建标签页" action:@selector(newTab:)];
@@ -183,11 +192,12 @@ NSString* Navigation(NSString* input) {
   for (NSView* view in self.views.allValues) view.frame = self.pages.bounds;
   self.back.frame = NSMakeRect(18, 65, 30, 32); self.forward.frame = NSMakeRect(54, 65, 30, 32);
   self.reload.frame = NSMakeRect(90, 65, 30, 32);
-  self.addressBackground.frame = NSMakeRect(138, 61, width - 292, 42);
+  self.addressBackground.frame = NSMakeRect(138, 61, width - (self.computerUse ? 408 : 292), 42);
   CGFloat addressWidth = self.addressBackground.bounds.size.width;
   self.searchIcon.frame = NSMakeRect(16, 12, 18, 18);
   self.address.frame = NSMakeRect(46, 11, addressWidth - 118, 21);
   self.engine.frame = NSMakeRect(addressWidth - 61, 13, 49, 18);
+  self.computerUse.frame = NSMakeRect(width - 260, 65, 112, 32);
   self.assistant.frame = NSMakeRect(width - 138, 65, 32, 32);
   self.home.frame = NSMakeRect(width - 96, 65, 32, 32); self.fullscreen.frame = NSMakeRect(width - 54, 65, 32, 32);
   self.brand.frame = NSMakeRect(width - 120, 18, 104, 18);
@@ -226,6 +236,9 @@ NSString* Navigation(NSString* input) {
 - (void)goBack:(id)sender { BrowserUIAction("back"); }
 - (void)goForward:(id)sender { BrowserUIAction("forward"); }
 - (void)refresh:(id)sender { BrowserUIAction([self.states[@(self.selected)][@"loading"] boolValue] ? "stop" : "reload"); }
+- (void)toggleComputerUse:(id)sender {
+  self.computerUse.title = self.computerUse.state == NSControlStateValueOn ? @"AI 操作：开启" : @"AI 操作：关闭";
+}
 - (void)assistant:(id)sender { BrowserUIAction("assistant"); }
 - (void)goHome:(id)sender { BrowserUIAction("home"); }
 - (void)fullscreen:(id)sender { [self.window toggleFullScreen:sender]; }
@@ -295,4 +308,15 @@ std::string ShellHomeURL() {
   components.queryItems = @[[NSURLQueryItem queryItemWithName:@"version" value:[version substringFromIndex:9]],
                             [NSURLQueryItem queryItemWithName:@"appName" value:ProductName()]];
   return components.URL.absoluteString.UTF8String;
+}
+
+// Author: HyperparameterSI. CEF supplies an NSView, while the driver requires
+// its owning WindowServer window number. Never return the renderer process ID.
+int ShellNativeWindowID(CefWindowHandle handle) {
+  NSView* view = (__bridge NSView*)handle;
+  NSWindow* window = view.window;
+  return window && window.visible ? (int)window.windowNumber : 0;
+}
+bool ShellComputerUseEnabled() {
+  return shell && !shell.appMode && shell.computerUse && shell.computerUse.state == NSControlStateValueOn;
 }

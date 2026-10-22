@@ -4,6 +4,11 @@
 #include <iostream>
 #include <map>
 #include <thread>
+#if defined(OS_WIN)
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 #include "include/base/cef_callback.h"
 #include "include/cef_browser.h"
 #include "include/cef_devtools_message_observer.h"
@@ -112,6 +117,9 @@ class Host final : public CefApp, public CefBrowserProcessHandler,
     if (app_mode_ && tab_requested_) return;
     tab_requested_ = true;
     CefWindowInfo window;
+#if defined(OS_WIN)
+    if (chrome_style_) window.SetAsPopup(nullptr, "Golet Browser");
+#endif
     if (chrome_style_) window.runtime_style = CEF_RUNTIME_STYLE_CHROME;
     else ConfigureShellChild(window);
     CefBrowserSettings settings;
@@ -208,6 +216,22 @@ class Host final : public CefApp, public CefBrowserProcessHandler,
       if (!browsers_.count(id)) reply->SetString("error", "tab not found");
       else Action(method, id, "");
       Write(reply); return;
+    }
+    // Author: HyperparameterSI. Read consent and identity atomically on the UI
+    // thread. No protocol command can enable the native consent control.
+    if (method == "computer-use-target") {
+      if (!active_) { reply->SetString("error", "no active browser"); Write(reply); return; }
+      auto result = CefDictionaryValue::Create();
+#if defined(OS_WIN)
+      result->SetInt("pid", _getpid());
+#else
+      result->SetInt("pid", getpid());
+#endif
+      const int window = ShellNativeWindowID(active_->GetHost()->GetWindowHandle());
+      result->SetInt("windowId", window);
+      result->SetInt("browserId", active_->GetIdentifier());
+      result->SetBool("computerUse", window > 0 && !chrome_style_ && !app_mode_ && ShellComputerUseEnabled());
+      reply->SetDictionary("result", result); Write(reply); return;
     }
     if (method == "devtools") {
       auto it = browsers_.find(request->GetInt("browserId"));

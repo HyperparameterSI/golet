@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"os/exec"
 	"strings"
 	"testing"
@@ -27,9 +28,10 @@ func TestVetUICgo(t *testing.T) {
 	}
 	answer := "package main\n\n// int answer(void) { return 42; }\nimport \"C\"\n\nfunc answer() int { return int(C.answer()) }\n"
 	for _, tt := range []struct {
-		name  string
-		files map[string]string
-		want  string
+		name       string
+		files      map[string]string
+		want       string
+		diagnostic string
 	}{
 		{name: "clean", files: map[string]string{
 			"main.go":   "package main\n\nimport \"fmt\"\n\nfunc main() { fmt.Println(answer()) }\n",
@@ -38,15 +40,23 @@ func TestVetUICgo(t *testing.T) {
 		{name: "stored element", files: map[string]string{
 			"main.go":   "package main\n\nimport \"fmt\"\n\nfunc main() { fmt.Println(answer(), saved) }\n",
 			"answer.go": strings.Replace(answer, "import \"C\"\n", "import \"C\"\n\nimport \"github.com/HyperparameterSI/golet/backend/ui\"\n\nvar saved ui.Element\n", 1),
-		}, want: "1 native UI lifetime issue(s)"},
+		}, want: "1 native UI lifetime issue(s)", diagnostic: "answer.go:8:5: native UI build value stored in a package variable; keep ui.Handle or ui.Services instead"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got := ""
-			if err := runVetUI([]string{testModule(t, tt.files)}); err != nil {
+			var output, diagnostics bytes.Buffer
+			if err := runVetUIWithOutput([]string{testModule(t, tt.files)}, &output, &diagnostics); err != nil {
 				got = err.Error()
 			}
 			if got != tt.want {
-				t.Fatalf("got %q, want %q", got, tt.want)
+				t.Fatalf("got %q, want %q; output: %q; diagnostics: %q", got, tt.want, output.String(), diagnostics.String())
+			}
+			if tt.diagnostic == "" {
+				if diagnostics.Len() != 0 {
+					t.Fatalf("unexpected diagnostics: %q", diagnostics.String())
+				}
+			} else if !strings.Contains(diagnostics.String(), tt.diagnostic) {
+				t.Fatalf("missing diagnostic %q in %q", tt.diagnostic, diagnostics.String())
 			}
 		})
 	}

@@ -7,9 +7,10 @@ Author: HyperparameterSI
 ## 当前范围
 
 - macOS 原生宿主已实现，Apple Silicon 已通过真实窗口测试；Intel 有固定 SDK 和构建配置，未在 Intel 设备实测。
+- Windows amd64 / arm64 已增加实验性宿主与安装代码：Alloy 使用 Win32 标签栏、地址栏和导航按钮，Chrome 使用 CEF 原生窗口。本轮仅验证 Go 交叉编译与打包逻辑，尚未完成 Windows C++ 编译及实机运行。
 - 自定义 Cocoa 标签栏、圆角地址栏和导航按钮，CEF Alloy 负责网页渲染；离线新标签页提供搜索与快捷入口；没有向任意网页注入 Golet 的 Go 方法桥。
 - Go API 支持导航、后退、前进、刷新、停止、新增、切换、关闭标签，获取标签列表和焦点页状态，以及关闭窗口。
-- **它目前是独立浏览器窗口，不是可放进 `ui.Row` 的嵌入式 `ui.Chromium` 控件。** Golet 布局内的 CEF 子视图、Windows/Linux 原生宿主和对应打包尚未实现。Go 包在这些平台可编译不代表原生浏览器可用。
+- **它目前是独立浏览器窗口，不是可放进 `ui.Row` 的嵌入式 `ui.Chromium` 控件。** Golet 布局内的 CEF 子视图、Linux 原生宿主和对应打包尚未实现。Go 包在这些平台可编译不代表原生浏览器可用。
 - 不提供 Chrome 账号同步、DRM 或商业编解码器可用性的保证；网页兼容性以所固定的 CEF 发行版为准。
 
 ## 安装和运行
@@ -23,6 +24,23 @@ pnpm dev:browser
 # 指定初始网址：
 pnpm dev:browser -url https://go.dev
 ```
+
+### Windows（实验性）
+
+在 Windows 本机安装 Go、CMake 3.21+、Visual Studio 2022 的 **Desktop development with C++** 工作负载和 Windows SDK；ARM64 还需要相应 MSVC ARM64 构建工具。使用与目标架构匹配的 Go 工具链，在仓库根目录运行：
+
+```powershell
+winget install Kitware.CMake
+# 重新打开终端，使 CMake 的 PATH 生效
+pnpm setup:chromium
+pnpm dev:browser
+```
+
+无需 pnpm 的安装方式：`go run ./backend/plugins/chromium/cmd/setup`。安装工具固定下载与 macOS 相同版本的 CEF SDK，校验压缩包，使用 Visual Studio 2022 Release 配置编译，并将宿主放入用户缓存目录下的 `golet/chromium/host-v1/windows-amd64/`（ARM64 为 `windows-arm64/`）。保留目录中的 DLL、Resources 内容、locales 和 newtab，不要只复制 exe。
+
+Windows 使用官方 `bootstrapc.exe`（安装时重命名为 `golet-chromium.exe`）加载同名客户端 DLL，保留 CEF 沙箱。Go 隐藏控制台窗口并使用重定向管道通信。`--app-name` / `--icon` 定制离线首页；`Options.AppName` 定制 Alloy 窗口标题；Windows exe 图标和版本资源定制暂未实现，`--identifier` 仅适用于 macOS。
+
+Windows C++ 宿主不能通过 `GOOS=windows go build` 在 macOS 上验证。仓库提供手动触发的 `Chromium Windows (experimental)` CI，包含原生编译和真实 CEF 窗口测试；本轮尚未运行该 CI。发布前需要在 Windows 验证两种风格、扩展加载、子进程退出及高 DPI 布局。Windows Alloy 使用基础系统控件，目前不与 macOS 自定义外观完全一致。
 
 安装脚本会检查 CMake 3.21+，自动查找 PATH、Homebrew（Apple Silicon / Intel）和 `/Applications/CMake.app`。也可设置 `CMAKE` 环境变量。CMake 只用于编译 CEF 原生宿主，运行浏览器无需 CMake，也不需要 Python。
 

@@ -1,0 +1,25 @@
+# Author: HyperparameterSI
+name: Chromium Windows (experimental)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Build sandboxed CEF host
+        run: go run ./backend/plugins/chromium/cmd/setup
+      - name: Go protocol and packaging tests
+        run: |
+          go test ./backend/plugins/chromium
+          go test ./backend/plugins/chromium/cmd/setup -run 'TestPackageWindowsRuntime|TestVerifyArchive|TestCMakeVersion|TestRefuseUnmanagedOutput|TestReplaceRuntime'
+      - name: Real Alloy and Chrome windows
+        env:
+          GOLET_CHROMIUM_E2E: "1"
+        run: go test ./backend/plugins/chromium -run 'TestBrowserE2E|TestChromeExtensionE2E|TestEphemeralDemoE2E|TestAppModeE2E|TestProductBrandingE2E' -count=1 -timeout=10m

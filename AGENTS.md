@@ -23,7 +23,7 @@ wire protocol, TypeScript generation, and the checklist for adding features.
   see "Native UI" in the architecture guide), which also runs in browsers
   (`GOOS=js GOARCH=wasm`, `internal/web`, drawn with WebGL 2 by the GL
   renderer; see "Browsers"). Optional CEF is isolated in `backend/plugins/chromium` and currently
-  provides a macOS standalone browser host, not a default engine or embedded
+  provides a macOS standalone browser host and an experimental Windows host, not a default engine or embedded
   `ui` view. Keep its runtime and build tooling out of ordinary applications. Other platforms must keep compiling through
   `internal/unsupported`.
 - **Great DX over Electron parity.** Keep the familiar feel (app lifecycle,

@@ -28,6 +28,9 @@ var ErrClosed = errors.New("chromium: browser closed")
 // Options selects a separately installed CEF host and a persistent profile.
 // A profile directory must not be shared by simultaneously running hosts.
 type Options struct {
+	// Author: HyperparameterSI. Shows a native, initially-off consent control in Alloy.
+	EnableComputerUse bool
+
 	// EphemeralDemo creates a disposable development profile. On macOS it uses
 	// a mock keychain to suppress authorization prompts. Data is not protected
 	// by Keychain; do not use for real credentials. Normal exit removes the profile.

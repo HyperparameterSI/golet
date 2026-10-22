@@ -333,8 +333,8 @@ function BrowserPanel() {
   return (
     <div className="space-y-4">
       <p className="rounded-lg bg-muted p-3 text-xs leading-6">
-        Browser 是独立 CEF 窗口，不是嵌入当前页面的 iframe。当前原生宿主仅支持 macOS。Studio
-        使用临时演示会话，不访问钥匙串、不保留登录状态；请勿用于真实账号。
+        Browser 是独立 CEF 窗口，不是嵌入当前页面的 iframe。原生宿主支持 macOS，Windows
+        为实验性支持。Studio 使用临时演示会话，不访问钥匙串、不保留登录状态；请勿用于真实账号。
       </p>
       <label className="block text-sm">
         窗口风格

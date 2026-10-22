@@ -39,7 +39,7 @@ Commands:
 Run "golet <command> -h" for the flags of a command.
 `
 
-const version = "0.1.3"
+const version = "0.1.4"
 
 func main() {
 	if len(os.Args) < 2 {

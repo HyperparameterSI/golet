@@ -7,7 +7,12 @@ Studio 是框架的交互式组件目录，使用 TanStack Start + React + shadc
 ```sh
 pnpm dev         # 开发运行
 pnpm build:app   # 构建 Studio 桌面应用
+pnpm build:app:mac:intel      # Intel Mac，输出 build/darwin-amd64/
+pnpm build:app:mac:arm64      # Apple Silicon，输出 build/darwin-arm64/
+pnpm build:app:mac:universal  # 双架构，输出 build/darwin-universal/
 ```
+
+以上命令从仓库根目录运行，产物目录位于 `backend/examples/studio/build/`。Intel 与 Universal 包均可在 Apple Silicon Mac 上构建；签名和 DMG 生成需要 macOS。Chromium 是独立可选宿主，需要在目标 Mac 上运行 `pnpm setup:chromium` 安装匹配架构的版本。
 
 ## 演示范围
 

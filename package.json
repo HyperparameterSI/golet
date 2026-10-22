@@ -13,6 +13,9 @@
     "dev": "go run ./backend/cmd/golet dev backend/examples/studio",
     "build": "bun run --filter \"./frontend/packages/*\" --filter \"./frontend/plugins/*\" build",
     "build:app": "go run ./backend/cmd/golet build backend/examples/studio",
+    "build:app:mac:intel": "go run ./backend/cmd/golet build -platform darwin/amd64 backend/examples/studio",
+    "build:app:mac:arm64": "go run ./backend/cmd/golet build -platform darwin/arm64 backend/examples/studio",
+    "build:app:mac:universal": "go run ./backend/cmd/golet build -platform darwin/universal backend/examples/studio",
     "build:web": "npm --prefix frontend/packages/runtime run build && npm --prefix frontend/examples/studio run build:web",
     "test": "bun test frontend/packages frontend/plugins frontend/examples/dashboard/src/lib scripts",
     "test:go": "go test ./backend/...",
@@ -30,5 +33,5 @@
     "typescript": "^7",
     "prettier": "3.9.9"
   },
-  "version": "0.1.3"
+  "version": "0.1.4"
 }

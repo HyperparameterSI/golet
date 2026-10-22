@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -26,8 +28,8 @@ func validateCMakeVersion(output string) error {
 	return nil
 }
 
-// findCMake honors explicit configuration and also finds standard macOS installs
-// when an IDE or terminal has not inherited Homebrew's PATH.
+// findCMake honors explicit configuration and checks standard installation paths
+// when an IDE or terminal has not inherited the tool's PATH.
 func findCMake(ctx context.Context, requested string) (string, error) {
 	explicit := requested != "" && requested != "cmake"
 	candidates := []string{requested}
@@ -37,6 +39,12 @@ func findCMake(ctx context.Context, requested string) (string, error) {
 			explicit = true
 		} else {
 			candidates = []string{"cmake", "/opt/homebrew/bin/cmake", "/usr/local/bin/cmake", "/Applications/CMake.app/Contents/bin/cmake"}
+			if runtime.GOOS == "windows" {
+				candidates = []string{"cmake"}
+				if dir := os.Getenv("ProgramFiles"); dir != "" {
+					candidates = append(candidates, filepath.Join(dir, "CMake", "bin", "cmake.exe"))
+				}
+			}
 		}
 	}
 	var problems []string
@@ -61,5 +69,9 @@ func findCMake(ctx context.Context, requested string) (string, error) {
 	if len(problems) > 0 {
 		detail = "\n" + strings.Join(problems, "\n")
 	}
-	return "", fmt.Errorf("CMake 3.21+ was not found or could not run%s\nInstall it with: brew install cmake\nThen retry: pnpm setup:chromium\nOr specify: pnpm setup:chromium --cmake /absolute/path/to/cmake", detail)
+	install := "brew install cmake"
+	if runtime.GOOS == "windows" {
+		install = "winget install Kitware.CMake (also install Visual Studio 2022 Desktop development with C++ and Windows SDK)"
+	}
+	return "", fmt.Errorf("CMake 3.21+ was not found or could not run%s\nInstall it with: %s\nThen retry: pnpm setup:chromium\nOr specify: pnpm setup:chromium --cmake /absolute/path/to/cmake", detail, install)
 }

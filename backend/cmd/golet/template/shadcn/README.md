@@ -31,6 +31,19 @@ pnpm build
 
 Desktop packaging requires the target platform's build tools. Output goes to `build/`.
 
+On macOS, select the target explicitly (including when building on Apple Silicon for Intel):
+
+```sh
+pnpm build:mac:intel      # Intel Mac, build/darwin-amd64/
+pnpm build:mac:arm64      # Apple Silicon, build/darwin-arm64/
+pnpm build:mac:universal  # Both architectures, build/darwin-universal/
+```
+
+Each target produces an app bundle and DMG. Signing and DMG creation require macOS.
+Cross-compilation does not verify execution on the target machine. Optional native
+plugins must provide matching architecture binaries; the separate Chromium host
+is not automatically bundled by these commands.
+
 ## Developing with AI
 
 Project conventions live in [AGENTS.md](AGENTS.md). Ask your AI coding tool to read it before implementing a feature. Tool support varies; attach the file or paste its requirements when automatic loading is unavailable.

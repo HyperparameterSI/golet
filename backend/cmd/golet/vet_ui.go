@@ -27,7 +27,14 @@ type vetPackage struct {
 }
 
 func runVetUI(args []string) error {
+	return runVetUIWithOutput(args, os.Stdout, os.Stderr)
+}
+
+// runVetUIWithOutput lets tests verify expected diagnostics without emitting
+// compiler-shaped errors that CI problem matchers interpret as build failures.
+func runVetUIWithOutput(args []string, output, diagnostics io.Writer) error {
 	flags := flag.NewFlagSet("vet", flag.ContinueOnError)
+	flags.SetOutput(diagnostics)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -40,13 +47,13 @@ func runVetUI(args []string) error {
 	}
 	cmd := exec.Command("go", "vet", "./...")
 	cmd.Dir = dir
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	cmd.Stdout, cmd.Stderr = output, diagnostics
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("go vet: %w", err)
 	}
 	cmd = exec.Command("go", "list", "-export", "-deps", "-json", "./...")
 	cmd.Dir = dir
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = diagnostics
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -108,7 +115,7 @@ func runVetUI(args []string) error {
 			return err
 		}
 		for _, d := range uivet.Analyze(fs, files, checked, info) {
-			fmt.Fprintln(os.Stderr, d.String())
+			fmt.Fprintln(diagnostics, d.String())
 			failures++
 		}
 	}

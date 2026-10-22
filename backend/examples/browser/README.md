@@ -11,7 +11,7 @@ Author: HyperparameterSI
 在仓库根目录运行：
 
 ```sh
-pnpm setup:chromium  # 首次安装；当前原生宿主仅支持 macOS
+pnpm setup:chromium  # 首次安装；macOS，或实验性 Windows amd64/arm64
 pnpm dev:browser
 pnpm dev:browser -url https://go.dev/doc/
 ```

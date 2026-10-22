@@ -17,8 +17,8 @@ import (
 // This test opens a real CEF window. It waits on state events, never sleeps to
 // infer success. The one-minute context is solely a hang guard.
 func TestBrowserE2E(t *testing.T) {
-	if os.Getenv("GOLET_CHROMIUM_E2E") != "1" || runtime.GOOS != "darwin" {
-		t.Skip("requires an installed CEF host and macOS desktop")
+	if os.Getenv("GOLET_CHROMIUM_E2E") != "1" || (runtime.GOOS != "darwin" && runtime.GOOS != "windows") {
+		t.Skip("requires an installed CEF host and macOS/Windows desktop")
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -146,7 +146,7 @@ func TestBrowserE2E(t *testing.T) {
 
 // Chrome extensions execute only in the explicit Chrome-style compatibility mode.
 func TestChromeExtensionE2E(t *testing.T) {
-	if os.Getenv("GOLET_CHROMIUM_E2E") != "1" || runtime.GOOS != "darwin" {
+	if os.Getenv("GOLET_CHROMIUM_E2E") != "1" || (runtime.GOOS != "darwin" && runtime.GOOS != "windows") {
 		t.Skip("requires real CEF host")
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +187,7 @@ func TestChromeExtensionE2E(t *testing.T) {
 }
 
 func TestEphemeralDemoE2E(t *testing.T) {
-	if os.Getenv("GOLET_CHROMIUM_E2E") != "1" || runtime.GOOS != "darwin" {
+	if os.Getenv("GOLET_CHROMIUM_E2E") != "1" || (runtime.GOOS != "darwin" && runtime.GOOS != "windows") {
 		t.Skip("requires real CEF host")
 	}
 	for _, style := range []BrowserStyle{StyleAlloy, StyleChrome} {
@@ -223,8 +223,8 @@ func TestEphemeralDemoE2E(t *testing.T) {
 }
 
 func TestAppModeE2E(t *testing.T) {
-	if os.Getenv("GOLET_CHROMIUM_E2E") != "1" || runtime.GOOS != "darwin" {
-		t.Skip("requires an installed CEF host and macOS desktop")
+	if os.Getenv("GOLET_CHROMIUM_E2E") != "1" || (runtime.GOOS != "darwin" && runtime.GOOS != "windows") {
+		t.Skip("requires an installed CEF host and macOS/Windows desktop")
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "<!doctype html><title>Mini app</title><h1>Application content</h1>")
@@ -264,7 +264,7 @@ func TestAppModeE2E(t *testing.T) {
 }
 
 func TestProductBrandingE2E(t *testing.T) {
-	if os.Getenv("GOLET_CHROMIUM_E2E") != "1" || runtime.GOOS != "darwin" {
+	if os.Getenv("GOLET_CHROMIUM_E2E") != "1" || (runtime.GOOS != "darwin" && runtime.GOOS != "windows") {
 		t.Skip("requires real CEF host")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)

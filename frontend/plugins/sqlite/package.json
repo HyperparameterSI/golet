@@ -1,6 +1,6 @@
 {
   "name": "@golet-plugins/sqlite",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Parameterized SQLite queries and transactions for Golet desktop apps",
   "keywords": [
     "golet",
@@ -34,9 +34,9 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "golet-runtime": "^0.1.3"
+    "golet-runtime": "^0.1.4"
   },
   "devDependencies": {
-    "golet-runtime": "^0.1.3"
+    "golet-runtime": "^0.1.4"
   }
 }

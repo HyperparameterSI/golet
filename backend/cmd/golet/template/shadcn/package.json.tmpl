@@ -5,6 +5,9 @@
   "scripts": {
     "dev": {{json (print .Golet " dev")}},
     "build": {{json (print .Golet " build")}},
+    "build:mac:intel": {{json (print .Golet " build -platform darwin/amd64")}},
+    "build:mac:arm64": {{json (print .Golet " build -platform darwin/arm64")}},
+    "build:mac:universal": {{json (print .Golet " build -platform darwin/universal")}},
     "generate": {{json (print .Golet " generate")}},
     "dev:web": "cd frontend && vite",
     "build:web": "cd frontend && vite build && tsc --noEmit",
