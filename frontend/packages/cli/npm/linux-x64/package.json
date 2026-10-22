@@ -1,6 +1,6 @@
 {
   "name": "@golet/cli-linux-x64",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "The Linux x64 binary of golet-cli",
   "repository": {
     "type": "git",

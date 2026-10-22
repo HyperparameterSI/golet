@@ -54,6 +54,10 @@ class Host final : public CefApp, public CefBrowserProcessHandler,
   void OnAfterCreated(CefRefPtr<CefBrowser> browser) override {
     CEF_REQUIRE_UI_THREAD();
     browsers_[browser->GetIdentifier()] = browser;
+    // Author: HyperparameterSI. Make rendered page controls available to AX
+    // when the embedding app opts into native computer-use support.
+    if (CefCommandLine::GetGlobalCommandLine()->HasSwitch("golet-computer-use"))
+      browser->GetHost()->SetAccessibilityState(STATE_ENABLED);
     observers_[browser->GetIdentifier()] = browser->GetHost()->AddDevToolsMessageObserver(this);
     if (!chrome_style_) ShellAttachBrowser(browser->GetIdentifier(), browser->GetHost()->GetWindowHandle());
     active_ = browser;

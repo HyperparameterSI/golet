@@ -164,3 +164,16 @@ pnpm dev:browser -style chrome
 宿主打包支持 `--app-name "feo" --identifier dev.feo.browser --icon /path/icon.png`，配置 macOS 显示名、菜单、窗口品牌、Dock 图标和默认首页名称/图标。`--new-tab-dir /path/assets` 可替换完整离线首页（必须包含 index.html）。自定义首页自行负责名称与样式。默认选项保留 Golet 品牌。
 
 `Options.AppName` 可在启动时覆盖窗口、菜单和内置首页名称；应用包显示名与图标应在 setup 时设置。AppMode 继续以文档标题作为窗口标题，未设置标题时使用产品名。内部可执行文件与 Helper 路径保留稳定名称，不应手动改名；第三方许可证照常保留。
+
+## Native computer-use target (macOS Alloy)
+
+Author: HyperparameterSI
+
+`Options.EnableComputerUse` adds an initially-off native consent control and
+turns on CEF accessibility. `Browser.ComputerUseTarget(ctx)` returns the actual
+host PID, active browser ID, owning NSWindow number and current consent. Query
+it before every native observation or input; invalidate prior element tokens
+when the window or active tab changes. The pipe cannot enable consent.
+AppMode and Chrome style reject this option; Windows reports unsupported.
+The embedding app still needs macOS Accessibility and Screen Recording grants.
+Rebuild the native host after updating this API; old hosts fail closed.

@@ -25,6 +25,19 @@ func TestMain(m *testing.M) {
 			if json.Unmarshal(scanner.Bytes(), &request) != nil {
 				continue
 			}
+			if request.Method == "computer-use-target" {
+				pid := os.Getpid()
+				window := 123
+				if os.Getenv("GOLET_TARGET_INVALID") == "pid" {
+					pid++
+				}
+				if os.Getenv("GOLET_TARGET_INVALID") == "window" {
+					window = 0
+				}
+				result, _ := json.Marshal(NativeTarget{PID: pid, WindowID: window, BrowserID: 1, Enabled: false})
+				_ = out.Encode(message{ID: request.ID, Result: result})
+				continue
+			}
 			if request.Method == "navigate" {
 				_ = out.Encode(message{Event: "state", State: State{BrowserID: 1, URL: request.URL}})
 			}
