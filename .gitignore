@@ -20,3 +20,9 @@ frontend/examples/*/dist/
 !/docs/**
 !/backend/cmd/golet/template/shared/.agents/
 !/backend/cmd/golet/template/shared/.agents/**
+!/frontend/packages/cli/bin/
+!/frontend/packages/cli/bin/golet.js
+!/frontend/website/src/components/docs/
+!/frontend/website/src/components/docs/**
+!/frontend/website/src/routes/docs/
+!/frontend/website/src/routes/docs/**
