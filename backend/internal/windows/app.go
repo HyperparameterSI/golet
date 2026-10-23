@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -28,6 +29,9 @@ type Backend struct {
 	running bool
 
 	signaled atomic.Bool
+	// posted are the functions post runs on the main thread.
+	postedMu sync.Mutex
+	posted   []func()
 
 	windows map[uintptr]*window // by HWND
 	// languages are those SetLanguages told: the first is the language
@@ -72,6 +76,13 @@ type Backend struct {
 	// title bar (titlebar.go), captionFonts their glyphs by DPI.
 	captions     map[uintptr]*captionBar
 	captionFonts map[int]captionFont
+	// menuFonts are the fonts of the menu items Golet draws by DPI, and
+	// menuBrushes the brushes of menus' backgrounds by color
+	// (menudraw.go).
+	menuFonts   map[int]menuFonts
+	menuBrushes map[uint32]uintptr
+	// menuHook hooks the main thread while menus show.
+	menuHook uintptr
 	// comp shows the controls of windows with a material behind them
 	// (compositor.go). compRetry is when to try making it again after
 	// compFails failures in a row, and composeAt when timerCompose draws
@@ -219,6 +230,24 @@ func (b *Backend) Signal() {
 	postMessage(b.appHwnd, wmAppDispatch, 0, 0)
 }
 
+// post runs fn on the main thread, for the backend's own goroutines.
+func (b *Backend) post(fn func()) {
+	b.postedMu.Lock()
+	b.posted = append(b.posted, fn)
+	b.postedMu.Unlock()
+	postMessage(b.appHwnd, wmAppRun, 0, 0)
+}
+
+func (b *Backend) runPosted() {
+	b.postedMu.Lock()
+	posted := b.posted
+	b.posted = nil
+	b.postedMu.Unlock()
+	for _, fn := range posted {
+		fn()
+	}
+}
+
 func (b *Backend) Step() {
 	procMsgWaitForMultipleObjectsEx.Call(0, 0, 500, qsAllInput, mwmoInputAvailable)
 	var m msg
@@ -328,6 +357,9 @@ func wndProc(hwnd, m, wp, lp uintptr) uintptr {
 
 // appMessage handles the messages of the application window.
 func (b *Backend) appMessage(m uint32, wp, lp uintptr) (uintptr, bool) {
+	if r, ok := b.menuItemMessage(b.appHwnd, m, wp, lp); ok {
+		return r, true
+	}
 	switch m {
 	case wmAppReady:
 		b.h.Ready()
@@ -337,6 +369,9 @@ func (b *Backend) appMessage(m uint32, wp, lp uintptr) (uintptr, bool) {
 		b.h.Dispatch()
 		return 0, true
 	case wmAppWake:
+		return 0, true
+	case wmAppRun:
+		b.runPosted()
 		return 0, true
 	case wmAppCookieView:
 		b.closeCookieViewNow()
@@ -354,6 +389,9 @@ func (b *Backend) appMessage(m uint32, wp, lp uintptr) (uintptr, bool) {
 		b.powerMessage(m, wp)
 		return 1, false // TRUE for power broadcasts, and default handling
 	case wmSettingChange:
+		if preferencesChanged(wp, lp) {
+			b.dropMenuFonts() // the size of text, or the menu font
+		}
 		switch {
 		case lp != 0 && wstr(lp) == settingImmersiveColorSet:
 			b.applyTheme()
@@ -451,6 +489,8 @@ func (a appController) AllowForeground() {
 	const asfwAny = ^uintptr(0)
 	procAllowSetForegroundWindow.Call(asfwAny)
 }
+
+func (a appController) WithActivationToken(_ string, fn func()) { fn() }
 
 // Activate brings the app forward as macOS does, with its windows in their
 // order: a window of the app already in front stays there, else the one

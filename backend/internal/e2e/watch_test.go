@@ -18,7 +18,7 @@ import (
 )
 
 func TestFileWatchPluginPages(t *testing.T) {
-	if _, err := os.Stat("../../plugins/watch/dist/index.js"); err != nil {
+	if _, err := os.Stat("../../../frontend/plugins/watch/dist/index.js"); err != nil {
 		t.Skip("run bun run build first")
 	}
 	a := newWindow(t, golet.WindowOptions{Hidden: true})

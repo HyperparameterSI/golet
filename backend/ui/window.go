@@ -677,6 +677,23 @@ func (h *windowHost) titleBarDoubleClicked() {
 	}
 }
 
+func (h *windowHost) setMaximizeButton(r Rect) {
+	if placeMaximizeButton != nil {
+		placeMaximizeButton(h, r)
+	}
+}
+
+// placeMaximizeButton is sendMaximizeButton once a view marked a maximize
+// button (MaximizeButton): apps that mark none don't link the backends'
+// side of it.
+var placeMaximizeButton func(h *windowHost, r Rect)
+
+func sendMaximizeButton(h *windowHost, r Rect) {
+	if s, ok := h.conn.Surface.(platform.MaximizeButtonSurface); ok {
+		s.SetMaximizeButton(rectF(r))
+	}
+}
+
 func (h *windowHost) escape() {
 	if h.conn.Escape != nil {
 		h.conn.Escape()

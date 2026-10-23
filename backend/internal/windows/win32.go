@@ -133,6 +133,7 @@ var (
 	procEnumDisplaySettingsW          = user32.NewProc("EnumDisplaySettingsW")
 	procEnumDisplayMonitors           = user32.NewProc("EnumDisplayMonitors")
 	procGetCursorPos                  = user32.NewProc("GetCursorPos")
+	procWindowFromPoint               = user32.NewProc("WindowFromPoint")
 	procLoadCursorW                   = user32.NewProc("LoadCursorW")
 	procLoadIconW                     = user32.NewProc("LoadIconW")
 	procCreateIconFromResourceEx      = user32.NewProc("CreateIconFromResourceEx")
@@ -295,6 +296,8 @@ const (
 	wmAppCookieView = wmApp + 8
 	// wmAppTrayAdd adds the tray icons made since (tray.go).
 	wmAppTrayAdd = wmApp + 9
+	// wmAppRun runs what Backend.post posted.
+	wmAppRun = wmApp + 10
 
 	wsOverlapped       = 0x00000000
 	wsPopup            = 0x80000000

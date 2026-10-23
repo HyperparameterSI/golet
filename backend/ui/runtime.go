@@ -47,6 +47,9 @@ type host interface {
 	cancelDataDrag()
 	setDropFormats([]transfer.Format)
 	titleBarDoubleClicked()
+	// setMaximizeButton tells where the view shows the window's maximize
+	// button (MaximizeButton), the zero Rect for nowhere.
+	setMaximizeButton(r Rect)
 	// escape tells the window an Escape nothing handled.
 	escape()
 	isDark() bool
@@ -176,6 +179,9 @@ type engine struct {
 	webPlaces []webPlace
 	webOut    []placedWebView
 	webShown  bool
+	// maxButton is where the frame shows the window's maximize button
+	// (MaximizeButton), and maxSent what the host got of it.
+	maxButton, maxSent Rect
 	// The focus groups of the frame, the group of each element of the
 	// focus order in one, and the element of each that had the focus
 	// last.
@@ -582,6 +588,10 @@ func (rt *engine) runFrame() {
 	rt.insp.lap(2)
 	rt.host.present(&rt.scene)
 	rt.placeWebViews()
+	if rt.maxButton != rt.maxSent {
+		rt.maxSent = rt.maxButton
+		rt.host.setMaximizeButton(rt.maxButton)
+	}
 	rt.stats.lap(phasePresent)
 	rt.prune()
 	rt.syncDropFormats()
@@ -605,6 +615,11 @@ func (rt *engine) runFrame() {
 		rt.redraw, rt.repaintDue = false, time.Time{}
 		rt.host.requestFrame()
 	}
+	// What the frame moved under the pointer hovers; with the element
+	// pressed gone, as a button showing over a row the pointer left, what
+	// the pointer is over now hovers rather than what it was over as the
+	// press began.
+	rt.rehover()
 	rt.armTimer()
 	rt.showMenu()
 	rt.c.finish()
@@ -695,6 +710,10 @@ func (rt *engine) holdFrame() bool {
 	}
 	rt.held = true
 	rt.redraw, rt.repaintDue = false, time.Time{}
+	// The time the display asked for this frame at, as one waiting for
+	// the GPU renderer (windowHost.waitDisplay), is not that of the frame
+	// drawn once the window shows.
+	rt.frameAt = time.Time{}
 	rt.host.repaintTimer(time.Time{})
 	return true
 }
@@ -778,11 +797,10 @@ func (rt *engine) prune() {
 			rt.host.cancelDataDrag()
 		}
 	}
-	unpressed := false
 	for id, s := range rt.states {
 		if s.seen != rt.frame || s.pass != rt.pass {
 			if rt.pressed == s {
-				rt.pressed, unpressed = nil, true
+				rt.pressed = nil
 			}
 			if !rt.keptAlive(s) {
 				if s.textAdapter != nil {
@@ -800,16 +818,6 @@ func (rt *engine) prune() {
 				}
 			}
 		}
-	}
-	if unpressed {
-		// The element pressed went away, as a button showing over a row
-		// the pointer left: what the pointer is over now hovers, rather
-		// than what it was over as the press began.
-		var chain []uint64
-		if rt.pointerIn {
-			chain = rt.hitChain(rt.pointerX, rt.pointerY)
-		}
-		rt.setHover(chain)
 	}
 	rt.restoreFocus()
 	// The focus does not stay in a page kept out of sight.
@@ -937,6 +945,7 @@ func (rt *engine) commit(root *node, w, h float32) {
 	rt.posed = rt.posed[:0]
 	clear(rt.webPlaces)
 	rt.webPlaces = rt.webPlaces[:0]
+	rt.maxButton = Rect{}
 	rt.focusOrder, rt.focusScopes = rt.focusOrder[:0], rt.focusScopes[:0]
 	rt.modal, rt.modalLayer, rt.commitScope, rt.commitPage = 0, 0, focusScope{}, 0
 	if rt.groups == nil {
@@ -1032,6 +1041,9 @@ func (rt *engine) commitElement(e *node, clip Rect, hidden bool) {
 	if e.webView != nil {
 		rt.noteWebView(e, clip, invisible)
 	}
+	if e.maximizeButton && !invisible && rt.maxButton == (Rect{}) && v.W > 0 && v.H > 0 {
+		rt.maxButton = v
+	}
 	switch {
 	case e.flags&flagPassThrough != 0 || invisible:
 	case inline:
@@ -1100,18 +1112,24 @@ func intersect(a, b Rect) Rect {
 // updateCursor shows the cursor of the element under the pointer: the
 // innermost one's that sets a cursor, up to the innermost element that
 // takes clicks, whose own cursor is the default unless it sets one, so a
-// button in a text field shows no I-beam.
+// button in a text field shows no I-beam. A scroll bar's track, and the
+// thumb being dragged wherever the pointer goes, show the default, not
+// the cursor of the text under the bar.
 func (rt *engine) updateCursor() {
-	if rt.pressed == nil && rt.overWebView() {
+	if rt.pressed == nil && rt.scrollDrag.st == nil && rt.overWebView() {
 		// The page sets the cursor over it: it is set again as the
 		// pointer comes back.
 		rt.cursor = cursorUnknown
 		return
 	}
 	c := CursorDefault
-	if rt.pressed != nil && rt.pressed.cursor != 0 {
+	switch {
+	case rt.scrollDrag.st != nil:
+	case rt.pressed != nil && rt.pressed.cursor != 0:
 		c = rt.pressed.cursor - 1
-	} else {
+	case slices.ContainsFunc(rt.hover, rt.overScrollbar):
+		// The bar takes presses before what is under it (scrollbarPress).
+	default:
 		for _, id := range rt.hover {
 			s := rt.states[id]
 			if s == nil {
@@ -1130,6 +1148,20 @@ func (rt *engine) updateCursor() {
 		rt.cursor = c
 		rt.host.setCursor(c)
 	}
+}
+
+// overScrollbar reports whether the pointer is over the track of a scroll
+// bar element id shows.
+func (rt *engine) overScrollbar(id uint64) bool {
+	s := rt.states[id]
+	if s == nil || s.flags&(flagScrollX|flagScrollY) == 0 {
+		return false
+	}
+	x, y := s.local(rt.pointerX, rt.pointerY)
+	x += s.x
+	y += s.y
+	g := scrollBars(Rect{s.x, s.y, s.w, s.h}, s.barInset, float32(s.contentW), float32(s.contentH), float32(s.scrollX), float32(s.scrollY), s.flags, rt.c.theme.scrollbarWidth(), s.rtl)
+	return g.vertical && g.vTrack.Contains(x, y) || g.horizontal && g.hTrack.Contains(x, y)
 }
 
 // cursorUnknown is the cursor the engine last set while the pointer is

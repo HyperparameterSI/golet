@@ -182,6 +182,10 @@ type AppController interface {
 	// AllowForeground lets the next process to ask bring its windows to
 	// the front, which Windows only lets the process in front do.
 	AllowForeground()
+	// WithActivationToken runs fn with the startup notification or XDG
+	// activation token of the launch that caused it, which the window fn
+	// shows or focuses first may need to take the focus (Wayland).
+	WithActivationToken(token string, fn func())
 	Hide()
 	Unhide()
 	IsHidden() bool
@@ -204,6 +208,14 @@ type AppController interface {
 	SetCookie(cookie Cookie, done func(error))
 	DeleteCookie(key CookieKey, done func(error))
 	ClearCookies(done func(error))
+	// CompileContentRules makes a content rule list of rules, in WebKit's
+	// content blocker JSON format: it loads the list kept as identifier
+	// (ContentRulesIdentifier) where the engine keeps compiled lists,
+	// else compiles rules, keeps the list as identifier and removes the
+	// lists kept for id under other identifiers (StaleContentRules).
+	// done runs on the main thread exactly once, with a handle
+	// Page.SetContentRules takes.
+	CompileContentRules(id, identifier, rules string, done func(list any, err error))
 	ShowAboutPanel(opts AboutPanelOptions)
 	// PreferredLanguages returns the languages the user reads, most
 	// preferred first, as the system's settings list them, in the forms
@@ -335,7 +347,10 @@ type WindowOptions struct {
 	TitleBarStyle string
 	// TitleBarHeight is the height of a hidden title bar in DIPs (Linux,
 	// Windows); 0 is the backend's own.
-	TitleBarHeight       int
+	TitleBarHeight int
+	// HideWindowButtons hides the window controls of a hidden title bar,
+	// which the page draws itself: TitleBar is then zero.
+	HideWindowButtons    bool
 	TrafficLightPosition *Point
 	Vibrancy             string
 	Opacity              float64
@@ -508,6 +523,10 @@ type Page interface {
 	// the current document keeps what it ran. Scripts a backend injects
 	// itself, as the title bar's, stay.
 	SetUserScripts(scripts []UserScript)
+	// SetContentRules replaces the content rule lists the page's loads
+	// go through from then on with lists, handles of
+	// AppController.CompileContentRules; none removes them.
+	SetContentRules(lists []any)
 	// CallAsyncFunction runs body as the body of an async function in the
 	// main frame, awaits it and reports the returned value, which the
 	// caller arranges to be a string. err is non-nil when the body fails to

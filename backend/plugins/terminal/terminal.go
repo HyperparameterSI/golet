@@ -35,6 +35,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -59,13 +60,16 @@ const (
 	PaddingBackground PaddingColor = iota
 	// PaddingExtend extends the backgrounds of the cells nearest to the
 	// padding into it: a row's beside it, the top and the bottom rows'
-	// above and below the grid, as Ghostty's extend. While a full-screen
-	// program shows (the alternate screen) it extends every row's; on the
-	// main screen only those of rows whose every cell has a background of
-	// its own, so that a shell's highlights stay in their cells.
+	// above and below the grid, as Ghostty's extend: those of rows whose
+	// every cell has a background of its own, as a full-screen program
+	// painting its own background has, so that a shell's highlights, a
+	// program's tabs or the box it draws keep to their cells. A lone
+	// character in inverse video, as a program draws its own cursor,
+	// keeps its background in its cell.
 	PaddingExtend
 	// PaddingExtendAlways extends the backgrounds of every row's cells
-	// nearest to the padding, as Ghostty's extend-always.
+	// nearest to the padding, as Ghostty's extend-always, but for a lone
+	// character in inverse video's.
 	PaddingExtendAlways
 )
 
@@ -86,7 +90,14 @@ type Options struct {
 	// Conn connects the terminal to something other than a program, such
 	// as a remote shell: what the terminal reads from it shows, and what
 	// is typed is written to it. Command, Dir and Env are then ignored. A
-	// Conn with a method Resize(cols, rows int) error is told the size.
+	// Conn with a method Resize(cols, rows int) error is told the size;
+	// one with ResizePixels(cols, rows, cellWidth, cellHeight int) error
+	// is told it with the size of a cell in pixels instead, which the
+	// other end needs to answer a program's size queries and to read
+	// pointer reports in pixels (mode 1016) as this terminal sends them.
+	// A Conn with UseTheme(theme *Theme) error is told the colors the view
+	// shows, for the other end to answer a program's questions about them
+	// (Terminal.UseTheme).
 	Conn io.ReadWriteCloser
 	// ResizeByConn leaves the size of the screen to whoever reads Conn:
 	// the view tells Conn the size it fits, with its Resize, and the
@@ -108,7 +119,9 @@ type Options struct {
 	// Theme sets the colors, and DarkTheme those in dark windows when set,
 	// as Ghostty's theme = light:…,dark:… does (GhosttyTheme returns
 	// Ghostty's themes). Without either, the terminal follows the window's
-	// light or dark appearance, with LightTheme and DarkTheme.
+	// light or dark appearance, with LightTheme and DarkTheme. Until a
+	// view shows the terminal, or UseTheme gives it other colors, programs
+	// asking its colors get Theme's.
 	Theme, DarkTheme *Theme
 	// Cursor is the shape of the cursor, which programs may change, and
 	// NoBlink keeps it from blinking unless a program asks it to.
@@ -151,7 +164,8 @@ type Options struct {
 	// Transparent leaves the terminal's background undrawn, so that what
 	// is under the view shows through, as the window's material or an
 	// element's translucent background, as Ghostty's background-opacity
-	// does: cells with a background color of their own still draw it.
+	// does: cells with a background color of their own still draw it, and
+	// so does the terminal a background a program set (OSC 11).
 	// Give the theme the background the view shows on, which the text
 	// under a block cursor takes.
 	Transparent bool
@@ -165,6 +179,17 @@ type Options struct {
 	// (PaddingExtend, PaddingExtendAlways), so that a full-screen
 	// program's colors reach the edges of the view.
 	PaddingColor PaddingColor
+	// MinimumContrast is the least contrast text has with its background,
+	// as Ghostty's minimum-contrast: a WCAG ratio from 1 (none, as when
+	// zero) to 21 (black on white). Text with less, as a program's light
+	// gray on a light theme, darkens or lightens as little as reaches it,
+	// keeping its hue. SetMinimumContrast changes it.
+	MinimumContrast float32
+	// ImageLimit is the most bytes the images programs show take (the
+	// Kitty graphics protocol), as Ghostty's image-storage-limit: 320 MB
+	// when zero; a negative limit refuses images, for programs to show
+	// something else.
+	ImageLimit int64
 
 	// OnTitle, OnExit, OnBell and OnNotify run on a goroutine of the
 	// terminal when a program sets the title, when the program (or Conn)
@@ -198,6 +223,11 @@ type Options struct {
 	// program's (OSC 52), as by tells. An app may say so, as Ghostty's
 	// app-notifications = clipboard-copy does with a toast.
 	OnCopy func(text string, by CopySource)
+	// OnSearch runs on the main thread as the status of the search
+	// changes (Terminal.Search): as matches are found and selected, and
+	// once the search ends, with a zero status. A find bar shows its
+	// "1 of 3" this way.
+	OnSearch func(s SearchStatus)
 
 	// OpenLink takes what a Command+click (Control+click elsewhere)
 	// opens: a hyperlink (OSC 8), a URL printed as text, or, only with
@@ -243,7 +273,34 @@ type Options struct {
 	// to Font's size on a reset. Returning true from every zoom turns
 	// zooming off.
 	OnZoom func(z Zoom) bool
+	// OnClear sees the user's clear on the main thread, before the
+	// terminal clears: ClearScreen for ActionClearScreen's keys and the
+	// context menu's Clear. It reports
+	// whether it took the clear; a clear taken clears nothing here. A
+	// terminal that shows a server's (see Mirror) takes it, for the
+	// server's terminal to clear (Terminal.ClearScreen), which the next
+	// frame shows: cleared here
+	// alone, the server's frames, drawn from a screen still full, would
+	// bring rows back wrong. It is not asked on a full-screen program's
+	// screen, which ActionClearScreen leaves alone.
+	OnClear func(c Clear) bool
 }
+
+// Clear is what the user clears (Options.OnClear).
+type Clear int
+
+const (
+	// ClearScreen clears the scrollback and the screen above the cursor's
+	// line (ActionClearScreen and the context menu's Clear,
+	// Terminal.ClearScreen).
+	ClearScreen Clear = iota
+	// ClearScrollback clears the scrollback (Terminal.ClearScrollback).
+	//
+	// Deprecated: the context menu's Clear, which asked it as Clear
+	// Scrollback, clears as ActionClearScreen does: OnClear is asked
+	// ClearScreen.
+	ClearScrollback
+)
 
 // CopySource is what copied text to the clipboard (Options.OnCopy).
 type CopySource int
@@ -308,7 +365,7 @@ type RightClickAction int
 
 const (
 	// RightClickContextMenu shows the context menu: Copy, Paste, Select
-	// All and Clear Scrollback.
+	// All and Clear.
 	RightClickContextMenu RightClickAction = iota
 	// RightClickPaste lets go of the selection and pastes.
 	RightClickPaste
@@ -409,6 +466,10 @@ type Terminal struct {
 	opts Options
 	in   inputQueue
 
+	// quoting is how dropped files' paths are quoted, for the program's
+	// shell.
+	quoting quoting
+
 	// mu guards the emulator, which the reader changes and frames read.
 	mu      sync.Mutex
 	term    *vt.Terminal
@@ -418,8 +479,12 @@ type Terminal struct {
 	closed  bool
 	clipOut []string // what programs copied, for the view to write
 	// clipForward are reads of the clipboard for a Mirror to pass on, with
-	// ClipboardForward: whether each is of the primary selection.
+	// ClipboardForward: whether each is of the primary selection. The
+	// first Mirror to frame takes them, as one terminal answers a read.
 	clipForward []bool
+	// mirrors are the terminal's Mirrors, each of which passes on what
+	// programs copy.
+	mirrors []*Mirror
 	// clipReads are reads of the clipboard waiting for the main thread to
 	// answer them: a frame takes them, reads the clipboard and writes the
 	// reply (see view.answerReads).
@@ -444,10 +509,12 @@ type Terminal struct {
 
 	srcOnce sync.Once
 	srcErr  error
-	// connMu guards the size Conn is told, from a goroutine at a time.
-	connMu   sync.Mutex
-	connSize gridSize
-	connBusy bool
+	// connMu guards the size and the theme Conn is told, from a goroutine
+	// at a time, and those it was told.
+	connMu               sync.Mutex
+	connSize, connSent   gridSize
+	connTheme, themeSent *Theme
+	connBusy             bool
 
 	// rmu guards what frames draw from: the render state, which a
 	// program's synchronized update (mode 2026) holds.
@@ -460,6 +527,9 @@ type Terminal struct {
 	done     chan struct{}
 	doneOnce sync.Once
 	code     atomic.Int64
+
+	// find is the search, while one goes (Search).
+	find search
 
 	// curTheme is the view's theme, for the program's questions; t.mu
 	// guards it. v is the view's state, on the main thread.
@@ -506,7 +576,10 @@ func New(opts Options) (*Terminal, error) {
 			if primary || t.opts.NoClipboardWrite {
 				return false
 			}
-			t.clipOut = append(t.clipOut, text)
+			t.clipOut = queue(t.clipOut, text)
+			for _, m := range t.mirrors {
+				m.clipOut = queue(m.clipOut, text)
+			}
 			t.redraw()
 			return true
 		},
@@ -521,6 +594,12 @@ func New(opts Options) (*Terminal, error) {
 		return nil, err
 	}
 	t.term.SetTerminfoName("xterm-256color")
+	switch {
+	case opts.ImageLimit == 0:
+		t.term.SetImageLimit(320 << 20)
+	case opts.ImageLimit > 0:
+		t.term.SetImageLimit(uint64(opts.ImageLimit))
+	}
 	// Grapheme clusters take the cells of their width, as in Ghostty:
 	// emoji with modifiers and joined emoji take two.
 	t.term.SetModeDefault(vt.ModeGraphemes, true)
@@ -537,8 +616,12 @@ func New(opts Options) (*Terminal, error) {
 		t.term.Free()
 		return nil, err
 	}
+	// Programs asking the colors before a view shows the terminal, or in
+	// one no view shows, get the theme asked for.
+	t.UseTheme(opts.Theme)
 	if opts.Conn != nil {
 		t.src = opts.Conn
+		t.quoting = quotingFor(runtime.GOOS, "")
 		t.run()
 		return t, nil
 	}
@@ -548,6 +631,7 @@ func New(opts Options) (*Terminal, error) {
 		t.term.Free()
 		return nil, err
 	}
+	t.quoting = quotingFor(runtime.GOOS, path)
 	dir := opts.Dir
 	if dir == "" {
 		dir, _ = os.UserHomeDir()
@@ -835,6 +919,44 @@ func (t *Terminal) SetCopyOnSelect(c CopyOnSelect) {
 	t.mu.Unlock()
 }
 
+// SetMinimumContrast changes the least contrast of text with its
+// background, as Options.MinimumContrast.
+func (t *Terminal) SetMinimumContrast(ratio float32) {
+	t.mu.Lock()
+	t.opts.MinimumContrast = ratio
+	t.mu.Unlock()
+	t.redraw()
+}
+
+// UseTheme gives a terminal no view shows the colors of one that does, as
+// a server's for the window showing its session: programs asking the
+// colors (OSC 4, 10, 11, 12), or whether they are dark (CSI ? 996 n), get
+// them. A view's own theme takes over in a terminal it shows.
+func (t *Terminal) UseTheme(theme *Theme) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if theme == nil || t.term == nil {
+		return
+	}
+	theme.apply(t.term)
+	t.schemeChanged(t.curTheme, theme)
+	t.curTheme = theme
+}
+
+// schemeChanged tells a program that asked to be told (mode 2031) that the
+// colors went from light to dark or back, from old to theme, as Ghostty
+// does; t.mu is held.
+func (t *Terminal) schemeChanged(old, theme *Theme) {
+	if old == nil || old == theme || old.dark() == theme.dark() || !t.term.Mode(vt.ModeColorScheme) {
+		return
+	}
+	n := 2
+	if theme.dark() {
+		n = 1
+	}
+	t.in.push([]byte(fmt.Sprintf("\x1b[?997;%dn", n)))
+}
+
 // SetTheme changes the colors, as Options.Theme and DarkTheme.
 func (t *Terminal) SetTheme(theme, dark *Theme) {
 	t.mu.Lock()
@@ -870,6 +992,20 @@ func (t *Terminal) Resize(cols, rows int) {
 	t.resize(gridSize{max(cols, 1), max(rows, 1), t.size.cellW, t.size.cellH})
 }
 
+// ResizePixels is Resize with the size of a cell in pixels, for a terminal
+// no view shows that stands for one that does, as a server's for the
+// window showing its session: programs asking the size in pixels get it,
+// and it is what pointer reports in pixels (mode 1016) count in. A zero
+// cell size keeps the one before.
+func (t *Terminal) ResizePixels(cols, rows, cellWidth, cellHeight int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if cellWidth <= 0 || cellHeight <= 0 {
+		cellWidth, cellHeight = t.size.cellW, t.size.cellH
+	}
+	t.resize(gridSize{max(cols, 1), max(rows, 1), cellWidth, cellHeight})
+}
+
 // Snapshot returns what the terminal shows as escape sequences: its
 // scrollback and screen with their styles, the cursor and the modes
 // programs set. Fed to a new terminal of the same size, it shows the same,
@@ -892,6 +1028,45 @@ func (t *Terminal) Send(data []byte) {
 
 // Feed shows data as if the program wrote it: text and escape sequences.
 func (t *Terminal) Feed(data []byte) { t.write(data) }
+
+// ClearScreen clears the scrollback and the screen above the cursor's line,
+// which moves to the top, as ActionClearScreen does and Kitty's
+// clear_terminal to_cursor: the prompt the shell shows stays, and the
+// shell, which moves its cursor from where it is, goes on drawing there. A
+// full-screen program's screen, which this would break, is left alone, as
+// in Ghostty; it reports whether it cleared. A server calls it for a
+// window that shows its terminal (Options.OnClear).
+func (t *Terminal) ClearScreen() bool {
+	t.mu.Lock()
+	if t.term == nil || t.term.AltScreen() {
+		t.mu.Unlock()
+		return false
+	}
+	t.term.SetSelection(nil)
+	t.term.ScrollToBottom()
+	x, y := t.term.Cursor()
+	seq := "\x1b[3J"
+	if y > 0 {
+		// Delete the rows above the cursor's from the top, then put the
+		// cursor back on its line, now the first.
+		seq += "\x1b[H\x1b[" + strconv.Itoa(y) + "M\x1b[1;" + strconv.Itoa(x+1) + "H"
+	}
+	// Under the lock, so that no output comes between the cursor read and
+	// the rows deleted.
+	t.term.Write([]byte(seq))
+	proc := t.proc
+	t.mu.Unlock()
+	if proc != nil {
+		// ConPTY's console clears its own screen too, else it draws its
+		// next frames with the prompt where it was.
+		proc.ClearScreen()
+	}
+	t.redraw()
+	return true
+}
+
+// ClearScrollback clears the scrollback, leaving the screen as it is.
+func (t *Terminal) ClearScrollback() { t.write([]byte("\x1b[3J")) }
 
 // Close closes the terminal: the program is hung up (SIGHUP), or Conn
 // closed, and the terminal frees its memory. A view of it then shows
@@ -935,6 +1110,7 @@ func (t *Terminal) Close() error {
 	// free it under the locks.
 	t.mu.Lock()
 	t.rmu.Lock()
+	t.endSearch()
 	t.term.Free()
 	t.term = nil
 	t.rs.Free()
@@ -951,29 +1127,75 @@ func (t *Terminal) closeSrc() error {
 	return t.srcErr
 }
 
+// sizedConn reports whether Conn is told the size (Options.Conn).
+func sizedConn(c any) bool {
+	switch c.(type) {
+	case interface{ Resize(cols, rows int) error }, interface {
+		ResizePixels(cols, rows, cellWidth, cellHeight int) error
+	}:
+		return true
+	}
+	return false
+}
+
 // resizeConn tells Conn the size of the screen, from a goroutine, the
 // latest size only once it told the one before.
-func (t *Terminal) resizeConn(c interface{ Resize(cols, rows int) error }, s gridSize) {
+func (t *Terminal) resizeConn(c any, s gridSize) {
+	t.connMu.Lock()
+	t.connSize = s
+	t.connMu.Unlock()
+	t.tellConn(c)
+}
+
+// themeConn tells Conn the view's theme as resizeConn the size, when
+// Conn has UseTheme.
+func (t *Terminal) themeConn(theme *Theme) {
+	if _, ok := t.src.(interface{ UseTheme(*Theme) error }); !ok {
+		return
+	}
+	t.connMu.Lock()
+	t.connTheme = theme
+	t.connMu.Unlock()
+	t.tellConn(t.src)
+}
+
+// tellConn tells Conn the latest size and theme it was not told, from a
+// goroutine.
+func (t *Terminal) tellConn(c any) {
 	t.connMu.Lock()
 	defer t.connMu.Unlock()
-	t.connSize = s
 	if t.connBusy {
 		return
 	}
 	t.connBusy = true
 	go func() {
-		sent := gridSize{}
 		for {
 			t.connMu.Lock()
-			s := t.connSize
-			if s == sent {
+			s, theme := t.connSize, t.connTheme
+			resize, rethemed := s != t.connSent, theme != t.themeSent
+			if !resize && !rethemed {
 				t.connBusy = false
 				t.connMu.Unlock()
 				return
 			}
+			t.connSent, t.themeSent = s, theme
 			t.connMu.Unlock()
-			c.Resize(s.cols, s.rows)
-			sent = s
+			if rethemed {
+				if c, ok := c.(interface{ UseTheme(*Theme) error }); ok {
+					c.UseTheme(theme)
+				}
+			}
+			if !resize {
+				continue
+			}
+			switch c := c.(type) {
+			case interface {
+				ResizePixels(cols, rows, cellWidth, cellHeight int) error
+			}:
+				c.ResizePixels(s.cols, s.rows, s.cellW, s.cellH)
+			case interface{ Resize(cols, rows int) error }:
+				c.Resize(s.cols, s.rows)
+			}
 		}
 	}()
 }
@@ -996,8 +1218,8 @@ func (t *Terminal) resize(s gridSize) {
 	switch src := t.src.(type) {
 	case *pty.PTY:
 		src.Resize(s.cols, s.rows, s.cols*s.cellW, s.rows*s.cellH)
-	case interface{ Resize(cols, rows int) error }:
-		if !t.opts.ResizeByConn { // the size came from the Conn's reader
+	default:
+		if !t.opts.ResizeByConn && sizedConn(src) { // else the size came from the Conn's reader
 			t.resizeConn(src, s)
 		}
 	}
@@ -1007,8 +1229,7 @@ func (t *Terminal) resize(s gridSize) {
 // Options.ResizeByConn asks Conn for it, the screen keeping its size and
 // taking the cells' new metrics only; t.mu is held.
 func (t *Terminal) viewResize(s gridSize) {
-	c, ok := t.src.(interface{ Resize(cols, rows int) error })
-	if !t.opts.ResizeByConn || !ok {
+	if !t.opts.ResizeByConn || !sizedConn(t.src) {
 		t.resize(s)
 		return
 	}
@@ -1019,9 +1240,11 @@ func (t *Terminal) viewResize(s gridSize) {
 		t.size.cellW, t.size.cellH = s.cellW, s.cellH
 		t.term.Resize(t.size.cols, t.size.rows, s.cellW, s.cellH)
 	}
-	if s.cols != t.asked.cols || s.rows != t.asked.rows {
+	// New metrics are asked for too: the other end needs the cells' size
+	// in pixels.
+	if s != t.asked {
 		t.asked = s
-		t.resizeConn(c, s)
+		t.resizeConn(t.src, s)
 	}
 }
 

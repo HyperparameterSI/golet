@@ -71,11 +71,11 @@ func usePlugins(mux *http.ServeMux) {
 		io.WriteString(w, pluginsPage)
 	})
 	for name, path := range map[string]string{
-		"runtime":   "../../packages/runtime/dist/index.js",
-		"fetch":     "../../plugins/fetch/dist/index.js",
-		"sqlite":    "../../plugins/sqlite/dist/index.js",
-		"websocket": "../../plugins/websocket/dist/index.js",
-		"watch":     "../../plugins/watch/dist/index.js",
+		"runtime":   "../../../frontend/packages/runtime/dist/index.js",
+		"fetch":     "../../../frontend/plugins/fetch/dist/index.js",
+		"sqlite":    "../../../frontend/plugins/sqlite/dist/index.js",
+		"websocket": "../../../frontend/plugins/websocket/dist/index.js",
+		"watch":     "../../../frontend/plugins/watch/dist/index.js",
 	} {
 		mux.HandleFunc("/js/"+name+".js", func(w http.ResponseWriter, r *http.Request) {
 			b, err := os.ReadFile(path)
@@ -167,7 +167,7 @@ func readClientFrame(br *bufio.Reader) (byte, []byte, error) {
 }
 
 func TestPlugins(t *testing.T) {
-	for _, dist := range []string{"../../packages/runtime/dist", "../../plugins/fetch/dist", "../../plugins/websocket/dist", "../../plugins/sqlite/dist"} {
+	for _, dist := range []string{"../../../frontend/packages/runtime/dist", "../../../frontend/plugins/fetch/dist", "../../../frontend/plugins/websocket/dist", "../../../frontend/plugins/sqlite/dist"} {
 		if _, err := os.Stat(dist); err != nil {
 			t.Skip("the JavaScript packages are not built; run bun run build")
 		}
@@ -239,7 +239,7 @@ func TestPlugins(t *testing.T) {
 // TestSQLitePlugin exercises the built client through the real IPC transport:
 // parameters, int64/BLOB values, rollback and page-owned connection cleanup.
 func TestSQLitePlugin(t *testing.T) {
-	for _, dist := range []string{"../../packages/runtime/dist", "../../plugins/fetch/dist", "../../plugins/websocket/dist", "../../plugins/sqlite/dist"} {
+	for _, dist := range []string{"../../../frontend/packages/runtime/dist", "../../../frontend/plugins/fetch/dist", "../../../frontend/plugins/websocket/dist", "../../../frontend/plugins/sqlite/dist"} {
 		if _, err := os.Stat(dist); err != nil {
 			t.Skip("run bun run build first")
 		}

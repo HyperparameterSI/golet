@@ -59,9 +59,14 @@ func TestNativeDataRepresentations(t *testing.T) {
 	if calls.Load() != 2 {
 		t.Fatalf("provider requests %d; native snapshot and original each read once", calls.Load())
 	}
-	golet.RunOnMain(func() { opts.Operations = transfer.Move })
-	w.Invalidate()
-	before := frames.Load()
+	var before int32
+	golet.RunOnMain(func() {
+		// Snapshot before invalidating; the requested frame may finish
+		// before Invalidate returns to the test goroutine.
+		before = frames.Load()
+		opts.Operations = transfer.Move
+		w.Invalidate()
+	})
 	eventually(t, "move-only destination frame", func() bool { return frames.Load() > before })
 	if op, dropped, _ := dropNativeData(w, 50, 50, transfer.TextData("move"), transfer.Copy|transfer.Move); op != transfer.Move || !dropped {
 		t.Fatalf("move negotiation: %v, %v", op, dropped)
@@ -69,9 +74,11 @@ func TestNativeDataRepresentations(t *testing.T) {
 	if op, dropped, _ := dropNativeData(w, 50, 50, transfer.TextData("copy only"), transfer.Copy); op != transfer.None || dropped {
 		t.Fatalf("incompatible effects: %v, %v", op, dropped)
 	}
-	golet.RunOnMain(func() { opts = transfer.DropOptions{Formats: []transfer.Format{custom}} })
-	w.Invalidate()
-	before = frames.Load()
+	golet.RunOnMain(func() {
+		before = frames.Load()
+		opts = transfer.DropOptions{Formats: []transfer.Format{custom}}
+		w.Invalidate()
+	})
 	eventually(t, "custom-only destination", func() bool { return frames.Load() > before })
 	broken := transfer.New(transfer.NewItem(transfer.Lazy(custom, func() ([]byte, error) { return nil, errors.New("cannot serialize") })))
 	if _, dropped, _ := dropNativeData(w, 50, 50, broken, transfer.Copy); dropped {

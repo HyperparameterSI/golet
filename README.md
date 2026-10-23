@@ -12,6 +12,8 @@ Golet 基于 [MyGo](https://github.com/egoist/mygo) 的完整实现迁移，保�
 - **无 cgo**：三平台可交叉编译；原生 UI 也支持 WebAssembly。
 - **诊断日志**：核心生命周期、窗口、IPC 和协议错误支持结构化处理器，详细日志按需开启；见[日志接入说明](docs/logging.md)。
 
+已集成 MyGo v0.6.3 的新增能力与修复，包括内容拦截、PDF 中文文本修复、触控板缩放和终端增强；详见[上游集成记录](docs/upstream-v0.6.3.md)。
+
 ## 从零构建一个跨平台项目
 
 Golet 有两种使用方式：通过 CLI 创建独立应用，或在已有 Go 项目中导入框架。以下流程使用 **本地源码 + pnpm**，不依赖 Golet 已发布到 Go module proxy 或 npm。应用与框架是两个独立目录，不要把业务项目放进 Golet 仓库。

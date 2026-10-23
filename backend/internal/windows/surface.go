@@ -5,6 +5,7 @@
 package windows
 
 import (
+	"math"
 	"time"
 	"unicode/utf16"
 	"unsafe"
@@ -138,6 +139,9 @@ type surface struct {
 	// keyTaken tells that the content took the key down, whose
 	// WM_SYSCHAR then opens no menu.
 	keyTaken bool
+	// menuRan tells that the key down ran a menu item (menuShortcut): its
+	// character goes nowhere.
+	menuRan bool
 
 	reconvert  *[2]int // the runes a reconversion replaces
 	dropTarget uintptr // IDropTarget
@@ -503,6 +507,11 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
 		return 0, true
 	case wmMouseLeave:
 		s.tracking = false
+		if c := s.w.caption; c != nil && c.snap != 0 && cursorOver(c.snap) {
+			// Over the maximize button the content draws, whose window
+			// gives the content the pointer's moves.
+			return 0, true
+		}
 		s.mouseLeft()
 		s.send(platform.SurfaceEvent{Kind: platform.PointerLeave})
 		return 0, true
@@ -576,8 +585,16 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
 		pt := point{int32(int16(loword(lp))), int32(int16(hiword(lp)))}
 		procScreenToClient.Call(hwnd, uintptr(unsafe.Pointer(&pt)))
 		delta := float64(int16(hiword(wp)))
+		precise := int(delta)%120 != 0
+		if m == wmMouseWheel && precise && loword(wp)&0x0008 != 0 { // MK_CONTROL
+			// A touchpad's pinch, which Windows sends as scrolling with
+			// Ctrl held, as it does Ctrl and two fingers: three notches'
+			// worth zoom twice as large.
+			s.send(platform.SurfaceEvent{Kind: platform.PointerZoom, X: s.toDIP(pt.X), Y: s.toDIP(pt.Y), Scale: math.Exp(delta / 120 * math.Ln2 / 3), Mods: mods()})
+			return 0, true
+		}
 		dist := delta / 120 * float64(wheelLines()) * 33
-		ev := platform.SurfaceEvent{Kind: platform.PointerScroll, X: s.toDIP(pt.X), Y: s.toDIP(pt.Y), Mods: mods(), Precise: int(delta)%120 != 0}
+		ev := platform.SurfaceEvent{Kind: platform.PointerScroll, X: s.toDIP(pt.X), Y: s.toDIP(pt.Y), Mods: mods(), Precise: precise}
 		if m == wmMouseWheel {
 			ev.DY = -dist
 		} else {
@@ -603,13 +620,19 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
 		return 0, true
 	case wmKeyDown, wmSysKeyDown:
 		s.clientComposition.Reset()
-		s.keyTaken = false
+		s.keyTaken, s.menuRan = false, false
 		modifiers := mods()
 		if modifierKey(wp) {
 			s.send(platform.SurfaceEvent{Kind: platform.ModifiersChanged, Mods: modifiers})
 		}
+		if s.menuShortcut(wp, false) {
+			return 0, true
+		}
 		if k, physical, ok := keyAndPosition(wp, lp, false, modifiers); ok {
 			s.keyTaken = s.send(platform.SurfaceEvent{Kind: platform.KeyPressed, Key: k, PhysicalKey: physical, Mods: modifiers, Repeat: lp&(1<<30) != 0})
+		}
+		if !s.keyTaken && s.menuShortcut(wp, true) {
+			return 0, true
 		}
 		// Alt+F4, Alt+Space and F10 keep working.
 		return 0, m == wmKeyDown
@@ -623,6 +646,9 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
 		}
 		return 0, m == wmKeyUp
 	case wmSysChar:
+		if s.menuRan {
+			return 0, true
+		}
 		if s.keyTaken {
 			// The content took Alt and the key, as a terminal does.
 			return 0, true
@@ -634,6 +660,9 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
 			return 0, true
 		}
 	case wmChar:
+		if s.menuRan {
+			return 0, true
+		}
 		c := uint16(wp)
 		switch {
 		case utf16.IsSurrogate(rune(c)) && c < 0xDC00:
@@ -830,4 +859,28 @@ func (w *window) Surface() platform.Surface {
 		return nil
 	}
 	return w.surface
+}
+
+// menuShortcut runs the window's menu item whose shortcut the key down vk
+// is, as macOS's menus take their key equivalents, and reports whether it
+// ran one. The app's own items take their keys before the content, which
+// gets only what they leave; items with a role (roles), only those the
+// content leaves: their keys are the content's own too, as Ctrl+C, which
+// copies in a field, interrupts in a terminal and is Edit › Copy's.
+func (s *surface) menuShortcut(vk uintptr, roles bool) bool {
+	w := s.w.top()
+	cmd, ok := w.accels[accelKey{vk: uint32(vk), mods: currentModifiers()}]
+	if !ok {
+		return false
+	}
+	e := w.b.menus.entries[cmd]
+	if e == nil || (e.role != "") != roles {
+		return false
+	}
+	if st, _, _ := procGetMenuState.Call(e.menu, uintptr(cmd), mfByCommand); uint32(st) != 0xFFFFFFFF && st&mfGrayed != 0 {
+		return false
+	}
+	s.keyTaken, s.menuRan = true, true
+	w.b.menuCommand(cmd, w)
+	return true
 }

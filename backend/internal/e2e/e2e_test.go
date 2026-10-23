@@ -913,6 +913,36 @@ func TestRestoreMaximizedCaptionless(t *testing.T) {
 	}
 }
 
+// The page of a window without a caption has the size the app asks for, in
+// UseContentSize, SetContentBounds and SetContentSize. A resizable one keeps
+// invisible borders on Windows, which its bounds count and its page does not.
+func TestCaptionlessContentSize(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("only Windows keeps borders around the page of a window without a caption")
+	}
+	for name, opts := range map[string]golet.WindowOptions{
+		"frameless":          {Frameless: true},
+		"fixed frameless":    {Frameless: true, DisableResize: true},
+		"hidden title bar":   {TitleBarStyle: golet.TitleBarHidden},
+		"fixed hidden title": {TitleBarStyle: golet.TitleBarHidden, DisableResize: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			opts.Width, opts.Height, opts.UseContentSize = 400, 300, true
+			w := newWindow(t, opts)
+			if width, height := w.ContentSize(); width != 400 || height != 300 {
+				t.Errorf("new window: content size = %dx%d, want 400x300", width, height)
+			}
+			want := golet.Rectangle{X: 200, Y: 180, Width: 360, Height: 240}
+			w.SetContentBounds(want)
+			eventually(t, "the content where it was put", func() bool { return w.ContentBounds() == want })
+			w.SetContentSize(420, 280)
+			if width, height := w.ContentSize(); width != 420 || height != 280 {
+				t.Errorf("SetContentSize: content size = %dx%d, want 420x280", width, height)
+			}
+		})
+	}
+}
+
 func TestDockedDevTools(t *testing.T) {
 	w := newWindow(t, golet.WindowOptions{Title: "DevTools", Width: 800, Height: 600, Page: golet.PageOptions{DevTools: golet.DevToolsEnabled}})
 	w.Page().LoadHTML("<p>inspect me</p>", "")
@@ -2372,6 +2402,29 @@ func TestHiddenTitleBar(t *testing.T) {
 	eventually(t, "no room for the controls in full screen", func() bool { return room(w) == [3]string{"0px", "0px", "0px"} })
 	w.SetFullScreen(false)
 	eventually(t, "the room of the controls back", func() bool { return room(w) == shown })
+}
+
+// HideWindowButtons keeps a hidden title bar without its window controls,
+// which the page draws itself: it hears no room for them, and the window
+// keeps the rest of the title bar, its resizing top edge on Windows.
+func TestHiddenWindowButtons(t *testing.T) {
+	w := newWindow(t, golet.WindowOptions{X: 80, Y: 80, Width: 480, Height: 320,
+		TitleBarStyle: golet.TitleBarHidden, TitleBarHeight: 40, HideWindowButtons: true})
+	w.Page().LoadHTML("<p>no window buttons</p>", "")
+	waitFor(t, w, "document.querySelector('p')")
+	v, _ := golet.EvalAs[[]string](w.Page(), `(() => {
+		const s = getComputedStyle(document.documentElement);
+		return ["height", "inset-left", "inset-right"].map((k) => s.getPropertyValue("--golet-titlebar-" + k).trim());
+	})()`)
+	if slices.ContainsFunc(v, func(s string) bool { return s != "" && s != "0px" }) {
+		t.Errorf("room = %q, want none", v)
+	}
+	if names, ok := titleButtons(w); ok && len(names) > 0 {
+		t.Errorf("buttons = %q, want none", names)
+	}
+	if px, want, ok := topNonClient(w); ok && px != want {
+		t.Errorf("non-client area at the top = %d px, want %d", px, want)
+	}
 }
 
 func expectClick(t *testing.T, clicks chan string, want string) {

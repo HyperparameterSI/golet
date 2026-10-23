@@ -41,7 +41,10 @@ var fb *fake.Backend
 // backend, like a real program, and the tests on another goroutine.
 func TestMain(m *testing.M) {
 	if os.Getenv("GOLET_TEST_SECOND_INSTANCE") == "1" {
-		// Helper process for TestSingleInstance.
+		// Helper process for TestSingleInstance. Only an instance that
+		// hands over passes the foreground on (Windows).
+		helper := fake.New()
+		backendOnce.Do(func() { theBackend = helper })
 		packageIdentifier = os.Getenv("GOLET_TEST_IDENTIFIER")
 		App.SetName("GoletTest")
 		if App.RequestSingleInstanceLock() {
@@ -49,6 +52,9 @@ func TestMain(m *testing.M) {
 			releaseSingleInstanceLock()
 		} else {
 			fmt.Println("forwarded")
+		}
+		if helper.ForegroundAllowed > 0 {
+			fmt.Println("passed the foreground on")
 		}
 		os.Exit(0)
 	}
@@ -2181,6 +2187,10 @@ func TestSingleInstance(t *testing.T) {
 		if wd == "" {
 			t.Error("working directory not forwarded")
 		}
+		// The window it focuses can take the focus on Wayland.
+		if fb.ActivationToken != "golet-test-token" {
+			t.Errorf("activation token = %q", fb.ActivationToken)
+		}
 		got <- args
 	})
 	defer off()
@@ -2191,12 +2201,13 @@ func TestSingleInstance(t *testing.T) {
 	onMain(func() { packageURLSchemes = "golet-test" })
 	defer onMain(func() { packageURLSchemes = schemes })
 	cmd := exec.Command(os.Args[0], "-test.run=^$", "--from-second", "instance", "golet-test://open?x=1")
-	cmd.Env = append(os.Environ(), "GOLET_TEST_SECOND_INSTANCE=1")
+	cmd.Env = append(os.Environ(), "GOLET_TEST_SECOND_INSTANCE=1", "XDG_ACTIVATION_TOKEN=golet-test-token")
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.TrimSpace(string(out)) != "forwarded" {
+	// It lets the first instance bring its windows to the front (Windows).
+	if strings.TrimSpace(string(out)) != "forwarded\npassed the foreground on" {
 		t.Fatalf("second instance printed %q", out)
 	}
 	select {

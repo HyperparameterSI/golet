@@ -453,7 +453,7 @@ func TestLayoutInputs(t *testing.T) {
 	other := "epoch key valueInput id depth track transform originX originY originSet world content contentSet " +
 		"pose poseAnim poseSet poseM poseFade reposed ink noCull backface bg fill grad stripes borderC borderStyle radius " +
 		"shadows material effect effecting grads blur opacity opacitySet cursor paintFn styleFn paintAfterFn " +
-		"inputFn textClient caret takesText noIME copyData webView fit gray dismissed rotate label widget role " +
+		"inputFn textClient caret takesText noIME copyData webView maximizeButton fit gray dismissed rotate label widget role " +
 		"checked expanded vertical tip highlighted accValue accRange hasRange accFill accStep barInset scrollBase " +
 		"listRow rowIndex rowsOf focusGroup groupSelects segment activeDescendant nameFrom nameJoin " +
 		"setPos setSize choosesItems search description invalid followX sort level expandable " +

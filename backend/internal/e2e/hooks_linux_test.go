@@ -61,6 +61,13 @@ func sideButton(w *golet.Window, back bool) bool {
 	return fake(func() bool { return linux.TestSideButton(w.NativeHandle(), back) })
 }
 
+// pinch pinches the touchpad at (x, y) by scale with GDK's events, which
+// only Wayland makes.
+func pinch(w *golet.Window, x, y, scale float64) (got float64, ok bool) {
+	golet.RunOnMain(func() { ok = linux.TestPinchSurface(w.NativeHandle(), x, y, scale) })
+	return scale, ok
+}
+
 func drag(w *golet.Window, points [][2]float64) bool {
 	return fake(func() bool { return linux.TestDragSurface(w.NativeHandle(), points) })
 }

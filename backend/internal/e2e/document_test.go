@@ -115,8 +115,15 @@ func TestDocumentWindow(t *testing.T) {
 	if err := activateMenu(w, "File", "Revert to Saved"); err != nil {
 		t.Fatalf("File > Revert to Saved: %v", err)
 	}
+	var revertTexts, revertButtons []string
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("revert sheet: texts=%q buttons=%q", revertTexts, revertButtons)
+		}
+	})
 	eventually(t, "the sheet asking to revert", func() bool {
 		texts, buttons, ok, _ := sheet(w)
+		revertTexts, revertButtons = texts, buttons
 		return ok && slices.Contains(texts, "Do you want to revert “chrome.e2enote” to the last saved version?") && len(buttons) == 2
 	})
 	endSheetButton(w, 0)
@@ -152,6 +159,44 @@ func TestDocumentWindow(t *testing.T) {
 	}
 	if !slices.ContainsFunc(golet.App.RecentDocuments(), func(p string) bool { return strings.HasSuffix(p, "chrome.e2enote") }) {
 		t.Errorf("recent documents %q", golet.App.RecentDocuments())
+	}
+}
+
+// Menu commands must target the requested document even when another one
+// has focus, rather than silently saving the wrong file.
+func TestDocumentMenuTargetsWindow(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("macOS has an application-wide menu")
+	}
+	old := golet.App.Menu()
+	golet.App.SetMenu(golet.NewMenu([]*golet.MenuItem{{Role: golet.RoleAppMenu}, {Role: golet.RoleFileMenu}}))
+	t.Cleanup(func() { golet.App.SetMenu(old) })
+	dir := t.TempDir()
+	open := func(name string) *golet.Document[string] {
+		path := filepath.Join(dir, name+".e2enote")
+		if err := os.WriteFile(path, []byte("saved"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		doc, err := notes().Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { doc.SetEdited(false); doc.Window().Destroy() })
+		doc.Set("edited")
+		return doc
+	}
+	first, second := open("first"), open("second")
+	second.Window().Focus()
+	eventually(t, "the second document's focus", func() bool { return golet.FocusedWindow() == second.Window() })
+	if err := activateMenu(first.Window(), "File", "Save"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "the requested document to save", func() bool {
+		data, err := os.ReadFile(filepath.Join(dir, "first.e2enote"))
+		return err == nil && string(data) == "edited" && !first.IsEdited()
+	})
+	if !second.IsEdited() {
+		t.Fatal("the previously focused document was saved instead")
 	}
 }
 

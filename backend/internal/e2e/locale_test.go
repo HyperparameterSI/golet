@@ -76,23 +76,40 @@ func TestTextLanguage(t *testing.T) {
 	localeLanguages(t, "en", "ja", "zh-Hans")
 	var seen atomic.Value
 	var override atomic.Value
+	var frames atomic.Uint64
 	override.Store("")
 	view := func(c *ui.Context) {
 		seen.Store(c.Locale())
 		ui.Text(c, "直骨").FontSize(48).Lang(override.Load().(string))
+		frames.Add(1)
 	}
 	w := newWindow(t, golet.WindowOptions{Title: "Text language", Width: 200, Height: 100, Content: ui.View(view)})
 	capture := func(locale, lang string) []byte {
 		t.Helper()
-		override.Store(lang)
-		golet.App.SetLocale(locale)
-		eventually(t, "the view in "+locale, func() bool { return seen.Load() == locale })
-		w.Update(func() {})
-		time.Sleep(100 * time.Millisecond)
-		data, err := w.CapturePage()
-		if err != nil {
-			t.Fatal(err)
-		}
+		var before uint64
+		golet.RunOnMain(func() {
+			before = frames.Load()
+			override.Store(lang)
+			golet.App.SetLocale(locale)
+			w.Update(func() {})
+		})
+		var data []byte
+		eventually(t, "the view in "+locale, func() bool {
+			// Capturing also builds a pending frame when the window is
+			// occluded. Wait for that frame, not a fixed desktop delay.
+			var err error
+			var ready bool
+			golet.RunOnMain(func() {
+				data, err = w.CapturePage()
+				// Read the generation with the capture: a subsequent frame
+				// must not make an older screenshot appear current.
+				ready = frames.Load() > before && seen.Load() == locale
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return ready
+		})
 		return data
 	}
 	ja, hans := capture("ja", ""), capture("zh-Hans", "")

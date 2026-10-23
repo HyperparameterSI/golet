@@ -24,7 +24,14 @@ func recentDocumentRecorded(path string) (recorded, supported bool) {
 }
 
 func activateMenu(w *golet.Window, path ...string) (err error) {
-	golet.RunOnMain(func() { err = darwin.TestPerformMenuItem(path...) })
+	golet.RunOnMain(func() {
+		// The app menu targets the key window. Honor the requested window
+		// instead of depending on focus left by an earlier test or the user.
+		if w != nil {
+			w.Focus()
+		}
+		err = darwin.TestPerformMenuItem(path...)
+	})
 	return err
 }
 
@@ -80,6 +87,13 @@ func waitOnScreen(w *golet.Window) {
 func sideButton(w *golet.Window, back bool) (ok bool) {
 	golet.RunOnMain(func() { ok = darwin.TestSideButton(w.NativeHandle(), back) })
 	return ok
+}
+
+// pinch pinches the touchpad at (x, y) by scale, and returns the scale
+// the platform reports.
+func pinch(w *golet.Window, x, y, scale float64) (got float64, ok bool) {
+	golet.RunOnMain(func() { ok = darwin.TestPinch(w.NativeHandle(), x, y, scale-1) })
+	return scale, ok
 }
 
 func drag(w *golet.Window, points [][2]float64) bool {

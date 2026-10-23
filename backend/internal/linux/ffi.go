@@ -132,6 +132,7 @@ var (
 	gObjectRefSink                 func(obj ptr) ptr
 	gObjectUnref                   func(obj ptr)
 	gObjectSetBool                 func(obj ptr, name *byte, v bool, end ptr)
+	gObjectSetStr                  func(obj ptr, name *byte, v *byte, end ptr)
 	gObjectGetPtr                  func(obj ptr, name *byte, out unsafe.Pointer, end ptr)
 	gSlistFree                     func(list ptr)
 	gListFree                      func(list ptr)
@@ -182,40 +183,44 @@ var (
 
 // GDK and GdkPixbuf.
 var (
-	gdkScreenGetRGBAVisual      func(screen ptr) ptr
-	gdkDisplayGetDefault        func() ptr
-	gdkDisplayGetNMonitors      func(d ptr) int32
-	gdkDisplayGetMonitor        func(d ptr, i int32) ptr
-	gdkDisplayGetPrimaryMonitor func(d ptr) ptr
-	gdkMonitorGetGeometry       func(m ptr, r *gdkRectangle)
-	gdkMonitorGetWorkarea       func(m ptr, r *gdkRectangle)
-	gdkMonitorGetScaleFactor    func(m ptr) int32
-	gdkMonitorGetRefreshRate    func(m ptr) int32
-	gdkDisplayGetMonitorAtWin   func(d, w ptr) ptr
-	gdkMonitorGetModel          func(m ptr) ptr
-	gdkDisplayGetDefaultSeat    func(d ptr) ptr
-	gdkSeatGetPointer           func(s ptr) ptr
-	gdkDeviceGetPosition        func(dev ptr, screen *ptr, x, y *int32)
-	gdkWindowGetDevicePosition  func(w, dev ptr, x, y *int32, mask *uint32) ptr
-	gdkWindowGetDisplay         func(w ptr) ptr
-	gdkWindowGetFrameExtents    func(w ptr, r *gdkRectangle)
-	gdkWindowGetOrigin          func(w ptr, x, y *int32) int32
-	gdkWindowGetGeometry        func(w ptr, x, y, width, height *int32)
-	gdkWindowGetCursor          func(w ptr) ptr
-	gdkWindowSetCursor          func(w, cursor ptr)
-	gdkCursorNewFromName        func(d ptr, name *byte) ptr
-	gdkDisplayBeep              func(d ptr)
-	gdkEventCopy                func(e ptr) ptr
-	gdkEventFree                func(e ptr)
-	gdkAtomIntern               func(name *byte, onlyIfExists bool) ptr
-	gdkAtomName                 func(atom ptr) ptr
-	gdkKeyvalFromName           func(name *byte) uint32
-	gdkUnicodeToKeyval          func(r uint32) uint32
-	gdkPixbufLoaderNew          func() ptr
-	gdkPixbufLoaderWrite        func(l ptr, buf unsafe.Pointer, n uintptr, err *ptr) bool
-	gdkPixbufLoaderClose        func(l ptr, err *ptr) bool
-	gdkPixbufLoaderGetPixbuf    func(l ptr) ptr
-	gdkPixbufSaveToBufferv      func(p ptr, buf *ptr, size *uintptr, typ *byte, keys, values ptr, err *ptr) bool
+	gdkScreenGetRGBAVisual          func(screen ptr) ptr
+	gdkDisplayGetDefault            func() ptr
+	gdkDisplayGetNMonitors          func(d ptr) int32
+	gdkDisplayGetMonitor            func(d ptr, i int32) ptr
+	gdkDisplayGetPrimaryMonitor     func(d ptr) ptr
+	gdkMonitorGetGeometry           func(m ptr, r *gdkRectangle)
+	gdkMonitorGetWorkarea           func(m ptr, r *gdkRectangle)
+	gdkMonitorGetScaleFactor        func(m ptr) int32
+	gdkMonitorGetRefreshRate        func(m ptr) int32
+	gdkDisplayGetMonitorAtWin       func(d, w ptr) ptr
+	gdkMonitorGetModel              func(m ptr) ptr
+	gdkDisplayGetDefaultSeat        func(d ptr) ptr
+	gdkSeatGetPointer               func(s ptr) ptr
+	gdkDeviceGetPosition            func(dev ptr, screen *ptr, x, y *int32)
+	gdkWindowGetDevicePosition      func(w, dev ptr, x, y *int32, mask *uint32) ptr
+	gdkWindowGetDisplay             func(w ptr) ptr
+	gdkWindowGetFrameExtents        func(w ptr, r *gdkRectangle)
+	gdkWindowGetOrigin              func(w ptr, x, y *int32) int32
+	gdkWindowGetGeometry            func(w ptr, x, y, width, height *int32)
+	gdkWindowGetCursor              func(w ptr) ptr
+	gdkWindowSetCursor              func(w, cursor ptr)
+	gdkCursorNewFromName            func(d ptr, name *byte) ptr
+	gdkDisplayBeep                  func(d ptr)
+	gdkEventCopy                    func(e ptr) ptr
+	gdkEventFree                    func(e ptr)
+	gdkAtomIntern                   func(name *byte, onlyIfExists bool) ptr
+	gdkAtomName                     func(atom ptr) ptr
+	gdkKeyvalFromName               func(name *byte) uint32
+	gdkKeyvalToLower                func(keyval uint32) uint32
+	gdkUnicodeToKeyval              func(r uint32) uint32
+	gdkKeymapGetForDisplay          func(d ptr) ptr
+	gdkKeymapGetEntriesForKeyval    func(km ptr, keyval uint32, keys *ptr, n *int32) bool
+	gdkKeymapTranslateKeyboardState func(km ptr, keycode, state uint32, group int32, keyval *uint32, effGroup, level *int32, consumed *uint32) bool
+	gdkPixbufLoaderNew              func() ptr
+	gdkPixbufLoaderWrite            func(l ptr, buf unsafe.Pointer, n uintptr, err *ptr) bool
+	gdkPixbufLoaderClose            func(l ptr, err *ptr) bool
+	gdkPixbufLoaderGetPixbuf        func(l ptr) ptr
+	gdkPixbufSaveToBufferv          func(p ptr, buf *ptr, size *uintptr, typ *byte, keys, values ptr, err *ptr) bool
 )
 
 type gdkRectangle struct{ X, Y, Width, Height int32 }
@@ -267,6 +272,7 @@ var (
 	gtkWindowBeginMoveDrag              func(w ptr, button int32, rootX, rootY int32, timestamp uint32)
 	gtkWindowBeginResizeDrag            func(w ptr, edge, button int32, rootX, rootY int32, timestamp uint32)
 	gtkWindowAddAccelGroup              func(w, group ptr)
+	gtkWindowPropagateKeyEvent          func(w, event ptr) bool
 	gtkWindowRemoveAccelGroup           func(w, group ptr)
 	gtkWindowSetUrgencyHint             func(w ptr, v bool)
 	gtkWindowStick                      func(w ptr)
@@ -357,6 +363,7 @@ var (
 	gtkSelectionDataFree                func(sd ptr)
 	gtkSelectionDataGetUris             func(sd ptr) ptr
 	gtkSettingsGetDefault               func() ptr
+	gtkSettingsResetProperty            func(settings ptr, name *byte)
 	gtkOverlayNew                       func() ptr
 	gtkOverlayAddOverlay                func(o, w ptr)
 	gtkHeaderBarNew                     func() ptr
@@ -413,7 +420,6 @@ var (
 	webkitSettingsSetEnableDeveloperExtras            func(s ptr, v bool)
 	webkitSettingsSetUserAgent                        func(s ptr, ua *byte)
 	webkitSettingsGetUserAgent                        func(s ptr) ptr
-	webkitSettingsSetUserAgentWithApplicationDetails  func(s ptr, applicationName, applicationVersion *byte)
 	webkitSettingsSetAllowFileAccessFromFileURLs      func(s ptr, v bool)
 	webkitSettingsSetJavascriptCanAccessClipboard     func(s ptr, v bool)
 	webkitWebViewLoadURI                              func(wv ptr, uri *byte)
@@ -594,6 +600,7 @@ func load() error {
 	mustBind(o, &gObjectRefSink, "g_object_ref_sink")
 	mustBind(o, &gObjectUnref, "g_object_unref")
 	mustBind(o, &gObjectSetBool, "g_object_set")
+	mustBind(o, &gObjectSetStr, "g_object_set")
 	mustBind(o, &gObjectGetPtr, "g_object_get")
 
 	i := libGIO
@@ -643,7 +650,11 @@ func load() error {
 	mustBind(d, &gdkAtomIntern, "gdk_atom_intern")
 	mustBind(d, &gdkAtomName, "gdk_atom_name")
 	mustBind(d, &gdkKeyvalFromName, "gdk_keyval_from_name")
+	mustBind(d, &gdkKeyvalToLower, "gdk_keyval_to_lower")
 	mustBind(d, &gdkUnicodeToKeyval, "gdk_unicode_to_keyval")
+	mustBind(d, &gdkKeymapGetForDisplay, "gdk_keymap_get_for_display")
+	mustBind(d, &gdkKeymapGetEntriesForKeyval, "gdk_keymap_get_entries_for_keyval")
+	mustBind(d, &gdkKeymapTranslateKeyboardState, "gdk_keymap_translate_keyboard_state")
 
 	p := libPixbuf
 	mustBind(p, &gdkPixbufLoaderNew, "gdk_pixbuf_loader_new")
@@ -688,6 +699,7 @@ func load() error {
 	mustBind(t, &gtkWindowBeginMoveDrag, "gtk_window_begin_move_drag")
 	mustBind(t, &gtkWindowBeginResizeDrag, "gtk_window_begin_resize_drag")
 	mustBind(t, &gtkWindowAddAccelGroup, "gtk_window_add_accel_group")
+	mustBind(t, &gtkWindowPropagateKeyEvent, "gtk_window_propagate_key_event")
 	mustBind(t, &gtkWindowRemoveAccelGroup, "gtk_window_remove_accel_group")
 	mustBind(t, &gtkWindowSetUrgencyHint, "gtk_window_set_urgency_hint")
 	mustBind(t, &gtkWindowStick, "gtk_window_stick")
@@ -778,6 +790,7 @@ func load() error {
 	mustBind(t, &gtkSelectionDataGetLength, "gtk_selection_data_get_length")
 	mustBind(t, &gtkSelectionDataFree, "gtk_selection_data_free")
 	mustBind(t, &gtkSettingsGetDefault, "gtk_settings_get_default")
+	mustBind(t, &gtkSettingsResetProperty, "gtk_settings_reset_property")
 	mustBind(t, &gtkOverlayNew, "gtk_overlay_new")
 	mustBind(t, &gtkOverlayAddOverlay, "gtk_overlay_add_overlay")
 	mustBind(t, &gtkHeaderBarNew, "gtk_header_bar_new")
@@ -906,7 +919,6 @@ func loadWebKit() error {
 	mustBind(w, &webkitSettingsSetEnableDeveloperExtras, "webkit_settings_set_enable_developer_extras")
 	mustBind(w, &webkitSettingsSetUserAgent, "webkit_settings_set_user_agent")
 	mustBind(w, &webkitSettingsGetUserAgent, "webkit_settings_get_user_agent")
-	mustBind(w, &webkitSettingsSetUserAgentWithApplicationDetails, "webkit_settings_set_user_agent_with_application_details")
 	mustBind(w, &webkitSettingsSetAllowFileAccessFromFileURLs, "webkit_settings_set_allow_file_access_from_file_urls")
 	mustBind(w, &webkitSettingsSetJavascriptCanAccessClipboard, "webkit_settings_set_javascript_can_access_clipboard")
 	mustBind(w, &webkitWebViewLoadURI, "webkit_web_view_load_uri")

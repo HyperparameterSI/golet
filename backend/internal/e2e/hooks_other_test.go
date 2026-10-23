@@ -30,6 +30,8 @@ func drag(*golet.Window, [][2]float64) bool { return false }
 
 func sideButton(*golet.Window, bool) bool { return false }
 
+func pinch(*golet.Window, float64, float64, float64) (float64, bool) { return 0, false }
+
 func webViewAttached(*golet.Window) (bool, bool) { return false, false }
 
 // Collection behaviors and deactivating the app are macOS's.
