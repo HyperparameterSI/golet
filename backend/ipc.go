@@ -11,7 +11,6 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"log"
 	"reflect"
 	"runtime"
 	"runtime/debug"
@@ -298,7 +297,8 @@ func (m *method) call(w *Window, page context.Context, token string, args []rawV
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("panic: %v", r)
-			log.Printf("golet: panic in %s.%s: %v\n%s", m.service, m.name, r, debug.Stack())
+			reportLog(LogRecord{Level: LogError, Event: "ipc.panic", WindowID: w.id,
+				Method: m.service + "." + m.name, Err: err, Stack: string(debug.Stack())})
 		}
 	}()
 	in := make([]reflect.Value, 0, len(m.params)+1)
@@ -391,11 +391,12 @@ func handleCall(w *Window, ctx context.Context, raw string, trusted bool) {
 		A  []rawValue `json:"a"` // shares raw
 	}
 	if err := json.Unmarshal(stringBytes(raw), &m); err != nil {
-		log.Printf("golet: malformed call from window %d: %v", w.id, err)
+		reportLog(LogRecord{Level: LogWarn, Event: "ipc.malformed", WindowID: w.id, Err: err})
 		return
 	}
 	var result any
 	var err error
+	reportLog(LogRecord{Level: LogDebug, Event: "ipc.started", WindowID: w.id, Method: m.M})
 	if !trusted {
 		err = fmt.Errorf("this page is not allowed to call Go methods (see PageOptions.TrustedOrigins)")
 	} else if mi := lookupMethod(m.M); mi == nil {
@@ -403,6 +404,14 @@ func handleCall(w *Window, ctx context.Context, raw string, trusted bool) {
 	} else {
 		result, err = mi.call(w, ctx, m.K, m.A)
 	}
+	level, event := LogDebug, "ipc.completed"
+	if err != nil {
+		level, event = LogWarn, "ipc.failed"
+		if errors.Is(err, context.Canceled) {
+			level, event = LogDebug, "ipc.canceled"
+		}
+	}
+	reportLog(LogRecord{Level: level, Event: event, WindowID: w.id, Method: m.M, Err: err})
 	w.enqueue(encodeReply(m.ID, m.K, result, err), false)
 }
 
@@ -420,6 +429,7 @@ func encodeReply(id int64, token string, result any, err error) message {
 			return message{append(b, `,"ok":true,"v":`...), v, closeBrace}
 		}
 		err = fmt.Errorf("cannot encode result: %w", merr)
+		reportLog(LogRecord{Level: LogError, Event: "ipc.encode_failed", Err: err})
 	}
 	b = append(b, `,"ok":false,"e":`...)
 	b, _ = jsontext.AppendQuote(b, err.Error())

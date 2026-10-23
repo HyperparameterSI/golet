@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -457,6 +456,7 @@ func newWindow(opts WindowOptions, bg *background, native uintptr, flyout *flyou
 	w.title = popts.Title
 	nw, err := backend().NewWindow(popts, &windowHandler{w})
 	if err != nil {
+		reportLog(LogRecord{Level: LogError, Event: "window.create_failed", WindowID: w.id, Err: err})
 		panic(fmt.Sprintf("golet: cannot create window: %v", err))
 	}
 	w.native = nw
@@ -471,6 +471,7 @@ func newWindow(opts WindowOptions, bg *background, native uintptr, flyout *flyou
 	windows.list = append(windows.list, w)
 	windows.Unlock()
 
+	reportLog(LogRecord{Level: LogInfo, Event: "window.created", WindowID: w.id})
 	fire1(&App.onWindowCreated, w)
 	if opts.URL != "" && w.content == nil {
 		w.pg.LoadURL(opts.URL)
@@ -1641,6 +1642,7 @@ func (h *windowHandler) Closed() {
 	w.mu.Unlock()
 	cancel()
 
+	reportLog(LogRecord{Level: LogInfo, Event: "window.closed", WindowID: w.id})
 	fire(&w.onClosed)
 	if closingParents == 0 && len(Windows()) == 0 {
 		App.lastWindowClosed()
@@ -1728,12 +1730,15 @@ func (h *windowHandler) NavigationCommitted(url string) {
 }
 
 func (h *windowHandler) LoadFinished() {
+	reportLog(LogRecord{Level: LogDebug, Event: "window.load_finished", WindowID: h.w.id})
 	fire(&h.w.onDidFinishLoad)
 	// Pages without the bridge (e.g. images) never report DOM ready.
 	h.w.readyToShow()
 }
 
 func (h *windowHandler) LoadFailed(url string, code int, desc string) {
+	reportLog(LogRecord{Level: LogWarn, Event: "window.load_failed", WindowID: h.w.id,
+		Err: fmt.Errorf("load code %d: %s", code, desc)})
 	fire1(&h.w.onDidFailLoad, &LoadError{URL: url, Code: code, Description: desc})
 }
 
@@ -1756,7 +1761,11 @@ func (h *windowHandler) NewWindow(req platform.NewWindowRequest) platform.Window
 	r := WindowOpenRequest{URL: req.URL, FrameName: req.FrameName, Width: req.Width, Height: req.Height}
 	if handler == nil {
 		if u, err := url.Parse(req.URL); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
-			go Shell.OpenExternal(req.URL)
+			go func() {
+				if err := Shell.OpenExternal(req.URL); err != nil {
+					reportLog(LogRecord{Level: LogWarn, Event: "window.open_external_failed", WindowID: h.w.id, Err: err})
+				}
+			}()
 		}
 		return nil
 	}
@@ -1772,7 +1781,7 @@ func (h *windowHandler) NewWindow(req platform.NewWindowRequest) platform.Window
 	o.URL = ""
 	bg, err := backgroundOption(o.BackgroundColor)
 	if err != nil {
-		log.Printf("golet: window open handler: %v", err)
+		reportLog(LogRecord{Level: LogWarn, Event: "window.open_options_invalid", WindowID: h.w.id, Err: err})
 	}
 	child := newWindow(o, bg, req.Native, nil)
 	return child.native
@@ -1784,7 +1793,11 @@ func (h *windowHandler) ClosedByPage() {
 	}
 }
 
-func (h *windowHandler) RenderProcessGone(reason string) { fire1(&h.w.onRenderGone, reason) }
+func (h *windowHandler) RenderProcessGone(reason string) {
+	reportLog(LogRecord{Level: LogError, Event: "window.render_process_gone", WindowID: h.w.id,
+		Err: fmt.Errorf("render process exited: %s", reason)})
+	fire1(&h.w.onRenderGone, reason)
+}
 
 // filesDropped tells OnFileDrop listeners, and the app's own pages, about
 // dropped files.

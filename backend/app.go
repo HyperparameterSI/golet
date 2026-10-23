@@ -100,12 +100,14 @@ func (a *Application) Run() error {
 	a.running = true
 	a.mu.Unlock()
 	go cleanUpdateLeftovers()
+	reportLog(LogRecord{Level: LogInfo, Event: "app.starting"})
 
 	b := backend()
 	if err := b.Init(appHandler{}, platform.AppOptions{
 		Name:             a.Name(),
 		ActivationPolicy: string(a.activationPolicy()),
 	}); err != nil {
+		reportLog(LogRecord{Level: LogError, Event: "app.init_failed", Err: err})
 		return err
 	}
 	a.initialized = true
@@ -119,6 +121,9 @@ func (a *Application) Run() error {
 	// Run whatever was scheduled before the event loop existed.
 	b.Signal()
 	err := b.Run()
+	if err != nil {
+		reportLog(LogRecord{Level: LogError, Event: "app.run_failed", Err: err})
+	}
 	a.finish()
 	return err
 }
@@ -222,6 +227,7 @@ func (a *Application) finish() {
 			relaunchNow() // after OnQuit, which releases the single instance lock
 		}
 		loop.shutdown()
+		reportLog(LogRecord{Level: LogInfo, Event: "app.stopped"})
 	})
 }
 
@@ -258,6 +264,7 @@ func (a *Application) handleReady() {
 	menu := a.menu
 	a.mu.Unlock()
 	close(a.readyCh)
+	reportLog(LogRecord{Level: LogInfo, Event: "app.ready"})
 
 	backend().SetApplicationMenu(menu.snapshot())
 	fire(&a.onReady)

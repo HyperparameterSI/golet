@@ -7,7 +7,6 @@ package golet
 import (
 	"fmt"
 	"io/fs"
-	"log"
 	"mime"
 	"net/http"
 	"net/url"
@@ -131,7 +130,8 @@ func serveScheme(win *Window, h http.Handler, req *platform.SchemeRequest) {
 	rw := &schemeWriter{req: req, header: http.Header{}}
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("golet: panic serving %s: %v\n%s", req.URL, r, debug.Stack())
+			reportLog(LogRecord{Level: LogError, Event: "protocol.panic", WindowID: win.id,
+				Err: fmt.Errorf("handler panic: %v", r), Stack: string(debug.Stack())})
 			if !rw.wroteHeader {
 				rw.header = http.Header{}
 				rw.WriteHeader(http.StatusInternalServerError)
@@ -140,6 +140,7 @@ func serveScheme(win *Window, h http.Handler, req *platform.SchemeRequest) {
 		rw.finish()
 	}()
 	if h == nil {
+		reportLog(LogRecord{Level: LogWarn, Event: "protocol.handler_missing", WindowID: win.id})
 		rw.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -149,6 +150,7 @@ func serveScheme(win *Window, h http.Handler, req *platform.SchemeRequest) {
 	}
 	r, err := http.NewRequestWithContext(req.Context, req.Method, req.URL, body)
 	if err != nil {
+		reportLog(LogRecord{Level: LogWarn, Event: "protocol.request_invalid", WindowID: win.id, Err: err})
 		rw.WriteHeader(http.StatusBadRequest)
 		return
 	}
