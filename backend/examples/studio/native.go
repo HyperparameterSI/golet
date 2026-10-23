@@ -4,6 +4,7 @@ package main
 import (
 	"errors"
 	"github.com/HyperparameterSI/golet/backend"
+	"github.com/HyperparameterSI/golet/backend/examples/internal/demotheme"
 	"github.com/HyperparameterSI/golet/backend/examples/internal/editordemo"
 	"github.com/HyperparameterSI/golet/backend/examples/internal/gallerydemo"
 	"github.com/HyperparameterSI/golet/backend/examples/internal/loadingdemo"
@@ -59,6 +60,7 @@ func (s *Showcase) Open(id string) error {
 			win = gallerydemo.Open(id)
 		}
 		if win != nil {
+			demotheme.Register(win)
 			s.windows[id] = win
 			win.OnClosed(func() { delete(s.windows, id) })
 		}
@@ -70,6 +72,7 @@ func openWebView() (*golet.Window, error) {
 	var view *golet.WebView
 	zoom := 1.0
 	win := golet.NewWindow(golet.WindowOptions{Title: "Studio · WebView", Width: 950, Height: 680, Content: ui.View(func(c *ui.Context) {
+		demotheme.Apply(c)
 		ui.Column(c).Fill().Children(func() {
 			ui.Row(c).Padding(12).Gap(12).Children(func() {
 				ui.Text(c, "原生工具栏 + 系统 WebView")
@@ -121,7 +124,10 @@ func openTerminal() (*golet.Window, error) {
 	if err != nil {
 		return nil, err
 	}
-	win = golet.NewWindow(golet.WindowOptions{Title: "Studio · Terminal", Width: 900, Height: 600, Content: ui.View(func(c *ui.Context) { terminal.View(c, term).Fill().AutoFocus() })})
+	win = golet.NewWindow(golet.WindowOptions{Title: "Studio · Terminal", Width: 900, Height: 600, Content: ui.View(func(c *ui.Context) {
+		demotheme.Apply(c)
+		terminal.View(c, term).Fill().AutoFocus()
+	})})
 	win.OnClosed(func() { term.Close() })
 	return win, nil
 }
@@ -134,6 +140,7 @@ func openAdvanced() *golet.Window {
 	size := float32(200)
 	ratio := float32(0.5)
 	return golet.NewWindow(golet.WindowOptions{Title: "Studio · 缓冲区与分栏", Width: 1000, Height: 760, Content: ui.View(func(c *ui.Context) {
+		demotheme.Apply(c)
 		ui.Scroll(c).Fill().Padding(24).Gap(16).Children(func() {
 			ui.Text(c, "缓冲区与布局组件").FontSize(26).Bold()
 			ui.TextInputBuffer(c, input)

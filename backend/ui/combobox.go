@@ -284,8 +284,9 @@ func styleOptions(c *context, p *comboboxParts, options []string) *node {
 // Its Label names the input.
 func field(c *context, fn func() *node) (*node, *node) {
 	t := c.theme
-	f := coreRow(c).AlignItems(Center).Gap(t.Space(1.5)).Padding(t.Space(2), t.Space(2.5)).
-		Radius(t.Radius).Background(t.Surface).Border(1, t.Border).Role(RoleNone).Cursor(CursorText)
+	f := coreRow(c).MinHeight(t.Space(9)).AlignItems(Center).Gap(t.Space(1.5)).Padding(t.Space(2), t.Space(2.5)).
+		Radius(t.Radius).Background(t.Surface).Border(1, t.inputBorderColor()).Role(RoleNone).Cursor(CursorText)
+	themeMaterial(f, t.ControlMaterial)
 	f.flags |= flagClickable | flagHover
 	var in *node
 	f.Children(func() { in = fn() })
@@ -382,8 +383,9 @@ func coreAutocomplete(c *context, value *string, suggestions []string) *node {
 	p := comboboxBase(c, value, false)
 	in := p.Input
 	t := c.theme
-	in.Padding(t.Space(2), t.Space(3)).Radius(t.Radius).Background(t.Surface).Border(1, t.Border)
+	in.MinHeight(t.Space(9)).Padding(t.Space(2), t.Space(3)).Radius(t.Radius).Background(t.Surface).Border(1, t.inputBorderColor())
 	in.styleFn = func(e *node) { inputBorder(t, e, e) }
+	themeMaterial(in, t.ControlMaterial)
 	var shown []string
 	if q := strings.TrimSpace(*value); q != "" && p.Filtering() {
 		for _, s := range matching(suggestions, q) {

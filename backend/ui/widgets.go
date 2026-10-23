@@ -159,7 +159,7 @@ func styleButton(c *context, b *node, primary bool) {
 	case primary:
 		base, hover, pressed, fg, border = t.Accent, t.AccentHover, t.AccentPressed, t.AccentText, Color{}
 	case c.buttons == toolbarButtons:
-		b.Padding(t.Space(1.5), t.Space(2.5))
+		b.Padding(t.Space(1.5), t.Space(2.5)).Radius(t.Radius)
 		base, border = Color{}, Color{}
 	case c.buttons == segmentButtons:
 		b.Padding(t.Space(1), t.Space(3)).Radius(max(t.Radius-t.Space(0.5), 0))
@@ -167,8 +167,12 @@ func styleButton(c *context, b *node, primary bool) {
 		b.segment = true
 	}
 	b.Background(base).TextColor(fg)
-	if border.A > 0 {
+	// Reserve the same outline space for primary and secondary controls.
+	if border.A > 0 || c.buttons == ownButtons {
 		b.Border(1, border)
+	}
+	if c.buttons == ownButtons {
+		b.MinHeight(t.Space(9))
 	}
 	b.styleFn = func(b *node) {
 		if b.bg != base || b.IsDisabled() {
@@ -179,6 +183,13 @@ func styleButton(c *context, b *node, primary bool) {
 		} else if b.Hovered() {
 			b.bg = hover
 		}
+	}
+	if c.buttons == ownButtons {
+		m := t.ControlMaterial
+		if primary {
+			m = t.AccentMaterial
+		}
+		themeMaterial(b, m)
 	}
 }
 
@@ -224,6 +235,11 @@ func coreCheckbox(c *context, checked *bool, label string) *node {
 		} else {
 			box.Background(t.Surface).Border(1, t.Border.Mix(t.Text, 0.12))
 		}
+		if on {
+			themeMaterial(box, t.AccentMaterial)
+		} else {
+			themeMaterial(box, t.ControlMaterial)
+		}
 		box.DrawOver(func(p *Painter, r Rect) {
 			if on {
 				p.StrokePath(checkPath(r), t.Space(0.5), t.AccentText)
@@ -257,6 +273,7 @@ func coreRadio[T comparable](c *context, selected *T, value T, label string) *no
 		} else {
 			dot.Background(t.Surface).Border(1, t.Border.Mix(t.Text, 0.12))
 		}
+		themeMaterial(dot, t.ControlMaterial)
 		dot.DrawOver(func(p *Painter, r Rect) {
 			if on {
 				d := t.Space(1.5)
@@ -285,6 +302,11 @@ func coreSwitch(c *context, on *bool) *node {
 	pos := sw.Animate("knob", b2f(*on), 140*time.Millisecond)
 	off := t.Border.Mix(t.Text, 0.15)
 	sw.Background(off.Mix(t.Accent, pos))
+	if *on {
+		themeMaterial(sw, t.AccentMaterial)
+	} else {
+		themeMaterial(sw, t.ControlMaterial)
+	}
 	rtl := sw.rtl()
 	sw.Draw(func(p *Painter, r Rect) {
 		in := t.Space(0.5)
@@ -295,7 +317,7 @@ func coreSwitch(c *context, on *bool) *node {
 			at = 1 - pos
 		}
 		knob := Rect{r.X + in + at*(r.W-r.H), r.Y + in, d, d}
-		p.Shadow(knob, d/2, 0, 1, 3, 0, RGBA(0, 0, 0, 0.25))
+		p.Shadow(knob, d/2, 0, 1, 2, 0, RGBA(0, 0, 0, 0.14))
 		p.Fill(knob, RGB(255, 255, 255).Mix(t.AccentText, pos), d/2)
 	})
 	return sw
@@ -603,6 +625,7 @@ func coreModal(c *context, open *bool, fn func()) *node {
 		back.Background(RGBA(0, 0, 0, 0.4))
 		panel.Padding(t.Space(5)).Gap(t.Space(3)).Radius(t.Space(2.5)).Background(t.Background).MaxWidth(c.w - t.Space(10)).MaxHeight(c.h - t.Space(10))
 		panel.Shadow(0, 10, 30, 0, RGBA(0, 0, 0, 0.3))
+		themeMaterial(panel, t.PanelMaterial)
 		fn()
 	})
 }
@@ -624,8 +647,9 @@ func corePopover(c *context, anchor *node, open *bool, fn func()) *node {
 // stylePanel gives the panel of a popup the theme's look.
 func stylePanel(c *context, panel *node) {
 	t := c.theme
-	panel.Margin(t.Space(1), 0, 0, 0).Padding(t.Space(1)).Radius(t.Radius+2).Background(t.Surface).Border(1, t.Border)
-	panel.Shadow(0, 4, 12, 0, RGBA(0, 0, 0, 0.12))
+	panel.Margin(t.Space(1), 0, 0, 0).Padding(t.Space(1)).Radius(t.Radius+4).Background(t.Surface).Border(1, t.Border)
+	panel.Shadow(0, 6, 18, -2, RGBA(0, 0, 0, 0.10))
+	themeMaterial(panel, t.PanelMaterial)
 }
 
 // Select creates a drop-down choosing one of options into *selected.
@@ -634,7 +658,7 @@ func coreSelect(c *context, selected *string, options []string) *node {
 	sel := coreSelectBase(c, selected)
 	b := sel.Trigger
 	styleButton(c, b, false)
-	b.Justify(SpaceBetween).MinWidth(t.Space(35))
+	b.Justify(SpaceBetween).FontWeight(400).MinWidth(t.Space(35))
 	b.Children(func() {
 		coreText(c, *selected).SingleLine()
 		chevron(c)
@@ -647,7 +671,7 @@ func coreSelect(c *context, selected *string, options []string) *node {
 			item := sel.Item(opt).Padding(t.Space(1.5), t.Space(2.5)).Radius(t.Radius)
 			switch {
 			case item.Highlighted():
-				item.Background(t.Accent).TextColor(t.AccentText)
+				item.Background(t.SurfaceHover).TextColor(t.Text)
 			case opt == *selected:
 				item.Background(t.Surface)
 			}

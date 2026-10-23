@@ -140,3 +140,52 @@ func TestInverseFillsTooltipsAndToasts(t *testing.T) {
 		t.Errorf("a theme fills a tooltip with %v and a toast with %v, not its Inverse %v", tooltip, toast, th.Inverse)
 	}
 }
+
+// TestSemanticThemeFallbacks protects applications that supply their own
+// themes without the newer input and navigation tokens.
+func TestSemanticThemeFallbacks(t *testing.T) {
+	th := &Theme{Border: Hex("#345678"), Surface: Hex("#abcdef")}
+	if th.inputBorderColor() != th.Border || th.sidebarColor() != th.Surface {
+		t.Fatal("unset semantic colors must inherit existing custom colors")
+	}
+	th.InputBorder, th.Sidebar = RGBA(255, 255, 255, .15), Hex("#171717")
+	if th.inputBorderColor() != th.InputBorder || th.sidebarColor() != th.Sidebar {
+		t.Fatal("explicit semantic colors must take precedence")
+	}
+	for _, dark := range []bool{false, true} {
+		base := LightTheme()
+		if dark {
+			base = DarkTheme()
+		}
+		preset := ShadcnTheme(dark)
+		base.FontSize = 14
+		if *preset != *base {
+			t.Fatal("native presets must share the same semantic palette")
+		}
+		preset.Radius = 99
+		if ShadcnTheme(dark).Radius == 99 {
+			t.Fatal("customizing one theme must not mutate other themes")
+		}
+	}
+}
+
+func TestStandardControlHeightsAgree(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		value, selected := "", "One"
+		tt := coreNewTester(func(c *context) {
+			c.SetTheme(ShadcnTheme(dark))
+			coreColumn(c).Children(func() {
+				coreButton(c, "Secondary").Label("secondary")
+				corePrimaryButton(c, "Primary").Label("primary")
+				coreTextInput(c, &value).Label("input")
+				coreSelect(c, &selected, []string{"One", "Two"}).Label("select")
+			})
+		}, 400, 400)
+		want := at(t, tt, "secondary").H
+		for _, name := range []string{"primary", "input", "select"} {
+			if got := at(t, tt, name).H; got != want {
+				t.Errorf("%s height %v differs from secondary %v (dark=%v)", name, got, want, dark)
+			}
+		}
+	}
+}

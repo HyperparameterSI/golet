@@ -24,7 +24,9 @@ pnpm build:app:mac:universal  # 双架构，输出 build/darwin-universal/
 - 插件：玻璃效果、全部 29 种 Loading 指示器、真实终端和 Golet Browser。
 - Web：shadcn Button / Input / Card 与 Go IPC；原生窗口中的系统 WebView。
 
-当前共 19 个演示分组，可按名称、API 名称和分类搜索。选择卡片后点击“打开原生演示”。再次打开同一分组会聚焦原窗口。关闭后再次打开重置状态。
+可按名称、API 名称和分类搜索演示分组。选择卡片后点击“打开原生演示”。再次打开同一分组会聚焦原窗口。关闭后再次打开重置表单状态。
+
+在“原生主题实验室”切换 Liquid Glass 或 Maia，并选择跟随系统、浅色或深色外观。设置在当前 Studio 会话中共享：已打开的原生演示窗口同步更新，之后打开的窗口继承选择。控件、导航和 Gallery 卡片统一使用主题材质，文字、图表和颜色样本保留可读性及语义颜色。系统 WebView 的网页内容与独立 Browser 界面由各自的样式控制。
 
 ## Browser
 

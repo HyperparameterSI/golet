@@ -201,6 +201,7 @@ func starPath(r Rect) *Path {
 func coreStepper(c *context, value *float64, lo, hi, step float64) *node {
 	t := c.theme
 	e := coreColumn(c).Focusable().Shrink(0).Width(t.Space(5)).Radius(t.Radius).Border(1, t.Border).Background(t.Surface).Clip().Role(RoleStepper)
+	themeMaterial(e, t.ControlMaterial)
 	e.widget = "Stepper"
 	e.flags |= flagOwnRing
 	set := func(v float64) {

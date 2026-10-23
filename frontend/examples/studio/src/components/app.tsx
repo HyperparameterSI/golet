@@ -85,7 +85,7 @@ export function App() {
           <img className="studio-mark" src={goletMark} alt="Golet" width={42} height={42} />
           <div>
             <strong className="text-xl tracking-tight">
-              golet<span className="text-[#7097c5]">.</span>
+              golet<span className="text-brand-mark">.</span>
             </strong>
             <p className="text-xs text-muted-foreground">STUDIO / 0.1.0</p>
           </div>
@@ -136,7 +136,7 @@ export function App() {
         </header>
         <section className="studio-hero">
           <div>
-            <p className="text-xs font-medium tracking-[.25em] text-emerald-700 dark:text-emerald-400">
+            <p className="text-xs font-medium tracking-[.25em] text-brand">
               BUILD SOMETHING NATIVE
             </p>
             <h1>
@@ -155,6 +155,26 @@ export function App() {
             <span>交互演示分组</span>
             <p>Go native · React · Plugins</p>
           </div>
+        </section>
+        <section className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card p-6">
+          <div>
+            <p className="text-xs font-medium tracking-widest text-muted-foreground">
+              NATIVE / MATERIAL LAB
+            </p>
+            <h2 className="mt-2 text-xl font-semibold">原生主题实验室</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Maia 中性 · Liquid Glass · 明暗切换 · 真实 Go 控件
+            </p>
+          </div>
+          <Button
+            disabled={busy || !catalog.some((d) => d.id === "Themes")}
+            onClick={() => {
+              const demo = catalog.find((d) => d.id === "Themes");
+              if (demo) void open(demo);
+            }}
+          >
+            打开原生演示 <ArrowUpRight size={16} />
+          </Button>
         </section>
         <div className="relative mb-6">
           <Search className="absolute left-3 top-3 text-muted-foreground" size={18} />
@@ -175,7 +195,7 @@ export function App() {
           </p>
         )}
         {notice && (
-          <p role="status" className="mb-5 flex items-center gap-2 text-sm text-emerald-700">
+          <p role="status" className="mb-5 flex items-center gap-2 text-sm text-brand">
             <Check size={16} />
             {notice}
           </p>
@@ -215,7 +235,7 @@ export function App() {
             {selected && (
               <Card>
                 <CardHeader>
-                  <p className="mb-2 text-xs text-emerald-700">{selected.category} / LIVE DEMO</p>
+                  <p className="mb-2 text-xs text-brand">{selected.category} / LIVE DEMO</p>
                   <CardTitle className="text-2xl">{selected.title}</CardTitle>
                   <CardDescription className="leading-6">{selected.description}</CardDescription>
                 </CardHeader>

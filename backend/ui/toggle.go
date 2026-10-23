@@ -32,6 +32,10 @@ func coreToggle(c *context, on *bool, label string) *node {
 	styleButton(c, b, false)
 	if *on {
 		b.Background(pressedColor(c))
+		themeMaterial(b, c.theme.AccentMaterial)
+		if c.theme.AccentMaterial != nil && !c.Preferences().HighContrast {
+			b.TextColor(c.theme.AccentText)
+		}
 		if c.buttons == segmentButtons {
 			b.Shadow(0, 1, 2, 0, RGBA(0, 0, 0, 0.12))
 		}
@@ -61,6 +65,7 @@ func segmentTrack(c *context) *node {
 	t := c.theme
 	g := coreRow(c).Shrink(0).AlignItems(Stretch).Padding(t.Space(0.5)).Gap(t.Space(0.5)).
 		Radius(t.Radius).Background(t.Surface).Border(1, t.Border)
+	themeMaterial(g, t.PanelMaterial)
 	g.FocusGroup(Horizontal | Vertical)
 	return g
 }
@@ -154,6 +159,7 @@ func coreSegmented(c *context, selected *int, labels ...string) *node {
 	parts := coreSegmentedBase(c, selected, len(labels))
 	g := parts.Track
 	g.AlignItems(Stretch).Padding(t.Space(0.5)).Gap(t.Space(0.5)).Radius(t.Radius).Background(t.Surface).Border(1, t.Border)
+	themeMaterial(g, t.PanelMaterial)
 	saved := c.buttons
 	c.buttons = segmentButtons
 	g.Children(func() {

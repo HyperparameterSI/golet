@@ -1,6 +1,6 @@
 {
   "name": "golet-runtime",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Typed access to the Golet runtime in the pages of Golet desktop apps",
   "keywords": [
     "golet",

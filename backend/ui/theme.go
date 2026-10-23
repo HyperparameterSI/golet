@@ -8,6 +8,12 @@ import "runtime"
 // LightTheme or DarkTheme and set it with Context.SetTheme.
 type Theme struct {
 	Dark bool
+	// Optional materials replace styled control and panel backgrounds.
+	// Nil keeps the ordinary solid theme. Materials belong to the caller;
+	// core UI never imports a renderer plugin. High contrast uses solid fills.
+	ControlMaterial Material
+	AccentMaterial  Material
+	PanelMaterial   Material
 	// Background fills the window.
 	Background Color
 	// Surface is the face of buttons, inputs and other controls;
@@ -15,8 +21,12 @@ type Theme struct {
 	Surface        Color
 	SurfaceHover   Color
 	SurfacePressed Color
-	// Border outlines controls.
+	// Border outlines cards, buttons and popovers.
 	Border Color
+	// InputBorder outlines editable fields; zero falls back to Border.
+	InputBorder Color
+	// Sidebar fills navigation panels; zero falls back to Surface.
+	Sidebar Color
 	// Text and TextMuted color text; TextMuted is for secondary text and
 	// placeholders.
 	Text      Color
@@ -104,27 +114,46 @@ func defaultFontSize() float32 {
 	return 14
 }
 
-// LightTheme returns the theme for a light appearance.
+// inputBorderColor preserves themes created before editable fields had a
+// separate token. Resolve it at use time so custom Border values still work.
+func (t *Theme) inputBorderColor() Color {
+	if t.InputBorder == Transparent {
+		return t.Border
+	}
+	return t.InputBorder
+}
+
+func (t *Theme) sidebarColor() Color {
+	if t.Sidebar == Transparent {
+		return t.Surface
+	}
+	return t.Sidebar
+}
+
+// LightTheme returns the neutral shadcn palette for a light appearance.
+// Colors are precomputed sRGB equivalents of the shadcn OKLCH tokens,
+// keeping gamut conversion out of the default startup path.
 func LightTheme() *Theme {
 	return &Theme{
 		Background:     Hex("#ffffff"),
 		Surface:        Hex("#ffffff"),
-		SurfaceHover:   Hex("#f4f4f5"),
-		SurfacePressed: Hex("#e4e4e7"),
-		Border:         Hex("#e4e4e7"),
-		Text:           Hex("#18181b"),
-		TextMuted:      Hex("#71717a"),
-		Accent:         Hex("#18181b"),
-		AccentHover:    Hex("#27272a"),
-		AccentPressed:  Hex("#3f3f46"),
-		AccentText:     Hex("#ffffff"),
-		Danger:         Hex("#dc2626"),
+		SurfaceHover:   Hex("#f5f5f5"),
+		SurfacePressed: Hex("#e5e5e5"),
+		Border:         Hex("#e5e5e5"),
+		Sidebar:        Hex("#fafafa"),
+		Text:           Hex("#171717"),
+		TextMuted:      Hex("#737373"),
+		Accent:         Hex("#171717"),
+		AccentHover:    Hex("#262626"),
+		AccentPressed:  Hex("#404040"),
+		AccentText:     Hex("#fafafa"),
+		Danger:         Hex("#e7000b"),
 		Warning:        Hex("#d97706"),
 		Success:        Hex("#16a34a"),
-		Selection:      RGBA(24, 24, 27, 0.12),
-		Focus:          RGBA(113, 113, 122, 0.45),
+		Selection:      RGBA(23, 23, 23, 0.12),
+		Focus:          Hex("#a3a3a3"),
 		Scrollbar:      RGBA(0, 0, 0, 0.32),
-		Radius:         8,
+		Radius:         10,
 		Spacing:        4,
 		FontSize:       defaultFontSize(),
 	}
@@ -134,24 +163,26 @@ func LightTheme() *Theme {
 func DarkTheme() *Theme {
 	return &Theme{
 		Dark:           true,
-		Background:     Hex("#09090b"),
-		Surface:        Hex("#18181b"),
-		SurfaceHover:   Hex("#27272a"),
-		SurfacePressed: Hex("#3f3f46"),
-		Border:         Hex("#303036"),
-		Text:           Hex("#f4f4f5"),
-		TextMuted:      Hex("#a1a1aa"),
-		Accent:         Hex("#fafafa"),
-		AccentHover:    Hex("#e4e4e7"),
-		AccentPressed:  Hex("#d4d4d8"),
-		AccentText:     Hex("#18181b"),
-		Danger:         Hex("#ef4444"),
+		Background:     Hex("#0a0a0a"),
+		Surface:        Hex("#171717"),
+		SurfaceHover:   Hex("#262626"),
+		SurfacePressed: Hex("#404040"),
+		Border:         RGBA(255, 255, 255, 0.10),
+		InputBorder:    RGBA(255, 255, 255, 0.15),
+		Sidebar:        Hex("#171717"),
+		Text:           Hex("#fafafa"),
+		TextMuted:      Hex("#a3a3a3"),
+		Accent:         Hex("#e5e5e5"),
+		AccentHover:    Hex("#d4d4d4"),
+		AccentPressed:  Hex("#a3a3a3"),
+		AccentText:     Hex("#171717"),
+		Danger:         Hex("#ff6467"),
 		Warning:        Hex("#f59e0b"),
 		Success:        Hex("#22c55e"),
-		Selection:      RGBA(244, 244, 245, 0.18),
-		Focus:          RGBA(161, 161, 170, 0.5),
+		Selection:      RGBA(250, 250, 250, 0.18),
+		Focus:          Hex("#737373"),
 		Scrollbar:      RGBA(255, 255, 255, 0.35),
-		Radius:         8,
+		Radius:         10,
 		Spacing:        4,
 		FontSize:       defaultFontSize(),
 	}

@@ -38,6 +38,14 @@ func (e *node) Material(m Material) *node {
 	return e
 }
 
+// themeMaterial applies an opt-in material through the public builder adapter,
+// so plugins can animate checked Element handles without retaining nodes.
+func themeMaterial(e *node, m Material) {
+	if m != nil && !e.c.Preferences().HighContrast {
+		wrapElement(e).Material(m)
+	}
+}
+
 // Theme returns the theme of the view being painted.
 func (p *Painter) Theme() *Theme { return p.rt.c.theme }
 

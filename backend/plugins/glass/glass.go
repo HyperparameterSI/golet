@@ -50,6 +50,9 @@ const (
 	// Clear barely blurs nor tones what shows through, for glass over
 	// photos and video, where what is on it brings its own contrast.
 	Clear
+	// Vivid keeps more backdrop detail with a stronger lens and illuminated
+	// rim. It is Golet's emphasized preset, not a separate AppKit material.
+	Vivid
 )
 
 // pressKey is the key of an interactive glass's animation.
@@ -101,6 +104,8 @@ func (g Glass) String() string {
 	s := "glass"
 	if g.Style == Clear {
 		s += " clear"
+	} else if g.Style == Vivid {
+		s += " vivid"
 	}
 	if g.Tint.A > 0 {
 		s += fmt.Sprintf(" tint(#%02x%02x%02x%02x)", g.Tint.R, g.Tint.G, g.Tint.B, g.Tint.A)
@@ -151,6 +156,18 @@ func paint(p *ui.Painter, box ui.Rect, radii [4]float32, g Glass) {
 	default:
 		mat.blur = min(max(m*0.035, 1), 10) * s
 		mat.low, mat.high, mat.curve, mat.saturation = 0.541, 1, 1.2, 1
+	}
+	if g.Style == Vivid {
+		// The same shader and CPU pipeline handles this preset; no extra
+		// blur passes or continuous animation are needed.
+		mat.blur = min(max(m*0.022, 1), 8) * s
+		mat.refraction = 1.85 * bezel * s
+		mat.rim = 0.62
+		if p.Theme().Dark {
+			mat.low, mat.high, mat.curve, mat.saturation = 0.10, 0.56, 1.6, 1.8
+		} else {
+			mat.low, mat.high, mat.curve, mat.saturation = 0.36, 1, 1.15, 1.35
+		}
 	}
 	if g.Tint.A > 0 {
 		mat.tint, mat.wideTint = p.EffectColor(g.Tint)

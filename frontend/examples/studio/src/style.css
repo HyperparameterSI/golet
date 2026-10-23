@@ -1,50 +1,59 @@
 @import "tailwindcss";
 @custom-variant dark (&:is(.dark *));
 
+/* Author: HyperparameterSI — logo-derived navy and ice-blue theme. */
 :root {
   color-scheme: light;
-  --background: #fafafa;
-  --foreground: #171717;
+  --background: #f6f8fb;
+  --foreground: #1b263b;
   --card: #ffffff;
-  --card-foreground: #171717;
-  --primary: #171717;
-  --primary-foreground: #fafafa;
-  --secondary: #f5f5f5;
-  --secondary-foreground: #171717;
-  --muted: #f5f5f5;
-  --muted-foreground: #737373;
-  --accent: #f5f5f5;
-  --accent-foreground: #171717;
+  --card-foreground: #1b263b;
+  --primary: #243b63;
+  --primary-foreground: #f0f7ff;
+  --secondary: #edf2f8;
+  --secondary-foreground: #354b79;
+  --muted: #edf2f8;
+  --muted-foreground: #647187;
+  --accent: #eaf0f8;
+  --accent-foreground: #243b63;
   --destructive: #dc2626;
-  --border: #e5e5e5;
-  --input: #e5e5e5;
-  --ring: #737373;
+  --border: #dfe5ee;
+  --input: #cbd5e3;
+  --ring: #7097c5;
   --popover: #ffffff;
-  --popover-foreground: #171717;
+  --popover-foreground: #1b263b;
+  --brand: #354b79;
+  --brand-soft: #eaf0f8;
+  --brand-mark: #7097c5;
   --radius: 0.625rem;
 }
 .dark {
   color-scheme: dark;
-  --background: #0a0a0a;
-  --foreground: #fafafa;
-  --card: #171717;
-  --card-foreground: #fafafa;
-  --primary: #fafafa;
-  --primary-foreground: #171717;
-  --secondary: #262626;
-  --secondary-foreground: #fafafa;
-  --muted: #262626;
-  --muted-foreground: #a3a3a3;
-  --accent: #262626;
-  --accent-foreground: #fafafa;
+  --background: #101827;
+  --foreground: #edf3fb;
+  --card: #172236;
+  --card-foreground: #edf3fb;
+  --primary: #b8d5f2;
+  --primary-foreground: #182a50;
+  --secondary: #223149;
+  --secondary-foreground: #d9e7f7;
+  --muted: #223149;
+  --muted-foreground: #a1afc5;
+  --accent: #243650;
+  --accent-foreground: #d9e7f7;
   --destructive: #f87171;
-  --border: #404040;
-  --input: #404040;
-  --ring: #a3a3a3;
-  --popover: #171717;
-  --popover-foreground: #fafafa;
+  --border: #2c3b52;
+  --input: #40516c;
+  --ring: #9fc7ef;
+  --popover: #172236;
+  --popover-foreground: #edf3fb;
+  --brand: #b8d5f2;
+  --brand-soft: #243650;
+  --brand-mark: #9fc7ef;
 }
 @theme inline {
+  --color-brand: var(--brand);
+  --color-brand-mark: var(--brand-mark);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -90,19 +99,19 @@
 
 /* Author: HyperparameterSI — startup screen, including the static SPA shell. */
 .loading-screen {
-  --loading-bg: #fafafa;
-  --loading-fg: #18181b;
-  --loading-muted: #71717a;
-  --loading-line: #e4e4e7;
+  --loading-bg: #f6f8fb;
+  --loading-fg: #1b263b;
+  --loading-muted: #647187;
+  --loading-line: #dfe5ee;
   --loading-tile: #fff;
-  --loading-accent: #6366f1;
+  --loading-accent: #7097c5;
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 32px 24px;
   box-sizing: border-box;
-  background: radial-gradient(ellipse at 50% 44%, #6366f108, transparent 55%), var(--loading-bg);
+  background: radial-gradient(ellipse at 50% 44%, #7097c508, transparent 55%), var(--loading-bg);
   color: var(--loading-fg);
 }
 .loading-content {
@@ -136,7 +145,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--loading-accent);
-  box-shadow: 0 0 12px #6366f14d;
+  box-shadow: 0 0 12px #7097c54d;
 }
 .loading-logo {
   display: grid;
@@ -183,21 +192,21 @@
   animation: golet-loading-progress 1.8s ease-in-out infinite;
 }
 .dark .loading-screen {
-  --loading-bg: #0a0a0a;
-  --loading-fg: #fafafa;
-  --loading-muted: #a1a1aa;
-  --loading-line: #27272a;
-  --loading-tile: #171717;
-  --loading-accent: #a5b4fc;
+  --loading-bg: #101827;
+  --loading-fg: #edf3fb;
+  --loading-muted: #a1afc5;
+  --loading-line: #2c3b52;
+  --loading-tile: #172236;
+  --loading-accent: #9fc7ef;
 }
 @media (prefers-color-scheme: dark) {
   .loading-screen {
-    --loading-bg: #0a0a0a;
-    --loading-fg: #fafafa;
-    --loading-muted: #a1a1aa;
-    --loading-line: #27272a;
-    --loading-tile: #171717;
-    --loading-accent: #a5b4fc;
+    --loading-bg: #101827;
+    --loading-fg: #edf3fb;
+    --loading-muted: #a1afc5;
+    --loading-line: #2c3b52;
+    --loading-tile: #172236;
+    --loading-accent: #9fc7ef;
   }
 }
 @keyframes golet-loading-enter {
@@ -283,12 +292,12 @@
   font-size: 11px;
 }
 .studio-nav.active {
-  background: #e5eee6;
-  color: #2e5a43;
+  background: var(--brand-soft);
+  color: var(--brand);
 }
-.dark .studio-nav.active {
-  background: #23392e;
-  color: #b8dfc6;
+.studio-nav:hover:not(.active) {
+  background: var(--muted);
+  color: var(--foreground);
 }
 .studio-main {
   margin-left: 228px;
@@ -318,7 +327,7 @@
   padding: 26px;
   display: flex;
   flex-direction: column;
-  color: #59856a;
+  color: var(--brand);
 }
 .studio-hero-stat strong {
   font-size: 50px;
@@ -369,9 +378,12 @@
   color: var(--muted-foreground);
   line-height: 1.7;
 }
+.studio-demo:hover {
+  border-color: var(--brand-mark);
+}
 .studio-demo.selected {
-  border-color: #68997b;
-  box-shadow: 0 0 0 1px #68997b;
+  border-color: var(--brand-mark);
+  box-shadow: 0 0 0 1px var(--brand-mark);
 }
 .studio-demo-icon {
   display: flex;
@@ -380,8 +392,8 @@
   width: 37px;
   height: 37px;
   border-radius: 10px;
-  background: var(--muted);
-  color: #688674;
+  background: var(--brand-soft);
+  color: var(--brand);
   flex-shrink: 0;
 }
 .studio-detail {
@@ -390,7 +402,7 @@
 }
 .studio-nav:focus-visible,
 .studio-demo:focus-visible {
-  outline: 2px solid #688674;
+  outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
 @media (max-width: 1050px) {

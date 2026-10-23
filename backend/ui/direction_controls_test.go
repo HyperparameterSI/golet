@@ -108,9 +108,9 @@ func TestRTLToggles(t *testing.T) {
 	sw := func(tt *Tester) Rect { return at(t, tt, "Wi-Fi") }
 	knob := func(tt *Tester) scene.Rect {
 		t.Helper()
-		// The white disc inside the switch.
+		// The on-state disc uses the theme's foreground on accent.
 		s := sw(tt)
-		for _, k := range fillsOf(tt, RGB(255, 255, 255)) {
+		for _, k := range fillsOf(tt, LightTheme().AccentText) {
 			if k.X >= s.X && k.X+k.W <= s.X+s.W && k.Y >= s.Y && k.Y+k.H <= s.Y+s.H && k.W < s.W/2 {
 				return k
 			}

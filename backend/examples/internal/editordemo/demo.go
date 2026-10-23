@@ -11,6 +11,7 @@ package editordemo
 
 import (
 	"fmt"
+	"github.com/HyperparameterSI/golet/backend/examples/internal/demotheme"
 	"slices"
 	"strings"
 	"unicode"
@@ -60,6 +61,7 @@ func (a *app) current() *file {
 }
 
 func (a *app) view(c *ui.Context) {
+	demotheme.Apply(c)
 	t := c.Theme()
 	f := a.current()
 	f.editor.SoftWrap = a.wrap

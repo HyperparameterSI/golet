@@ -9,6 +9,7 @@ package loadingdemo
 
 import (
 	"github.com/HyperparameterSI/golet/backend"
+	"github.com/HyperparameterSI/golet/backend/examples/internal/demotheme"
 	"github.com/HyperparameterSI/golet/backend/plugins/loading"
 	"github.com/HyperparameterSI/golet/backend/ui"
 )
@@ -22,6 +23,7 @@ type gallery struct {
 var sizes = [...]float32{16, 24, 32, 48}
 
 func (g *gallery) view(c *ui.Context) {
+	demotheme.Apply(c)
 	t := c.Theme()
 	o := loading.Options{
 		Size:   sizes[g.size],

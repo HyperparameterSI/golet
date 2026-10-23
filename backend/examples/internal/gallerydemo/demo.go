@@ -13,6 +13,7 @@ package gallerydemo
 
 import (
 	"fmt"
+	"github.com/HyperparameterSI/golet/backend/examples/internal/demotheme"
 	"math"
 	"math/rand/v2"
 	"path/filepath"
@@ -113,8 +114,18 @@ type gallery struct {
 	// The Glass page's style, what is under its toolbar (a bar of glass,
 	// a soft or hard scroll edge, or a progressive blur), and where its
 	// lens is.
-	glassStyle, glassEdge int
-	lens                  [2]float32
+	sharedTheme                            bool
+	liquidGlass                            bool
+	appearance                             int
+	neutralLight, neutralDark              *ui.Theme
+	themeName, themePlan, themeNotice      string
+	themeEnabled, themeChecked, themePlain bool
+	themeTab                               int
+	glassLight, glassDark                  *ui.Theme
+	glassQuery                             string
+	glassChoice                            string
+	glassStyle, glassEdge                  int
+	lens                                   [2]float32
 	// The meeting's day and time, and the tint of its text.
 	meeting time.Time
 	tint    ui.Color
@@ -278,7 +289,7 @@ func makeMessage(id int) message {
 	return message{id: id, text: strings.Join(lines, " "), mine: r%3 == 0}
 }
 
-var pages = []string{"Overview", "Controls", "Text", "Rich Text", "List", "Charts", "Markdown", "Styling", "Drawing", "Glass", "Overlays", "Motion", "Languages"}
+var pages = []string{"Overview", "Themes", "Controls", "Text", "Rich Text", "List", "Charts", "Markdown", "Styling", "Drawing", "Glass", "Overlays", "Motion", "Languages"}
 
 // icon parses the shapes of a 24×24 stroked icon, drawn in currentColor
 // as icon sets draw them.
@@ -289,6 +300,7 @@ func icon(shapes string) *ui.SVG {
 // The icons of the pages, and two for buttons.
 var (
 	pageIcons = map[string]*ui.SVG{
+		"Themes":    icon(`<circle cx="12" cy="12" r="9"/><path d="M12 3v18"/>`),
 		"Overview":  icon(`<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>`),
 		"Controls":  icon(`<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>`),
 		"Text":      icon(`<path d="M5 6V5h14v1M12 5v14M9 19h6"/>`),
@@ -334,6 +346,7 @@ func pageOf(path string) string {
 }
 
 func (g *gallery) view(c *ui.Context) {
+	g.applyTheme(c)
 	root := ui.Row(c)
 	if g.rtl {
 		// Given first, so that what is built inside reads it.
@@ -359,12 +372,18 @@ func (g *gallery) view(c *ui.Context) {
 					}
 					r.Title(page)
 					ui.Column(c).Gap(6).Children(func() {
-						ui.Text(c, page).FontSize(28).FontWeight(600)
+						title := page
+						if page == "Themes" {
+							title = "主题与外观"
+						}
+						ui.Text(c, title).FontSize(24).FontWeight(600)
 						ui.Text(c, "Native components · Built with Golet").FontSize(13).TextColor(c.Theme().TextMuted)
 					})
 					switch page {
 					case "Overview":
 						g.overview(c)
+					case "Themes":
+						g.themes(c)
 					case "Controls":
 						g.controls(c)
 					case "Text":
@@ -494,8 +513,12 @@ func (g *gallery) sidebar(c *ui.Context) {
 
 func card(c *ui.Context, title string, body func()) ui.Element {
 	t := c.Theme()
-	return ui.Column(c).Padding(24).Gap(16).Radius(t.Radius+4).Background(t.Surface).Border(1, t.Border).
-		Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.04)).Children(func() {
+	panel := ui.Column(c).Padding(24).Gap(16).Radius(t.Radius+4).Background(t.Surface).Border(1, t.Border).
+		Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.04))
+	if t.PanelMaterial != nil && !c.Preferences().HighContrast {
+		panel.Material(t.PanelMaterial)
+	}
+	return panel.Children(func() {
 		if title != "" {
 			ui.Text(c, title).FontSize(16).FontWeight(600)
 		}
@@ -1379,6 +1402,17 @@ func (g *gallery) drawing(c *ui.Context) {
 // tinted button, and a lens to drag around.
 func (g *gallery) glassPage(c *ui.Context) {
 	t := c.Theme()
+	if ui.Checkbox(c, &g.liquidGlass, "Liquid Glass control theme").Label("Liquid Glass control theme").Changed() {
+		g.publishTheme()
+	}
+	ui.Text(c, "Enable to style native buttons, fields, navigation and popovers throughout this gallery.").TextColor(t.TextMuted)
+	ui.Row(c).Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
+		ui.TextInput(c, &g.glassQuery).Placeholder("Search your workspace").Label("Glass search")
+		ui.Select(c, &g.glassChoice, []string{"Personal", "Team", "Shared"}).Label("Glass workspace")
+		ui.Button(c, "Preview")
+		ui.PrimaryButton(c, "Continue")
+		ui.Button(c, "Unavailable").Disabled(true)
+	})
 	ui.Text(c, "The glass plugin's Liquid Glass, a material, as macOS draws it: what is under it shows through, frosted and bent along its edges. Scroll under the toolbar, and drag the lens.").TextColor(t.TextMuted)
 	ui.Row(c).Gap(16).AlignItems(ui.Center).Wrap().Children(func() {
 		ui.Segmented(c, &g.glassStyle, "Regular", "Clear").Label("Glass")
@@ -1808,7 +1842,7 @@ func (g *gallery) overlays(c *ui.Context) {
 
 // Open opens the shared native gallery at the requested page on the UI thread.
 func Open(page string) *golet.Window {
-	g := &gallery{router: ui.NewRouter(pagePath(page)), items: []motionItem{{1, "Item 1"}, {2, "Item 2"}, {3, "Item 3"}}, nextItem: 3, size: "Medium", fruit: "Apple", plan: "Pro", volume: 35, picked: -1, starred: map[int]bool{}, split: 160, copies: 1, tree: map[string]bool{"ui": true}, birthday: time.Date(1815, 12, 10, 0, 0, 0, 0, time.UTC), now: time.Now(), font: "Helvetica", tags: []string{"go", "native"}, sections: [3]bool{true}, sectionsOpen: [2]bool{true, true}, stars: 4, battery: 35, quality: 75, priceLow: 100, priceHigh: 350, meeting: time.Date(2026, 10, 15, 9, 30, 0, 0, time.Local), tint: ui.Hex("#2563eb"), lens: [2]float32{110, 190}, glassEdge: 1, notes: 12, notifyMail: true, pathDepth: 4, chart: newCharts()}
+	g := &gallery{sharedTheme: true, router: ui.NewRouter(pagePath(page)), items: []motionItem{{1, "Item 1"}, {2, "Item 2"}, {3, "Item 3"}}, nextItem: 3, size: "Medium", fruit: "Apple", plan: "Pro", volume: 35, picked: -1, starred: map[int]bool{}, split: 160, copies: 1, tree: map[string]bool{"ui": true}, birthday: time.Date(1815, 12, 10, 0, 0, 0, 0, time.UTC), now: time.Now(), font: "Helvetica", tags: []string{"go", "native"}, sections: [3]bool{true}, sectionsOpen: [2]bool{true, true}, stars: 4, battery: 35, quality: 75, priceLow: 100, priceHigh: 350, meeting: time.Date(2026, 10, 15, 9, 30, 0, 0, time.Local), tint: ui.Hex("#2563eb"), lens: [2]float32{110, 190}, glassEdge: 1, notes: 12, notifyMail: true, pathDepth: 4, chart: newCharts()}
 	// The languages of the Languages page's menu.
 	if pageOf(pagePath(page)) == "" {
 		g.router = ui.NewRouter("/overview")
@@ -1822,6 +1856,7 @@ func Open(page string) *golet.Window {
 		StateKey: "gallery",
 		Content:  ui.View(g.view),
 	})
+	demotheme.Register(g.win)
 	g.win.OnClosed(func() { close(closed) })
 	go func() {
 		x, sample := 0.0, func(x float64) float64 { return 0.5 + 0.35*math.Sin(x) + 0.1*math.Sin(x*3.1) }

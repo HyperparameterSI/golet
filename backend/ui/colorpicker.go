@@ -271,6 +271,7 @@ func checkers(p *Painter, r Rect, size float32) {
 func coreColorWell(c *context, color *Color) *node {
 	t := c.theme
 	b := coreButtonBase(c).Padding(t.Space(1)).Radius(t.Radius).Background(t.Surface).Border(1, t.Border).Shrink(0)
+	themeMaterial(b, t.ControlMaterial)
 	b.widget, b.role, b.accValue = "ColorWell", RoleColorWell, hexOf(*color)
 	// Read as its value where buttons have none, as on Linux.
 	b.description = hexOf(*color)

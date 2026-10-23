@@ -17,10 +17,11 @@ package ui
 func coreTabs(c *context, selected *int, labels ...string) *node {
 	t := c.theme
 	tabs := coreTabsBase(c, selected, len(labels))
-	list := tabs.List.Gap(t.Space(1)).Padding(t.Space(1)).Radius(t.Radius + 2).Background(t.SurfaceHover)
+	list := tabs.List.Gap(t.Space(1)).Padding(t.Space(1)).Radius(t.Radius).Background(t.SurfaceHover)
+	themeMaterial(list, t.PanelMaterial)
 	list.Children(func() {
 		for i, label := range labels {
-			tab := tabs.Tab(i).Padding(t.Space(1.5), t.Space(3)).Radius(t.Radius).FocusRing(false)
+			tab := tabs.Tab(i).Padding(t.Space(1.5), t.Space(3)).Radius(max(t.Radius-t.Space(1), 0)).FocusRing(false)
 			on := i == *selected
 			tab.TextColor(t.TextMuted)
 			if on {
@@ -33,7 +34,7 @@ func coreTabs(c *context, selected *int, labels ...string) *node {
 			}
 			tab.DrawOver(func(p *Painter, r Rect) {
 				if tab.FocusVisible() {
-					p.FocusRing(r, [4]float32{t.Radius, t.Radius, t.Radius, t.Radius})
+					p.FocusRing(r, tab.radius)
 				}
 			})
 			tab.Children(func() { coreText(c, label).SingleLine() })

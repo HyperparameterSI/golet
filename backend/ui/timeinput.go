@@ -40,8 +40,9 @@ func coreTimeInput(c *context, tm *time.Time) *node {
 		sep, _ = timeLayout(i18n.NewDateFormatter(locale, i18n.DateOptions{Skeleton: "jmm", HourCycle: 24}).Pattern())
 	}
 	am, pm := i18n.DayPeriods(locale, i18n.Abbreviated)
-	f := coreRow(c).Direction(LeftToRight).AlignItems(Center).Padding(t.Space(1.5), t.Space(2)).Radius(t.Radius).Background(t.Surface).Border(1, t.Border).Shrink(0).Role(RoleGroup)
+	f := coreRow(c).MinHeight(t.Space(9)).Direction(LeftToRight).AlignItems(Center).Padding(t.Space(1.5), t.Space(2)).Radius(t.Radius).Background(t.Surface).Border(1, t.inputBorderColor()).Shrink(0).Role(RoleGroup)
 	f.widget = "TimeInput"
+	themeMaterial(f, t.ControlMaterial)
 	set := func(h, m int) {
 		y, mo, d := tm.Date()
 		next := time.Date(y, mo, d, h, m, tm.Second(), tm.Nanosecond(), tm.Location())

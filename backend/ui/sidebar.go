@@ -42,7 +42,8 @@ type sidebarEntry struct{ id, label string }
 // Assistive technology sees a tree, whose sections hold their items.
 func coreSidebar(c *context, selected *string, fn func()) *node {
 	t := c.theme
-	e := coreScroll(c).Padding(t.Space(2.5), t.Space(2.5)).Gap(t.Space(0.5)).Background(t.Surface).Focusable().Shrink(0)
+	e := coreScroll(c).Padding(t.Space(2.5), t.Space(2.5)).Gap(t.Space(0.5)).Background(t.sidebarColor()).Focusable().Shrink(0)
+	themeMaterial(e, t.PanelMaterial)
 	e.widget, e.role = "Sidebar", RoleTree
 	e.flags |= flagTypeSelect | flagOwnRing
 	e.choosesItems = true
@@ -192,7 +193,7 @@ func coreSidebarItem(c *context, id string, icon *SVG, label string) *node {
 	case chosen:
 		// Chosen in a sidebar without the focus, in gray, as AppKit's.
 		item.checked = 2
-		item.Background(t.SurfacePressed)
+		item.Background(t.SurfaceHover)
 	default:
 		item.checked = 1
 		item.styleFn = func(item *node) {

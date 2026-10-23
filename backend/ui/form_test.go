@@ -161,9 +161,10 @@ func TestFormLayout(t *testing.T) {
 		t.Errorf("the labels end at %v and %v, the inputs start at %v", nameL.X+nameL.W, emailL.X+emailL.W, emailIn.X)
 	}
 	// Labels are level with the text of their control: inside the input's
-	// border and padding, on the check box's text, and centered on a
+	// border, padding and any extra minimum height, on the check box's
+	// text, and centered on a
 	// switch.
-	if !near(float64(nameL.Y), nameIn.Y+float64(LightTheme().Space(2))+1) || !near(float64(emailL.Y), emailIn.Y+float64(LightTheme().Space(2))+1) {
+	if !near(float64(nameL.Y), nameIn.Y+(nameIn.H-float64(nameL.H))/2) || !near(float64(emailL.Y), emailIn.Y+(emailIn.H-float64(emailL.H))/2) {
 		t.Errorf("the labels are at %v and %v, the inputs at %v and %v", nameL.Y, emailL.Y, nameIn.Y, emailIn.Y)
 	}
 	if notifyL, own := find("Notifications"), find("Send emails"); !near(float64(notifyL.Y), float64(own.Y)) {

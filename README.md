@@ -388,7 +388,28 @@ func view(c *ui.Context) {
 }
 ```
 
+默认明暗主题采用中性灰配色、10 DIP 统一圆角、36 DIP 标准控件高度和柔和弹层。
+`ShadcnTheme` 使用相同颜色，并统一为 14 DIP 字号；默认主题保留系统字号。
+这是参考 Maia 的原生绘制风格，不需要加载 CSS 或 WebView。
+
+可修改返回的主题：`InputBorder` 控制输入框边框（暗色默认白色 15%），
+`Sidebar` 控制导航底色，`Focus` 控制焦点环和输入焦点边框，
+`Radius` 与 `Spacing` 调整圆角和间距。
+自定义主题未设置 `InputBorder` / `Sidebar` 时分别回退到 `Border` / `Surface`。
+主题建议在初始化时创建并复用，避免在每次视图构建时重新创建。
+
 实现参考 [shadcn Vite 配置](https://ui.shadcn.com/docs/installation/vite) 和 [主题变量](https://ui.shadcn.com/docs/theming)。原生主题使用相同中性色语义，实际绘制仍由 Go 完成。
+
+### Apple Liquid Glass 风格（原生可选）
+
+导入 `backend/plugins/glass` 后，缓存 `glass.Theme(false)` /
+`glass.Theme(true)`，在构建视图前调用 `c.SetTheme(theme)`，即可为原生按钮、
+输入框、选择器、导航与弹层启用液态玻璃材质。Gallery 的 **Glass** 页面可切换体验。
+
+玻璃使用 Golet 自己的跨平台渲染器，采样窗口内已绘制的背景，支持模糊、折射、
+边缘高光和按压反馈；不是调用 Apple 系统控件。高对比度模式回退为实色。
+普通主题无需导入玻璃插件，不携带它的着色器。详见
+[玻璃主题配置](backend/plugins/glass/README.md#native-control-theme)。
 
 ## 验证与性能
 

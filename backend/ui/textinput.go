@@ -17,11 +17,12 @@ func coreTextArea(c *context, value *string) *node { return textInput(c, value, 
 func textInput(c *context, value *string, multiline bool) *node {
 	t := c.theme
 	e := textInputBase(c, value, multiline)
-	e.Padding(t.Space(2), t.Space(3)).Radius(t.Radius).Background(t.Surface).Border(1, t.Border)
+	e.MinHeight(t.Space(9)).Padding(t.Space(2), t.Space(3)).Radius(t.Radius).Background(t.Surface).Border(1, t.inputBorderColor())
 	if multiline {
 		e.MinHeight(t.Space(20))
 	}
 	e.styleFn = func(e *node) { inputBorder(t, e, e) }
+	themeMaterial(e, t.ControlMaterial)
 	return e
 }
 
