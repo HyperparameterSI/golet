@@ -61,7 +61,7 @@ func TestExtractFrameworkLinks(t *testing.T) {
 	if err := copyTree(context.Background(), filepath.Join(dest, "Framework"), copied); err != nil {
 		t.Fatal(err)
 	}
-	if target, err := os.Readlink(filepath.Join(copied, "binary")); err != nil || target != "Versions/Current/binary" {
+	if target, err := os.Readlink(filepath.Join(copied, "binary")); err != nil || filepath.ToSlash(target) != "Versions/Current/binary" {
 		t.Fatalf("link=%q error=%v", target, err)
 	}
 }

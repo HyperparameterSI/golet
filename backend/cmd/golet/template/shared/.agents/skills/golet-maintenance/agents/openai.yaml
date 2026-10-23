@@ -1,0 +1,3 @@
+interface:
+  display_name: "Golet Maintenance"
+  short_description: "Maintain Golet apps with safe UI lifetimes"

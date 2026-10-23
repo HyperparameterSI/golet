@@ -14,3 +14,9 @@ golet.ts
 
 frontend/examples/*/dist/
 .tanstack/
+
+# Published documentation and scaffold payloads must override global ignores.
+!/docs/
+!/docs/**
+!/backend/cmd/golet/template/shared/.agents/
+!/backend/cmd/golet/template/shared/.agents/**

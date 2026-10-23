@@ -4,7 +4,9 @@ package main
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -21,9 +23,14 @@ func TestCMakeVersion(t *testing.T) {
 }
 func TestExplicitCMake(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "cmake")
-	if err := os.WriteFile(path, []byte("#!/bin/sh\necho 'cmake version 3.21.0'\n"), 0700); err != nil {
+	path := filepath.Join(dir, "cmake.exe")
+	source := filepath.Join(dir, "main.go")
+	// A native executable exercises process discovery on Windows as well as Unix.
+	if err := os.WriteFile(source, []byte("package main\nimport \"fmt\"\nfunc main() { fmt.Println(\"cmake version 3.21.0\") }\n"), 0600); err != nil {
 		t.Fatal(err)
+	}
+	if out, err := exec.Command("go", "build", "-o", path, source).CombinedOutput(); err != nil {
+		t.Fatalf("build CMake fixture: %v\n%s", err, out)
 	}
 	got, err := findCMake(context.Background(), path)
 	if err != nil || got != path {
@@ -35,7 +42,11 @@ func TestExplicitCMake(t *testing.T) {
 		t.Fatalf("environment: %q %v", got, err)
 	}
 	_, err = findCMake(context.Background(), filepath.Join(dir, "missing"))
-	if err == nil || !strings.Contains(err.Error(), "brew install cmake") {
+	install := "brew install cmake"
+	if runtime.GOOS == "windows" {
+		install = "winget install Kitware.CMake"
+	}
+	if err == nil || !strings.Contains(err.Error(), install) {
 		t.Fatalf("missing actionable error: %v", err)
 	}
 }
