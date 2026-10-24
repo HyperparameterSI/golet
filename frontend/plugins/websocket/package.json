@@ -1,6 +1,6 @@
 {
   "name": "@golet-plugins/websocket",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "A WebSocket whose connections Go makes, for Golet desktop apps",
   "keywords": [
     "golet",
@@ -33,9 +33,9 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "golet-runtime": "^0.1.8"
+    "golet-runtime": "^0.1.9"
   },
   "devDependencies": {
-    "golet-runtime": "^0.1.8"
+    "golet-runtime": "^0.1.9"
   }
 }

@@ -58,3 +58,11 @@ go vet ./backend/examples/studio ./backend/examples/internal/...
 ```
 
 覆盖检查会检查生成的公开 UI 函数是否出现在演示中，排除非可视辅助函数和与样式控件对应的 Base 构件；它不代表每个参数组合、每个平台或第三方 Chrome 插件都经过验证。
+
+### Border Beam
+
+「插件 → 边框光束」打开纯 Go 原生演示窗口，支持 Medium、Small、Line、Pulse Inner、Pulse Outside 五种动画，以及四组彩色卡片、暂停/继续、隐藏、周期、强度、内辉光范围调节。外观跟随 Studio 的明暗主题；减少动态效果时自动静止。实现与上游差异见 [插件说明](../../plugins/borderbeam/README.md)。
+
+### shadcn · Maia
+
+「原生控件 → shadcn · Maia」展示固定官方目录的 65 个条目，使用纯 Go 原生组件。下拉框选择组件，Dark 切换明暗，“跟随 Studio 主题”验证全局主题适配。高级能力与视觉验收状态见 [原生组件说明](../../ui/shadcn/README.md)。

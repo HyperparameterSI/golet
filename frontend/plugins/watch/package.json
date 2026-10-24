@@ -1,6 +1,6 @@
 {
   "name": "@golet-plugins/watch",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Watches for changes to files in the directories a Golet desktop app lets its pages watch",
   "keywords": [
     "golet",
@@ -34,9 +34,9 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "golet-runtime": "^0.1.8"
+    "golet-runtime": "^0.1.9"
   },
   "devDependencies": {
-    "golet-runtime": "^0.1.8"
+    "golet-runtime": "^0.1.9"
   }
 }

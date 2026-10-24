@@ -459,3 +459,11 @@ pnpm dev:browser     # 已安装后直接运行
 提供自定义原生标签栏、圆角地址栏和离线搜索首页，使用 CEF Alloy 渲染网页；Go 侧支持多标签管理、导航、历史、刷新、停止、状态订阅和生命周期管理。首页可在 `frontend/examples/browser/newtab/` 自定义，修改后重新运行安装命令。只有选择该插件才需携带 CEF；当前 macOS 宿主的 Apple Silicon 已实测；Windows amd64/arm64 已提供实验性宿主与安装流程，尚待 Windows 原生编译和实机验证。它是独立浏览器窗口，嵌入 Golet 布局、Linux 宿主和自动集成 `golet build` 尚未实现。详情见 [Chromium 插件](backend/plugins/chromium/README.md) 与 [浏览器示例](backend/examples/browser/README.md)。
 
 Golet Browser 还提供可选 AI 助手、确认后执行的页面操作、按网站授权的用户脚本，以及 Chrome 风格窗口下的本地 Manifest V3 插件加载。模型配置、扩展格式和兼容范围见 [浏览器使用说明](backend/examples/browser/README.md#ai-助手与页面操作)。
+
+### Border Beam 原生边框光效
+
+通过可选的 [`borderbeam.Box`](backend/plugins/borderbeam/README.md) 为原生控件容器添加旋转色彩与呼吸辉光，支持自定义色板、圆角、周期和暂停，跟随主题及系统减少动态效果设置。Studio 的「插件 → 边框光束」提供交互演示。提供 Medium、Small、Line、Pulse Inner、Pulse Outside 五种模式，采用纯 Go 色场、遮罩与高斯辉光绘制，无需 WebGPU 或浏览器依赖。
+
+### shadcn / Maia 原生组件层
+
+通过 [`backend/ui/shadcn`](backend/ui/shadcn/README.md) 使用纯 Go 的 Maia 组件。Studio 的「shadcn · Maia」提供官方 65 个目录项的交互演示与明暗切换。当前已建立原生实现入口，复杂组件的高级能力及全状态视觉一致性仍在补齐，详见[移植清单](backend/ui/shadcn/PORTING.md)。

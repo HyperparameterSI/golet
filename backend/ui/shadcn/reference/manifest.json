@@ -1,0 +1,651 @@
+{
+  "style": "base-maia",
+  "retrieved": "2026-10-24",
+  "components": [
+    {
+      "name": "accordion",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/accordion.json",
+      "files": [
+        {
+          "file": "accordion.tsx",
+          "sha256": "6d4c23dbb3bac46bb4144507ea675af4887a105fa7495d7b180ba54ded02aed8"
+        }
+      ]
+    },
+    {
+      "name": "alert-dialog",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/alert-dialog.json",
+      "files": [
+        {
+          "file": "alert-dialog.tsx",
+          "sha256": "6fab3c050547673bbe4e21cf6584e0612f0c09ec742252e14d103ea68467686c"
+        }
+      ]
+    },
+    {
+      "name": "alert",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/alert.json",
+      "files": [
+        {
+          "file": "alert.tsx",
+          "sha256": "ef4eea2e5a0dadf8e9a9fcf45c1e5913d4e63325e2c4c268426294abebace562"
+        }
+      ]
+    },
+    {
+      "name": "aspect-ratio",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/aspect-ratio.json",
+      "files": [
+        {
+          "file": "aspect-ratio.tsx",
+          "sha256": "6df19df6b983c450361081b695dbf3541a6fe4a9d2ec148766991e4eb0bf6473"
+        }
+      ]
+    },
+    {
+      "name": "attachment",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/attachment.json",
+      "files": [
+        {
+          "file": "attachment.tsx",
+          "sha256": "d5723d262647cf29d9fc3084fe9ed6a86a53e770ca00a7027c23a5a7f42281a3"
+        }
+      ]
+    },
+    {
+      "name": "avatar",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/avatar.json",
+      "files": [
+        {
+          "file": "avatar.tsx",
+          "sha256": "bff76087ea9af25c6aa5a5306088dc66e62204a126752c38561736acff00717f"
+        }
+      ]
+    },
+    {
+      "name": "badge",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/badge.json",
+      "files": [
+        {
+          "file": "badge.tsx",
+          "sha256": "36674171a0b0934087d51799ff2e70a3255a42676c23d8ff82ffbde08d87c2e7"
+        }
+      ]
+    },
+    {
+      "name": "breadcrumb",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/breadcrumb.json",
+      "files": [
+        {
+          "file": "breadcrumb.tsx",
+          "sha256": "9082b834ed613eeee8f085e734ac615b90a91a3d851ab6743dd7d9d60f879490"
+        }
+      ]
+    },
+    {
+      "name": "bubble",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/bubble.json",
+      "files": [
+        {
+          "file": "bubble.tsx",
+          "sha256": "d1c09165ed868a865c4bb6469d288de18d956043dea2b1060f00788f7e69ea6c"
+        }
+      ]
+    },
+    {
+      "name": "button-group",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/button-group.json",
+      "files": [
+        {
+          "file": "button-group.tsx",
+          "sha256": "bcc514c27b7cbdd77ead1a6420f5893358ed9df3762a5380694e9ef4057d1f5f"
+        }
+      ]
+    },
+    {
+      "name": "button",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/button.json",
+      "files": [
+        {
+          "file": "button.tsx",
+          "sha256": "de430bf6ad6b6ac4fa09d07b21196e6fedbf407feade5679069e2ea698768c6f"
+        }
+      ]
+    },
+    {
+      "name": "calendar",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/calendar.json",
+      "files": [
+        {
+          "file": "calendar.tsx",
+          "sha256": "2b783aa803a46fc6ea47168551f259a74ac5609930cea4bc4bda0ed048f49854"
+        }
+      ]
+    },
+    {
+      "name": "card",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/card.json",
+      "files": [
+        {
+          "file": "card.tsx",
+          "sha256": "12da2b59a654b2eeafb06fecfc0ddcd18af4c3f89d2c24bb36a67dbdb9807779"
+        }
+      ]
+    },
+    {
+      "name": "carousel",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/carousel.json",
+      "files": [
+        {
+          "file": "carousel.tsx",
+          "sha256": "d7266c3e6b6527e1aa2b1fe0ce70d9c2388d1ea8e1592ea5f0766f3f09a13ee0"
+        }
+      ]
+    },
+    {
+      "name": "chart",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/chart.json",
+      "files": [
+        {
+          "file": "chart.tsx",
+          "sha256": "1869f68f2eb0108071681c78f3827280fb38212ce7b145139d7ed5d65823ec40"
+        }
+      ]
+    },
+    {
+      "name": "checkbox",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/checkbox.json",
+      "files": [
+        {
+          "file": "checkbox.tsx",
+          "sha256": "934b8b8fa7c847a27734c88981162987bcff6fd00e4b2927d8fa1b288be59487"
+        }
+      ]
+    },
+    {
+      "name": "code-block",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/code-block.json",
+      "files": [
+        {
+          "file": "code-block.tsx",
+          "sha256": "8caf35b4b2c3e5a4ce9bd852fa79e1759e06999ee3fc39c2e2dd914a05a7e8bb"
+        }
+      ]
+    },
+    {
+      "name": "collapsible",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/collapsible.json",
+      "files": [
+        {
+          "file": "collapsible.tsx",
+          "sha256": "ead4349ff7b01d696ef89294a81d18ee1d3f732321398896462c834ab9b9e065"
+        }
+      ]
+    },
+    {
+      "name": "combobox",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/combobox.json",
+      "files": [
+        {
+          "file": "combobox.tsx",
+          "sha256": "385f75264a3412b27ff0efd1b0e544ee732e402ceb9dc5c67af22e99f8abd77c"
+        }
+      ]
+    },
+    {
+      "name": "command",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/command.json",
+      "files": [
+        {
+          "file": "command.tsx",
+          "sha256": "3d4bd17661acca660618e03e95febda32b953c9e7da405ff7c0ec74ea4fb95a2"
+        }
+      ]
+    },
+    {
+      "name": "context-menu",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/context-menu.json",
+      "files": [
+        {
+          "file": "context-menu.tsx",
+          "sha256": "3d1ad7ebd678ba208c9f933d94994996450978b466e294332a6251e3fcee56cc"
+        }
+      ]
+    },
+    {
+      "name": "dialog",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/dialog.json",
+      "files": [
+        {
+          "file": "dialog.tsx",
+          "sha256": "e918ee243b9a65d82f0e1d011529d93a9f5aeb69aaa8ed0bf695638377ec39e1"
+        }
+      ]
+    },
+    {
+      "name": "direction",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/direction.json",
+      "files": [
+        {
+          "file": "direction.tsx",
+          "sha256": "661ff5b9c0dc26edde1226bfedc0ab50976d84f8bae42ca83a38dc3b478fd4d4"
+        }
+      ]
+    },
+    {
+      "name": "drawer",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/drawer.json",
+      "files": [
+        {
+          "file": "drawer.tsx",
+          "sha256": "09389da039bd6c1735d10ee005f6e57d375ed9c639e94af190b329cd248e424c"
+        }
+      ]
+    },
+    {
+      "name": "dropdown-menu",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/dropdown-menu.json",
+      "files": [
+        {
+          "file": "dropdown-menu.tsx",
+          "sha256": "9c229f4517494854196e556db92f706568b90bfd20b659648e1a37f24fa5c8c1"
+        }
+      ]
+    },
+    {
+      "name": "empty",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/empty.json",
+      "files": [
+        {
+          "file": "empty.tsx",
+          "sha256": "85095a80a47c8b1ec3292fd99ca81520928337261141ef221b6fdccf6034bdea"
+        }
+      ]
+    },
+    {
+      "name": "field",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/field.json",
+      "files": [
+        {
+          "file": "field.tsx",
+          "sha256": "4f235db4b65dc6054515b2a2b5f3dad2c5ac45f0e3a0caae6eb0afa4df6cb71d"
+        }
+      ]
+    },
+    {
+      "name": "form",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/form.json",
+      "files": []
+    },
+    {
+      "name": "hover-card",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/hover-card.json",
+      "files": [
+        {
+          "file": "hover-card.tsx",
+          "sha256": "667adc779cb4fb43fd8d16c38e269717799a30d27e2d0c1aa1fff5c41d39b9db"
+        }
+      ]
+    },
+    {
+      "name": "input-group",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/input-group.json",
+      "files": [
+        {
+          "file": "input-group.tsx",
+          "sha256": "23ee6c659a1d3a607c13d5c0168faabfc7a83c3a80ba61a7cfb190e44a42e624"
+        }
+      ]
+    },
+    {
+      "name": "input-otp",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/input-otp.json",
+      "files": [
+        {
+          "file": "input-otp.tsx",
+          "sha256": "7537d5dd36fd5178a5590d6d0e2554837e3f9f941dd0c27f97584481ed235cef"
+        }
+      ]
+    },
+    {
+      "name": "input",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/input.json",
+      "files": [
+        {
+          "file": "input.tsx",
+          "sha256": "9ab492446020c6e33793ba98537799b1c3a00531f288609e3207c2c32acfd1a1"
+        }
+      ]
+    },
+    {
+      "name": "item",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/item.json",
+      "files": [
+        {
+          "file": "item.tsx",
+          "sha256": "fd8c02fdc407fd9856d0aacbc8ecf38a874dddbfc5773af78a698b27e946462e"
+        }
+      ]
+    },
+    {
+      "name": "kbd",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/kbd.json",
+      "files": [
+        {
+          "file": "kbd.tsx",
+          "sha256": "d17724eb15923ea4f0432cd1cf22538addb14a386f4f9326661efcce7f97e33b"
+        }
+      ]
+    },
+    {
+      "name": "label",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/label.json",
+      "files": [
+        {
+          "file": "label.tsx",
+          "sha256": "b3b7b21d2877838fc73713df48a47248392de04a3b3fafa8961369f33ab14530"
+        }
+      ]
+    },
+    {
+      "name": "marker",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/marker.json",
+      "files": [
+        {
+          "file": "marker.tsx",
+          "sha256": "6b0a6a0f510ac210bbc71808e2efa9195947db91e9962685e9674f5e802e30ed"
+        }
+      ]
+    },
+    {
+      "name": "menubar",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/menubar.json",
+      "files": [
+        {
+          "file": "menubar.tsx",
+          "sha256": "4c6e4111fbf864b02a298f6b00750a079099f6703c09e4fddf03dbfb7779ab93"
+        }
+      ]
+    },
+    {
+      "name": "message-scroller",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/message-scroller.json",
+      "files": [
+        {
+          "file": "message-scroller.tsx",
+          "sha256": "907795c6d86d353ab14e8591d25c72952536c9b647ca13d8e653ee33abd2bf87"
+        }
+      ]
+    },
+    {
+      "name": "message",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/message.json",
+      "files": [
+        {
+          "file": "message.tsx",
+          "sha256": "5e7a552e1fa40e50be32d53d4d498fc2e97e15957cd45574ab9a883bbba0d542"
+        }
+      ]
+    },
+    {
+      "name": "native-select",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/native-select.json",
+      "files": [
+        {
+          "file": "native-select.tsx",
+          "sha256": "ccaf58a1d5462dece74ad8007b2707aca387a789de3a9828e01d341e0c79f16a"
+        }
+      ]
+    },
+    {
+      "name": "navigation-menu",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/navigation-menu.json",
+      "files": [
+        {
+          "file": "navigation-menu.tsx",
+          "sha256": "55914a7b398bc5981a821bee6a59a5a7a64ffd27fa9f2f15ca24f697fc7c54c9"
+        }
+      ]
+    },
+    {
+      "name": "pagination",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/pagination.json",
+      "files": [
+        {
+          "file": "pagination.tsx",
+          "sha256": "75daaa317adb62d2409a32a5fd7e3dca38b63be7815b796943e0ae163ca640ec"
+        }
+      ]
+    },
+    {
+      "name": "popover",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/popover.json",
+      "files": [
+        {
+          "file": "popover.tsx",
+          "sha256": "9763cfa5583ff274e5c4e45381cc1034fee4b84dfac9697142a2b3721179a9bd"
+        }
+      ]
+    },
+    {
+      "name": "progress",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/progress.json",
+      "files": [
+        {
+          "file": "progress.tsx",
+          "sha256": "7a872a5d31ba140baf15e6fe0fc4f57b703bd6f582c8ea2e3481751716fd29a9"
+        }
+      ]
+    },
+    {
+      "name": "questionnaire",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/questionnaire.json",
+      "files": [
+        {
+          "file": "questionnaire.tsx",
+          "sha256": "44efa063402d05529bc6fec586bb2444f7c3d9de84f9a6f6483cac1b94109c3e"
+        }
+      ]
+    },
+    {
+      "name": "radio-group",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/radio-group.json",
+      "files": [
+        {
+          "file": "radio-group.tsx",
+          "sha256": "9dcd71134f67b2a91b642c2551b5b4c638ca32f1e985b8b031430728d09b277d"
+        }
+      ]
+    },
+    {
+      "name": "resizable",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/resizable.json",
+      "files": [
+        {
+          "file": "resizable.tsx",
+          "sha256": "c45c4e1a32aefb83d60406366e2368b9d8a6e772406f8b964154e7202d6304f7"
+        }
+      ]
+    },
+    {
+      "name": "scroll-area",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/scroll-area.json",
+      "files": [
+        {
+          "file": "scroll-area.tsx",
+          "sha256": "829549f352f1e56dfe887446bcc3d1707c0ced739a9efcb75f0af364cd88c581"
+        }
+      ]
+    },
+    {
+      "name": "select",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/select.json",
+      "files": [
+        {
+          "file": "select.tsx",
+          "sha256": "f31cefddcf702906f4f7af1d2e8c2b28b7eda636cff15b596b98338a969edd56"
+        }
+      ]
+    },
+    {
+      "name": "separator",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/separator.json",
+      "files": [
+        {
+          "file": "separator.tsx",
+          "sha256": "9a80ff8c110e0c55489509f4f82ebcc929c0174b59544047147b7134f86a54e7"
+        }
+      ]
+    },
+    {
+      "name": "sheet",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/sheet.json",
+      "files": [
+        {
+          "file": "sheet.tsx",
+          "sha256": "15c3de369b7b3773e12866895f44de776be79cce5fbb669507cdfbe669c79b48"
+        }
+      ]
+    },
+    {
+      "name": "sidebar",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/sidebar.json",
+      "files": [
+        {
+          "file": "sidebar.tsx",
+          "sha256": "fc56773ec929d7cd72a349ad8ea30a58b42416ec5fa1059da14b0221e636a7ed"
+        }
+      ]
+    },
+    {
+      "name": "skeleton",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/skeleton.json",
+      "files": [
+        {
+          "file": "skeleton.tsx",
+          "sha256": "b3c3c2b5449693bc6f4805b92012a9fee64690cabdf77b9640fb45b5f9ac0d43"
+        }
+      ]
+    },
+    {
+      "name": "slider",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/slider.json",
+      "files": [
+        {
+          "file": "slider.tsx",
+          "sha256": "4f11fb5d9b0b106fd4a09479ce987970932232360b9ce12cbbf347c33e4fae42"
+        }
+      ]
+    },
+    {
+      "name": "sonner",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/sonner.json",
+      "files": [
+        {
+          "file": "sonner.tsx",
+          "sha256": "d5178ce4c7834d3f46d261698395b498b8f45fef29975585df7e26cb43aa3cc7"
+        }
+      ]
+    },
+    {
+      "name": "spinner",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/spinner.json",
+      "files": [
+        {
+          "file": "spinner.tsx",
+          "sha256": "494f71fd2733709d0e43be44e3353d9df215b370137af0195251cbdfdcc9e17b"
+        }
+      ]
+    },
+    {
+      "name": "switch",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/switch.json",
+      "files": [
+        {
+          "file": "switch.tsx",
+          "sha256": "769ac14623a4bfd96fe238854a92fe1a2584c6c2c30a4102f43ae9e87af47007"
+        }
+      ]
+    },
+    {
+      "name": "table",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/table.json",
+      "files": [
+        {
+          "file": "table.tsx",
+          "sha256": "ded9c3665446179ebb88257637582dfc2ff94800cc779177e45f909ef5067450"
+        }
+      ]
+    },
+    {
+      "name": "tabs",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/tabs.json",
+      "files": [
+        {
+          "file": "tabs.tsx",
+          "sha256": "6d3f180b145973e656129884717c0bcc0b0ba5da991148a856022201b5201eff"
+        }
+      ]
+    },
+    {
+      "name": "textarea",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/textarea.json",
+      "files": [
+        {
+          "file": "textarea.tsx",
+          "sha256": "6d6d804c693303795f819b7d4d3323720e0f69830f160e55e45286d6e7e4d7db"
+        }
+      ]
+    },
+    {
+      "name": "toast",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/toast.json",
+      "files": [
+        {
+          "file": "toast.tsx",
+          "sha256": "717fb6982c0ea6fed41283750ec97057eb1764f0f165a49282fd2652d9640d9c"
+        }
+      ]
+    },
+    {
+      "name": "toggle-group",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/toggle-group.json",
+      "files": [
+        {
+          "file": "toggle-group.tsx",
+          "sha256": "d513221b17b63581979d6e50d3f38cff843ca446501b6be505e1755adee3c12f"
+        }
+      ]
+    },
+    {
+      "name": "toggle",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/toggle.json",
+      "files": [
+        {
+          "file": "toggle.tsx",
+          "sha256": "966be80d456c06512a8f1f811af669bdd0b8e0de165aea9c7dc40dfa446d094a"
+        }
+      ]
+    },
+    {
+      "name": "tooltip",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/tooltip.json",
+      "files": [
+        {
+          "file": "tooltip.tsx",
+          "sha256": "842384234bd35f6e175a2608183972193b9da29e7fe941c3bc3b5ec20b80e828"
+        }
+      ]
+    },
+    {
+      "name": "trace",
+      "url": "https://ui.shadcn.com/r/styles/base-maia/trace.json",
+      "files": [
+        {
+          "file": "trace.tsx",
+          "sha256": "41a7a487fd7e5c531c9633fb1501cd7aa3a5baa9cec20905f30f75c2cf596d58"
+        }
+      ]
+    }
+  ]
+}
