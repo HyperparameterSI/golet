@@ -381,31 +381,68 @@ function BrowserPanel() {
           ? "选择风格后，点击“重启并应用风格”。重启将关闭当前演示的所有标签，并打开下方网址；临时会话数据不会保留。"
           : "选择 Alloy 自定义界面或 Chrome 插件兼容界面，然后启动 Browser。"}
       </p>
-      <fieldset disabled={busy || !canTheme} className="space-y-3 rounded-lg border p-4 disabled:opacity-50">
+      <fieldset
+        disabled={busy || !canTheme}
+        className="space-y-3 rounded-lg border p-4 disabled:opacity-50"
+      >
         <legend className="px-2 text-sm font-medium">Forma Browser 主题</legend>
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-sm">配色
-            <select className="mt-2 w-full rounded-md border bg-background p-2" value={preset} onChange={(e) => setPreset(e.target.value)}>
-              {(status?.presets ?? ["Blue"]).map((name) => <option key={name} value={name}>{name}</option>)}
+          <label className="text-sm">
+            配色
+            <select
+              className="mt-2 w-full rounded-md border bg-background p-2"
+              value={preset}
+              onChange={(e) => setPreset(e.target.value)}
+            >
+              {(status?.presets ?? ["Blue"]).map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
             </select>
           </label>
-          <label className="text-sm">外观
-            <select className="mt-2 w-full rounded-md border bg-background p-2" value={dark ? "dark" : "light"} onChange={(e) => setDark(e.target.value === "dark")}>
-              <option value="light">浅色</option><option value="dark">深色</option>
+          <label className="text-sm">
+            外观
+            <select
+              className="mt-2 w-full rounded-md border bg-background p-2"
+              value={dark ? "dark" : "light"}
+              onChange={(e) => setDark(e.target.value === "dark")}
+            >
+              <option value="light">浅色</option>
+              <option value="dark">深色</option>
             </select>
           </label>
-          <label className="text-sm">圆角
-            <select className="mt-2 w-full rounded-md border bg-background p-2" value={radius} onChange={(e) => setRadius(Number(e.target.value))}>
-              <option value={16}>Maia · 16</option><option value={8}>Soft · 8</option><option value={0}>Sharp · 0</option>
+          <label className="text-sm">
+            圆角
+            <select
+              className="mt-2 w-full rounded-md border bg-background p-2"
+              value={radius}
+              onChange={(e) => setRadius(Number(e.target.value))}
+            >
+              <option value={16}>Maia · 16</option>
+              <option value={8}>Soft · 8</option>
+              <option value={0}>Sharp · 0</option>
             </select>
           </label>
-          <label className="text-sm">字号
-            <select className="mt-2 w-full rounded-md border bg-background p-2" value={fontSize} onChange={(e) => setFontSize(Number(e.target.value))}>
-              <option value={14}>14</option><option value={16}>16</option>
+          <label className="text-sm">
+            字号
+            <select
+              className="mt-2 w-full rounded-md border bg-background p-2"
+              value={fontSize}
+              onChange={(e) => setFontSize(Number(e.target.value))}
+            >
+              <option value={14}>14</option>
+              <option value={16}>16</option>
             </select>
           </label>
         </div>
-        <Button variant="outline" disabled={!status?.running || status.style !== "alloy"} onClick={() => run("theme")}>应用主题 · 保留标签页</Button>
+        <Button
+          variant="outline"
+          disabled={!status?.running || status.style !== "alloy"}
+          onClick={() => run("theme")}
+        >
+          应用主题 · 保留标签页
+        </Button>
       </fieldset>
       <p className="text-xs leading-6 text-muted-foreground">
         {canTheme
