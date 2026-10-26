@@ -8,6 +8,7 @@ package borderbeam
 import (
 	"image"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/HyperparameterSI/golet/backend/ui"
@@ -84,10 +85,13 @@ type Options struct {
 
 type stateKey struct{}
 type clock struct {
-	start   time.Time
-	held    time.Duration
-	stopped bool
-	layers  [3]rasterLayer
+	start    time.Time
+	held     time.Duration
+	stopped  bool
+	layers   [3]rasterLayer
+	rendered bool
+	last     renderKey
+	colors   []ui.Color
 }
 
 // Box creates a normal layout container with decorative light over its border.
@@ -151,8 +155,7 @@ func Box(c *ui.Context, o Options) ui.Element {
 			elapsed = p.Now().Sub(k.start)
 			p.After(time.Second / 30)
 		}
-		field := makeField(float64(r.W), float64(r.H), elapsed.Seconds(), duration.Seconds(), preset, o, dark, colors)
-		renderLayers(&k.layers, float64(r.W), float64(r.H), float64(radius), field, o, float64(strength))
+		k.render(r.W, r.H, radius, elapsed, duration, preset, o, dark, colors, strength)
 	})
 	e.Children(func() {
 		overlay := ui.Box(c).Absolute().Left(0).Right(0).Top(0).Bottom(0).Radius(radius).PassThrough()
@@ -177,4 +180,34 @@ func dimension(v, fallback, limit float32) float32 {
 		return fallback
 	}
 	return min(v, limit)
+}
+
+// renderKey includes only inputs that affect pixels, not window position or
+// pause state. The retained textures already hold the last rendered frame.
+type renderKey struct {
+	width, height, radius, strength        float32
+	elapsed, duration                      time.Duration
+	preset                                 Preset
+	palette                                Palette
+	brightness, saturation, hue, rim, glow float32
+	staticColors, dark                     bool
+}
+
+// render reports whether pixels changed. Author: HyperparameterSI.
+func (k *clock) render(w, h, radius float32, elapsed, duration time.Duration, preset Preset, o Options, dark bool, colors []ui.Color, strength float32) bool {
+	key := renderKey{
+		width: w, height: h, radius: radius, strength: strength,
+		elapsed: elapsed, duration: duration, preset: preset, palette: o.Palette,
+		brightness: o.Brightness, saturation: o.Saturation, hue: o.HueRange,
+		rim: o.Width, glow: o.Glow, staticColors: o.StaticColors, dark: dark,
+	}
+	if k.rendered && k.last == key && slices.Equal(k.colors, colors) {
+		return false
+	}
+	field := makeField(float64(w), float64(h), elapsed.Seconds(), duration.Seconds(), preset, o, dark, colors)
+	renderLayers(&k.layers, float64(w), float64(h), float64(radius), field, o, float64(strength))
+	k.last = key
+	k.colors = append(k.colors[:0], colors...)
+	k.rendered = true
+	return true
 }

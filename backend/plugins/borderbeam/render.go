@@ -83,10 +83,25 @@ func renderLayers(layers *[3]rasterLayer, w, h, radius float64, f colorField, o 
 	}
 	rim := float64(dimension(o.Width, 1, 8))
 	depth := float64(dimension(o.Glow, 28, 48))
+	location := lineTravel(phase) * w
+	bw := gradient(phase, [2]float64{0, .5}, [2]float64{.1, .8}, [2]float64{.2, 1.1}, [2]float64{.3, 1.3}, [2]float64{.4, 1.45}, [2]float64{.5, 1.5}, [2]float64{.6, 1.45}, [2]float64{.7, 1.3}, [2]float64{.8, 1.1}, [2]float64{.9, .8}, [2]float64{1, .5})
+	bh := gradient(fract(f.seconds/(f.duration*1.3)), [2]float64{0, .8}, [2]float64{.25, 1.25}, [2]float64{.55, .85}, [2]float64{.8, 1.3}, [2]float64{1, .8})
+	lineOpacity := lineEdge(phase)
 	for py := 0; py < ph; py++ {
 		y := (float64(py)+.5)/scale - padding
-		for px := 0; px < pw; px++ {
+		lo, hi := 0, pw
+		if f.mode == Line {
+			if lineOpacity == 0 || math.Abs(y-h) >= 110*bh {
+				continue
+			}
+			lo = max(0, int(math.Floor((location-84*bw+padding)*scale)))
+			hi = min(pw, int(math.Ceil((location+84*bw+padding)*scale)))
+		}
+		for px := lo; px < hi; px++ {
 			x := (float64(px)+.5)/scale - padding
+			if (f.mode == Medium || f.mode == PulseInner) && x >= max(depth, max(radius, rim)+1) && x <= w-max(depth, max(radius, rim)+1) && y >= max(depth, max(radius, rim)+1) && y <= h-max(depth, max(radius, rim)+1) {
+				continue
+			}
 			distance := roundedDistance(x, y, w, h, radius)
 			inside := clamp(.5 - distance*scale)
 			stroke := inside * clamp(.5+(distance+rim)*scale)
@@ -111,14 +126,12 @@ func renderLayers(layers *[3]rasterLayer, w, h, radius float64, f colorField, o 
 				masks[1] = inside * spinMask(x, y, w, h, phase, true)
 			}
 			if f.mode == Line {
-				location := lineTravel(phase) * w
-				bw := gradient(phase, [2]float64{0, .5}, [2]float64{.1, .8}, [2]float64{.2, 1.1}, [2]float64{.3, 1.3}, [2]float64{.4, 1.45}, [2]float64{.5, 1.5}, [2]float64{.6, 1.45}, [2]float64{.7, 1.3}, [2]float64{.8, 1.1}, [2]float64{.9, .8}, [2]float64{1, .5})
-				bh := gradient(fract(f.seconds/(f.duration*1.3)), [2]float64{0, .8}, [2]float64{.25, 1.25}, [2]float64{.55, .85}, [2]float64{.8, 1.3}, [2]float64{1, .8})
+
 				radial := math.Hypot((x-location)/(78*bw), (y-h)/(60*bh))
-				mask := gradient(radial, [2]float64{0, 1}, [2]float64{.45, .5}, [2]float64{1, 0}) * lineEdge(phase)
+				mask := gradient(radial, [2]float64{0, 1}, [2]float64{.45, .5}, [2]float64{1, 0}) * lineOpacity
 				masks[0] *= mask
 				masks[1] *= mask
-				masks[2] = inside * gradient(math.Hypot((x-location)/(84*bw), (y-h)/(110*bh)), [2]float64{0, 1}, [2]float64{.35, .5}, [2]float64{1, 0}) * lineEdge(phase)
+				masks[2] = inside * gradient(math.Hypot((x-location)/(84*bw), (y-h)/(110*bh)), [2]float64{0, 1}, [2]float64{.35, .5}, [2]float64{1, 0}) * lineOpacity
 			}
 			if f.mode == PulseOutside {
 				masks[1], masks[2] = 1-inside, 1-inside
@@ -137,7 +150,10 @@ func renderLayers(layers *[3]rasterLayer, w, h, radius float64, f colorField, o 
 					sx = ((x-w/2)/.95 + w/2 + inset) * w / (w + 2*inset)
 					sy = ((y-h/2)/.9 + h/2 + inset) * h / (h + 2*inset)
 				}
-				col := f.sample(layer, sx, sy)
+				var col vector
+				if f.mode >= Line || layer != 2 {
+					col = f.sample(layer, sx, sy)
+				}
 				if f.mode < Line && layer == 2 {
 					angle := fract(math.Atan2(y-h/2, x-w/2)/(2*math.Pi) + .25 - phase)
 					highlight := gradient(angle, [2]float64{0, 0}, [2]float64{.58, 0}, [2]float64{.65, .08}, [2]float64{.70, .85}, [2]float64{.705, .85}, [2]float64{.735, .2}, [2]float64{.82, 0}, [2]float64{1, 0})
