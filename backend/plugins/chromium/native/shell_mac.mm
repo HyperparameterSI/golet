@@ -5,7 +5,25 @@
 #include "include/cef_command_line.h"
 
 namespace {
+NSDictionary* theme;
 NSColor* Color(unsigned value) {
+  NSString* role = nil;
+  switch (value) {
+    case 0xfbfcfa: role = @"background"; break;
+    case 0xf0f3ee: role = @"surface"; break;
+    case 0xf0f3ec: role = @"muted"; break;
+    case 0xe5e9df: case 0xe3e9db: role = @"border"; break;
+    case 0x46513e: case 0x56624d: role = @"foreground"; break;
+    case 0x87967c: role = @"primary"; break;
+    case 0x98a58b: case 0x95a286: case 0x809075: role = @"mutedForeground"; break;
+  }
+  NSString* hex = role ? theme[role] : nil;
+  if (hex) {
+    unsigned long long rgba = 0;
+    [[NSScanner scannerWithString:hex] scanHexLongLong:&rgba];
+    return [NSColor colorWithSRGBRed:((rgba >> 24) & 255) / 255.0
+      green:((rgba >> 16) & 255) / 255.0 blue:((rgba >> 8) & 255) / 255.0 alpha:(rgba & 255) / 255.0];
+  }
   return [NSColor colorWithSRGBRed:((value >> 16) & 255) / 255.0
                            green:((value >> 8) & 255) / 255.0
                             blue:(value & 255) / 255.0 alpha:1];
@@ -42,7 +60,6 @@ NSString* Navigation(NSString* input) {
 @property(nonatomic, strong) NSView* addressBackground;
 @property(nonatomic, strong) NSTextField* address;
 @property(nonatomic, strong) NSTextField* engine;
-@property(nonatomic, strong) NSTextField* brand;
 @property(nonatomic, strong) NSImageView* searchIcon;
 @property(nonatomic, strong) NSButton* back;
 @property(nonatomic, strong) NSButton* forward;
@@ -61,6 +78,7 @@ NSString* Navigation(NSString* input) {
 @property(nonatomic) NSInteger selected;
 @property(nonatomic) BOOL closing;
 @property(nonatomic) BOOL appMode;
+- (void)applyTheme;
 - (void)layout;
 - (void)updateAddress;
 - (void)focusAddress:(id)sender;
@@ -129,9 +147,6 @@ NSString* Navigation(NSString* input) {
     self.home = [self button:@"house" label:@"首页" action:@selector(goHome:)];
     self.fullscreen = [self button:@"arrow.up.left.and.arrow.down.right" label:@"全屏" action:@selector(fullscreen:)];
     self.add = [self button:@"plus" label:@"新建标签页" action:@selector(newTab:)];
-    self.brand = [NSTextField labelWithString:ProductName()];
-    self.brand.font = [NSFont systemFontOfSize:12 weight:NSFontWeightRegular]; self.brand.textColor = Color(0x9aa493);
-    [self.root addSubview:self.brand];
     self.addressBackground = [[NSView alloc] initWithFrame:NSZeroRect];
     self.addressBackground.wantsLayer = YES; self.addressBackground.layer.cornerRadius = 20;
     self.addressBackground.layer.backgroundColor = Color(0xf0f3ec).CGColor;
@@ -152,9 +167,34 @@ NSString* Navigation(NSString* input) {
     [self.addressBackground addSubview:self.engine];
   }
   [self installMenu];
-  [self.window center]; [self layout]; [self.window makeKeyAndOrderFront:nil];
+  [self applyTheme]; [self.window center]; [self layout]; [self.window makeKeyAndOrderFront:nil];
   [NSApp activateIgnoringOtherApps:YES];
   return self;
+}
+- (void)applyTheme {
+  if (!theme) return;
+  self.window.appearance = [NSAppearance appearanceNamed:[theme[@"dark"] boolValue] ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
+  self.window.backgroundColor = Color(0xfbfcfa);
+  CGFloat size = [theme[@"fontSize"] doubleValue];
+  NSFont* font = [NSFont fontWithName:theme[@"font"] size:size] ?: [NSFont systemFontOfSize:size];
+  self.address.font = font;
+  self.address.textColor = Color(0x46513e);
+  self.addressBackground.layer.cornerRadius = MIN(21, [theme[@"radius"] doubleValue]);
+  self.addressBackground.layer.backgroundColor = Color(0xf0f3ec).CGColor;
+  self.addressBackground.layer.borderColor = Color(0xe3e9db).CGColor;
+  self.engine.textColor = Color(0x95a286);
+  self.searchIcon.contentTintColor = Color(0x98a58b);
+  for (NSView* view in self.root.subviews) {
+    if ([view isKindOfClass:NSButton.class]) ((NSButton*)view).contentTintColor = Color(0x87967c);
+  }
+  for (NSNumber* key in self.order) {
+    self.tabs[key].layer.cornerRadius = MIN(21, [theme[@"radius"] doubleValue]);
+    self.tabs[key].layer.backgroundColor = Color(key.intValue == self.selected ? 0xfbfcfa : 0xf0f3ee).CGColor;
+    self.labels[key].font = font;
+    self.labels[key].contentTintColor = Color(0x56624d);
+    self.closes[key].contentTintColor = Color(0x809075);
+  }
+  self.root.needsDisplay = YES;
 }
 - (void)installMenu {
   NSMenu* main = [[NSMenu alloc] init];
@@ -200,7 +240,6 @@ NSString* Navigation(NSString* input) {
   self.computerUse.frame = NSMakeRect(width - 260, 65, 112, 32);
   self.assistant.frame = NSMakeRect(width - 138, 65, 32, 32);
   self.home.frame = NSMakeRect(width - 96, 65, 32, 32); self.fullscreen.frame = NSMakeRect(width - 54, 65, 32, 32);
-  self.brand.frame = NSMakeRect(width - 120, 18, 104, 18);
   CGFloat tabWidth = MIN(186, (width - 312) / MAX((NSUInteger)1, self.order.count));
   CGFloat x = 108;
   for (NSNumber* key in self.order) {
@@ -250,7 +289,28 @@ NSString* Navigation(NSString* input) {
 @end
 
 namespace { GoletBrowserShell* shell; }
-void CreateBrowserShell() { shell = [[GoletBrowserShell alloc] init]; }
+bool ShellSetTheme(const std::string& json) {
+  NSData* data = [Text(json) dataUsingEncoding:NSUTF8StringEncoding];
+  id parsed = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+  if (![parsed isKindOfClass:NSDictionary.class]) return false;
+  for (NSString* key in @[@"background", @"surface", @"muted", @"foreground", @"mutedForeground", @"border", @"primary"]) {
+    id color = parsed[key];
+    if (![color isKindOfClass:NSString.class] || [color length] != 8 ||
+        [color rangeOfCharacterFromSet:[[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdefABCDEF"] invertedSet]].location != NSNotFound) return false;
+  }
+  for (NSString* key in @[@"radius", @"fontSize", @"dark"]) if (![parsed[key] isKindOfClass:NSNumber.class]) return false;
+  if (![parsed[@"font"] isKindOfClass:NSString.class]) return false;
+  double radius = [parsed[@"radius"] doubleValue], size = [parsed[@"fontSize"] doubleValue];
+  if (!(radius >= 0 && radius <= 64 && size >= 10 && size <= 20)) return false;
+  theme = parsed;
+  [shell applyTheme];
+  return true;
+}
+void CreateBrowserShell() {
+  auto json = CefCommandLine::GetGlobalCommandLine()->GetSwitchValue("golet-theme");
+  if (!json.empty()) ShellSetTheme(json.ToString());
+  shell = [[GoletBrowserShell alloc] init];
+}
 void ConfigureShellChild(CefWindowInfo& info) {
   NSRect bounds = shell.pages.bounds;
   info.SetAsChild((__bridge CefWindowHandle)shell.pages, CefRect(0, 0, bounds.size.width, bounds.size.height));
@@ -272,6 +332,7 @@ void ShellAttachBrowser(int id, CefWindowHandle handle) {
   NSButton* close = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"xmark" accessibilityDescription:@"关闭标签页"] target:shell action:@selector(closeTab:)];
   close.bordered = NO; close.contentTintColor = Color(0x809075); close.tag = id;
   shell.closes[key] = close; [tab addSubview:close];
+  [shell applyTheme];
   [shell layout];
 }
 void ShellDetachBrowser(int id) {

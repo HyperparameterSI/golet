@@ -5,11 +5,22 @@ import { call } from "golet-runtime";
 // ---- Types ----
 
 export interface BrowserStatus {
+  themeSupported: boolean;
+  style: string;
+  presets: Preset[];
   installed: boolean;
   supported: boolean;
   running: boolean;
   host: string;
   state: State;
+}
+
+/** BrowserThemeSettings configures the native Forma browser shell. */
+export interface BrowserThemeSettings {
+  preset: string;
+  dark: boolean;
+  radius: number;
+  fontSize: number;
 }
 
 /** Demo describes a real, runnable component demonstration. */
@@ -21,6 +32,12 @@ export interface Demo {
   controls: string[];
   source: string;
 }
+
+/**
+ * Preset is a native palette inspired by Tailwind's color families. These are
+ * Golet presets, not a claim to reproduce every upstream shadcn preset.
+ */
+export type Preset = "Neutral" | "Zinc" | "Stone" | "Blue" | "Violet" | "Emerald" | "Rose";
 
 /** State describes the focused tab and open tabs. Events are snapshots, not a durable log. */
 export interface State {
@@ -79,11 +96,19 @@ export const Showcase = {
 
 /** BrowserDemo controls one opt-in CEF host owned by Studio. */
 export const BrowserDemo = {
+  /** ApplyTheme updates the running shell without closing its tabs. */
+  applyTheme(settings: BrowserThemeSettings): Promise<void> {
+    return call("BrowserDemo.ApplyTheme", settings);
+  },
   command(action: string, target: string): Promise<void> {
     return call("BrowserDemo.Command", action, target);
   },
   start(style: string, target: string): Promise<void> {
     return call("BrowserDemo.Start", style, target);
+  },
+  /** StartWithTheme applies Forma styling where the native shell supports it. */
+  startWithTheme(style: string, target: string, settings: BrowserThemeSettings): Promise<void> {
+    return call("BrowserDemo.StartWithTheme", style, target, settings);
   },
   status(): Promise<BrowserStatus> {
     return call("BrowserDemo.Status");

@@ -210,6 +210,11 @@ class Host final : public CefApp, public CefBrowserProcessHandler,
     reply->SetValue("id", request->GetValue("id"));
     const auto method = request->GetString("method").ToString();
     if (method == "close") { Write(reply); CloseAll(); return; }
+    if (method == "set-theme") {
+      if (chrome_style_ || !ShellSetTheme(request->GetString("url").ToString()))
+        reply->SetString("error", "custom theme unsupported or invalid; requires macOS Alloy");
+      Write(reply); return;
+    }
     if (method == "newtab") {
       if (app_mode_) reply->SetString("error", "new tabs are unavailable in AppMode");
       else NewTab(request->GetString("url").ToString());

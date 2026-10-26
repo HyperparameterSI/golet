@@ -11,6 +11,8 @@
 #include "include/cef_parser.h"
 #include "include/cef_version.h"
 
+bool ShellSetTheme(const std::string&) { return false; }
+
 namespace {
 HWND window = nullptr, address = nullptr, tabs = nullptr;
 HWND back_button = nullptr, forward_button = nullptr;

@@ -28,6 +28,8 @@ var ErrClosed = errors.New("chromium: browser closed")
 // Options selects a separately installed CEF host and a persistent profile.
 // A profile directory must not be shared by simultaneously running hosts.
 type Options struct {
+	// Theme optionally styles the macOS Alloy shell; nil preserves its default.
+	Theme *Theme
 	// Author: HyperparameterSI. Shows a native, initially-off consent control in Alloy.
 	EnableComputerUse bool
 
@@ -142,6 +144,10 @@ func Launch(ctx context.Context, opts Options) (*Browser, error) {
 	if err != nil {
 		return nil, err
 	}
+	theme, err := themeArgument(opts)
+	if err != nil {
+		return nil, err
+	}
 	target, err := navigationURL(opts.URL)
 	if err != nil {
 		return nil, err
@@ -173,6 +179,9 @@ func Launch(ctx context.Context, opts Options) (*Browser, error) {
 	cmd := exec.Command(host, "--url="+target, "--cache-path="+profile)
 	cmd.Args = append(cmd.Args, extra...)
 	cmd.Args = append(cmd.Args, profileArgs...)
+	if theme != "" {
+		cmd.Args = append(cmd.Args, "--golet-theme="+theme)
+	}
 	if opts.AssistantURL != "" {
 		cmd.Args = append(cmd.Args, "--assistant-url="+opts.AssistantURL)
 	}

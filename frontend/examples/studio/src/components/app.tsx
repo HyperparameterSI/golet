@@ -321,6 +321,12 @@ export function App() {
 function BrowserPanel() {
   const [status, setStatus] = useState<BrowserStatus | null>(null);
   const [style, setStyle] = useState("alloy");
+  const [preset, setPreset] = useState("Blue");
+  const [dark, setDark] = useState(false);
+  const [radius, setRadius] = useState(16);
+  const [fontSize, setFontSize] = useState(14);
+  const theme = { preset, dark, radius, fontSize };
+  const canTheme = status?.themeSupported && style === "alloy";
   const [url, setURL] = useState("https://go.dev");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -340,8 +346,9 @@ function BrowserPanel() {
     try {
       if (action === "restart") {
         await BrowserDemo.command("close", "");
-        await BrowserDemo.start(style, url);
-      } else if (action === "start") await BrowserDemo.start(style, url);
+        await BrowserDemo.startWithTheme(style, url, theme);
+      } else if (action === "start") await BrowserDemo.startWithTheme(style, url, theme);
+      else if (action === "theme") await BrowserDemo.applyTheme(theme);
       else await BrowserDemo.command(action, url);
     } catch (e) {
       setError(String(e));
@@ -373,6 +380,37 @@ function BrowserPanel() {
         {status?.running
           ? "选择风格后，点击“重启并应用风格”。重启将关闭当前演示的所有标签，并打开下方网址；临时会话数据不会保留。"
           : "选择 Alloy 自定义界面或 Chrome 插件兼容界面，然后启动 Browser。"}
+      </p>
+      <fieldset disabled={busy || !canTheme} className="space-y-3 rounded-lg border p-4 disabled:opacity-50">
+        <legend className="px-2 text-sm font-medium">Forma Browser 主题</legend>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-sm">配色
+            <select className="mt-2 w-full rounded-md border bg-background p-2" value={preset} onChange={(e) => setPreset(e.target.value)}>
+              {(status?.presets ?? ["Blue"]).map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </label>
+          <label className="text-sm">外观
+            <select className="mt-2 w-full rounded-md border bg-background p-2" value={dark ? "dark" : "light"} onChange={(e) => setDark(e.target.value === "dark")}>
+              <option value="light">浅色</option><option value="dark">深色</option>
+            </select>
+          </label>
+          <label className="text-sm">圆角
+            <select className="mt-2 w-full rounded-md border bg-background p-2" value={radius} onChange={(e) => setRadius(Number(e.target.value))}>
+              <option value={16}>Maia · 16</option><option value={8}>Soft · 8</option><option value={0}>Sharp · 0</option>
+            </select>
+          </label>
+          <label className="text-sm">字号
+            <select className="mt-2 w-full rounded-md border bg-background p-2" value={fontSize} onChange={(e) => setFontSize(Number(e.target.value))}>
+              <option value={14}>14</option><option value={16}>16</option>
+            </select>
+          </label>
+        </div>
+        <Button variant="outline" disabled={!status?.running || status.style !== "alloy"} onClick={() => run("theme")}>应用主题 · 保留标签页</Button>
+      </fieldset>
+      <p className="text-xs leading-6 text-muted-foreground">
+        {canTheme
+          ? "启动时应用所选 Forma 主题；运行中可点击应用主题。需要重新构建最新 Chromium 宿主。主题仅影响原生浏览器外壳，网页和新标签页不随之改色。"
+          : "Forma Browser 主题仅支持 macOS Alloy。Windows 和 Chrome 风格继续使用各自的默认外观。"}
       </p>
       <Input
         aria-label="浏览器网址"

@@ -177,3 +177,50 @@ when the window or active tab changes. The pipe cannot enable consent.
 AppMode and Chrome style reject this option; Windows reports unsupported.
 The embedding app still needs macOS Accessibility and Screen Recording grants.
 Rebuild the native host after updating this API; old hosts fail closed.
+
+### 跟随 Forma 主题（macOS Alloy）
+
+可选的 `ui/forma/browser` 包将 Forma 的主题快照传给独立浏览器窗口。
+使用该包不会把 CEF 引入其他 Forma 应用，也不需要编写前端代码。
+
+```go
+import (
+    "context"
+
+    "github.com/HyperparameterSI/golet/backend/plugins/chromium"
+    "github.com/HyperparameterSI/golet/backend/ui/forma"
+    formabrowser "github.com/HyperparameterSI/golet/backend/ui/forma/browser"
+)
+
+// Author: HyperparameterSI
+func runBrowser(ctx context.Context) error {
+    theme := forma.NewTheme(forma.ThemeOptions{Preset: forma.Blue, Dark: true})
+    browser, err := formabrowser.Launch(ctx, chromium.Options{
+        Style: chromium.StyleAlloy,
+        URL: "https://go.dev",
+    }, theme)
+    if err != nil {
+        return err
+    }
+    defer browser.Close(context.Background())
+
+    // 在用户切换主题时调用；不要在每一帧重复发送。
+    theme = forma.NewTheme(forma.ThemeOptions{Preset: forma.Violet})
+    if err := formabrowser.SetTheme(ctx, browser, theme); err != nil {
+        return err
+    }
+    <-browser.Done()
+    return nil
+}
+```
+
+主题包含标签栏、地址栏、工具按钮的配色、明暗外观、圆角和字体。
+调用方在更新 Forma 主题后显式调用 `SetTheme`，不需要关闭窗口。
+地址栏和标签页圆角最大 21 DIP，字号限制为 10–20 DIP，以适配固定高度的工具栏。
+字体不存在时回退到系统字体。
+
+当前边界：这是**独立窗口适配**，不是可嵌入布局的 `ui.Element`。
+仅 macOS Alloy 自定义外壳支持；Windows 和 Chrome 风格返回明确错误。
+网页、新标签页 HTML、Chrome 扩展页面以及 Liquid Glass 材质不在此主题映射范围内。
+不传主题时保持原有浏览器外观。旧版宿主需要重新执行原来的
+`pnpm setup:chromium` 构建命令（保留品牌配置参数），才能支持主题协议。

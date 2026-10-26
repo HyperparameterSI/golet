@@ -13,6 +13,8 @@ void ShellSelectBrowser(int id);
 void ShellUpdateBrowser(int id, const std::string& title, const std::string& url,
                         bool loading, bool back, bool forward);
 void ShellDestroy();
+// Author: HyperparameterSI. Applies a validated theme on the host UI thread.
+bool ShellSetTheme(const std::string& json);
 std::string ShellHomeURL();
 void BrowserUIAction(const std::string& method, int id = 0, const std::string& value = "");
 

@@ -122,3 +122,11 @@ Studio 的 **Forma / Maia** 页面可切换配色、Maia / Soft / Sharp 圆角�
 Studio 示例已迁移为 `backend/examples/studio/forma.go`，入口为 **Forma · Maia**。基础主题函数更名为 `ui.FormaTheme`；`ui.ShadcnTheme` 作为弃用别名保留，以兼容已使用该基础函数的应用。原生组件旧包路径不再保留。
 
 本目录只有 Go 实现、测试、文档和许可证。TSX 上游参考快照已单独归档到 `docs/references/shadcn-base-maia`，不参与原生组件运行。前端项目仍可使用真正的 shadcn React 组件，两者互不依赖。
+
+### 可选浏览器主题适配
+
+`github.com/HyperparameterSI/golet/backend/ui/forma/browser` 提供 `Launch`、
+`Theme` 和 `SetTheme`，把同一份 `*ui.Theme` 传给独立 CEF 浏览器窗口。
+目前支持 macOS Alloy 的配色、明暗外观、字体与圆角；不会影响网页内容，
+也不是嵌入式 `ui.Element`。普通 Forma 应用不依赖此包或 CEF。
+用法与平台限制见 [Chromium 插件文档](../../plugins/chromium/README.md#跟随-forma-主题macos-alloy)。
