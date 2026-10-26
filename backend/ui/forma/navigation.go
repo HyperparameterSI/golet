@@ -1,5 +1,5 @@
 // Author: HyperparameterSI
-package shadcn
+package forma
 
 import (
 	"fmt"
@@ -9,19 +9,19 @@ import (
 )
 
 func panel(c *ui.Context, e ui.Element) ui.Element {
-	return e.Radius(16).Padding(4).Gap(2).Background(c.Theme().Surface).TextColor(c.Theme().Text).FontSize(14).Border(1, c.Theme().Text.Alpha(.05)).Shadow(0, 12, 24, 0, ui.RGBA(0, 0, 0, .18))
+	return e.Radius(radius(c, 16)).Padding(4).Gap(2).Background(token(c, "popover", c.Theme().Surface)).TextColor(token(c, "popover-foreground", c.Theme().Text)).FontSize(fontSize(c, 14)).Border(1, c.Theme().Border).Shadow(0, 12, 24, 0, ui.RGBA(0, 0, 0, .18))
 }
 func Select(c *ui.Context, value *string, options []string) ui.Element {
 	s := ui.SelectBase(c, value)
-	inputStyle(c, s.Trigger.Height(36).Padding(8, 12).Gap(6), 32, InputOptions{})
+	inputStyle(c, s.Trigger.Height(36).Padding(8, 12).Gap(6), radius(c, 32), InputOptions{})
 	s.Trigger.Children(func() { ui.Text(c, *value).Grow(1); ui.Text(c, "⌄").TextColor(c.Theme().TextMuted) })
 	s.Popup(func(p ui.Element) {
 		panel(c, p).MinWidth(144).MaxHeight(320)
 		ui.Scroll(c).Children(func() {
 			for _, option := range options {
-				e := s.Item(option).Padding(8, 12).Radius(12).Gap(10)
+				e := s.Item(option).Padding(8, 12).Radius(radius(c, 12)).Gap(10)
 				if e.Highlighted() {
-					e.Background(c.Theme().SurfaceHover)
+					e.Background(token(c, "accent", c.Theme().SurfaceHover)).TextColor(token(c, "accent-foreground", c.Theme().Text))
 				}
 				e.Children(func() {
 					ui.Text(c, option).Grow(1)
@@ -41,7 +41,7 @@ func NativeSelect(c *ui.Context, value *string, options []string) ui.Element {
 }
 func Combobox(c *ui.Context, value *string, options []string) ui.Element {
 	s := ui.ComboboxBase(c, value)
-	inputStyle(c, s.Input.Height(36).Padding(4, 12), 32, InputOptions{})
+	inputStyle(c, s.Input.Height(36).Padding(4, 12), radius(c, 32), InputOptions{})
 	s.Popup(func(p ui.Element) {
 		panel(c, p).MaxHeight(320)
 		ui.Scroll(c).Children(func() {
@@ -51,9 +51,9 @@ func Combobox(c *ui.Context, value *string, options []string) ui.Element {
 					continue
 				}
 				count++
-				e := s.Item(option).Padding(8, 12).Radius(12)
+				e := s.Item(option).Padding(8, 12).Radius(radius(c, 12))
 				if e.Highlighted() {
-					e.Background(c.Theme().SurfaceHover)
+					e.Background(token(c, "accent", c.Theme().SurfaceHover)).TextColor(token(c, "accent-foreground", c.Theme().Text))
 				}
 				e.Children(func() { ui.Text(c, option) })
 			}
@@ -66,15 +66,15 @@ func Combobox(c *ui.Context, value *string, options []string) ui.Element {
 }
 func Tabs(c *ui.Context, selected *int, labels ...string) ui.Element {
 	parts := ui.TabsBase(c, selected, len(labels))
-	parts.List.Height(36).Padding(3).Radius(32).Background(c.Theme().SurfaceHover).Children(func() {
+	parts.List.Height(36).Padding(3).Radius(radius(c, 32)).Background(c.Theme().SurfaceHover).Children(func() {
 		for i, label := range labels {
-			e := parts.Tab(i).Height(30).Padding(4, 8).Radius(12).FontSize(14).FontWeight(500)
+			e := parts.Tab(i).Height(30).Padding(4, 8).Radius(radius(c, 12)).FontSize(fontSize(c, 14)).FontWeight(500)
 			if *selected == i {
 				e.Background(c.Theme().Background).TextColor(c.Theme().Text)
 			} else {
 				e.TextColor(c.Theme().TextMuted)
 			}
-			focus(c, e, 12, false)
+			focus(c, e, radius(c, 12), false)
 			e.Children(func() { ui.Text(c, label) })
 		}
 	})
@@ -82,7 +82,7 @@ func Tabs(c *ui.Context, selected *int, labels ...string) ui.Element {
 }
 func Collapsible(c *ui.Context, title string, open *bool, build func()) ui.Element {
 	parts := ui.CollapsibleBase(c, open)
-	parts.Trigger.Padding(16).Gap(24).FontSize(14).FontWeight(500).Children(func() {
+	parts.Trigger.Padding(16).Gap(24).FontSize(fontSize(c, 14)).FontWeight(500).Children(func() {
 		ui.Text(c, title).Grow(1)
 		symbol := "⌄"
 		if *open {
@@ -94,7 +94,7 @@ func Collapsible(c *ui.Context, title string, open *bool, build func()) ui.Eleme
 	return parts.Trigger
 }
 func Accordion(c *ui.Context, build func()) ui.Element {
-	return ui.Column(c).Radius(16).Border(1, c.Theme().Border).Clip().Children(build)
+	return ui.Column(c).Radius(radius(c, 16)).Border(1, c.Theme().Border).Clip().Children(build)
 }
 func AccordionItem(c *ui.Context, title string, open *bool, build func()) ui.Element {
 	e := ui.Column(c)
@@ -133,16 +133,32 @@ func Pagination(c *ui.Context, page *int, total int) ui.Element {
 	})
 }
 func Sidebar(c *ui.Context, selected *string, build func()) ui.Element {
-	return ui.Sidebar(c, selected, build).Width(256).Padding(8).Gap(4).Background(c.Theme().Sidebar).FontSize(14)
+	outer := ui.Box(c).Width(256)
+	original := c.Theme()
+	local := ui.Local(outer, "sidebar-theme", func() ui.Theme { return *original })
+	*local = *original
+	local.Surface = token(c, "sidebar", original.Sidebar)
+	local.Sidebar = local.Surface
+	local.Text = token(c, "sidebar-foreground", original.Text)
+	local.Accent = token(c, "sidebar-primary", original.Accent)
+	local.AccentText = token(c, "sidebar-primary-foreground", original.AccentText)
+	local.SurfaceHover = token(c, "sidebar-accent", original.SurfaceHover)
+	local.Border = token(c, "sidebar-border", original.Border)
+	local.Focus = token(c, "sidebar-ring", original.Focus)
+	return outer.TextColor(local.Text).Children(func() {
+		c.SetTheme(local)
+		defer c.SetTheme(original)
+		ui.Sidebar(c, selected, build).Fill().Padding(8).Gap(4).Background(local.Sidebar).TextColor(local.Text).FontSize(fontSize(c, 14))
+	})
 }
 func SidebarItem(c *ui.Context, id, label string) ui.Element {
-	return ui.SidebarItem(c, id, nil, label).Height(32).Radius(12).Padding(8)
+	return ui.SidebarItem(c, id, nil, label).Height(32).Radius(radius(c, 12)).Padding(8)
 }
 func NavigationMenu(c *ui.Context, build func()) ui.Element {
 	return ui.Row(c).Gap(4).FocusGroup(ui.Horizontal).Children(build)
 }
 func Menubar(c *ui.Context, build func()) ui.Element {
-	return ui.Row(c).Gap(4).Padding(4).Radius(16).Border(1, c.Theme().Border).FocusGroup(ui.Horizontal).Children(build)
+	return ui.Row(c).Gap(4).Padding(4).Radius(radius(c, 16)).Border(1, c.Theme().Border).FocusGroup(ui.Horizontal).Children(build)
 }
 
 // CommandItem is a command-palette action. ID must be stable and unique.
@@ -155,7 +171,7 @@ type CommandItem struct {
 // Command provides keyboard-searchable actions. Selection runs only once.
 func Command(c *ui.Context, query *string, items []CommandItem) ui.Element {
 	var chosen func()
-	e := ui.Column(c).Radius(16).Background(c.Theme().Surface).Border(1, c.Theme().Border).FocusGroup(ui.Vertical)
+	e := ui.Column(c).Radius(radius(c, 16)).Background(c.Theme().Surface).Border(1, c.Theme().Border).FocusGroup(ui.Vertical)
 	e.Children(func() {
 		Input(c, query, InputOptions{Placeholder: "Type a command or search…"}).Label("Command search")
 		Separator(c)
@@ -169,9 +185,9 @@ func Command(c *ui.Context, query *string, items []CommandItem) ui.Element {
 				count++
 				if item.Group != group {
 					group = item.Group
-					CardDescription(c, group).FontSize(12).Padding(8)
+					CardDescription(c, group).FontSize(fontSize(c, 12)).Padding(8)
 				}
-				button := Button(c, item.Label, ButtonOptions{Variant: Ghost, Disabled: item.Disabled}).Radius(12).Justify(ui.Start).Label(item.ID)
+				button := Button(c, item.Label, ButtonOptions{Variant: Ghost, Disabled: item.Disabled}).Radius(radius(c, 12)).Justify(ui.Start).Label(item.ID)
 				if button.Clicked() {
 					chosen = item.Run
 				}

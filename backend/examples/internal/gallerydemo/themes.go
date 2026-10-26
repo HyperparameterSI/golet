@@ -31,7 +31,7 @@ func (g *gallery) applyTheme(c *ui.Context) {
 		dark = true
 	}
 	if g.neutralLight == nil {
-		g.neutralLight, g.neutralDark = ui.ShadcnTheme(false), ui.ShadcnTheme(true)
+		g.neutralLight, g.neutralDark = ui.FormaTheme(false), ui.FormaTheme(true)
 	}
 	theme := g.neutralLight
 	if dark {

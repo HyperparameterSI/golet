@@ -1,5 +1,5 @@
 // Author: HyperparameterSI
-package shadcn
+package forma
 
 import (
 	"testing"

@@ -587,7 +587,7 @@ corners, rounded buttons, muted selection rows and softly elevated popovers.
 Native controls remain Go-rendered; this does not add a webview or CSS runtime.
 The Maia-inspired treatment keeps existing spacing and hit targets compatible.
 
-Use `ui.ShadcnTheme(false)` and `ui.ShadcnTheme(true)` for the same palette
+Use `ui.FormaTheme(false)` and `ui.FormaTheme(true)` for the same palette
 with consistent 14 DIP typography. Create and cache these themes outside the
 view, then pass the appropriate one to `c.SetTheme(theme)`. Customize a returned
 theme to match your app:

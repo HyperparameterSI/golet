@@ -10,7 +10,7 @@ import "github.com/HyperparameterSI/golet/backend/ui"
 // buttons, editable fields, navigation tracks and popovers use vivid glass.
 // High-contrast preferences automatically keep the controls' solid fills.
 func Theme(dark bool) *ui.Theme {
-	t := ui.ShadcnTheme(dark)
+	t := ui.FormaTheme(dark)
 	// Stronger secondary text stays legible over tinted backdrops.
 	t.TextMuted = ui.Hex("#48484a")
 	t.Accent = ui.Hex("#007aff")

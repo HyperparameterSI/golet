@@ -378,7 +378,7 @@ bunx shadcn@latest add dialog
 原生应用可在初始化时创建主题，在视图中设置：
 
 ```go
-var theme = ui.ShadcnTheme(false) // true 为暗色
+var theme = ui.FormaTheme(false) // true 为暗色
 
 func view(c *ui.Context) {
     c.SetTheme(theme)
@@ -392,7 +392,7 @@ func view(c *ui.Context) {
 ```
 
 默认明暗主题采用中性灰配色、10 DIP 统一圆角、36 DIP 标准控件高度和柔和弹层。
-`ShadcnTheme` 使用相同颜色，并统一为 14 DIP 字号；默认主题保留系统字号。
+`FormaTheme` 使用相同颜色，并统一为 14 DIP 字号；默认主题保留系统字号。
 这是参考 Maia 的原生绘制风格，不需要加载 CSS 或 WebView。
 
 可修改返回的主题：`InputBorder` 控制输入框边框（暗色默认白色 15%），
@@ -464,6 +464,6 @@ Golet Browser 还提供可选 AI 助手、确认后执行的页面操作、按�
 
 通过可选的 [`borderbeam.Box`](backend/plugins/borderbeam/README.md) 为原生控件容器添加旋转色彩与呼吸辉光，支持自定义色板、圆角、周期和暂停，跟随主题及系统减少动态效果设置。Studio 的「插件 → 边框光束」提供交互演示。提供 Medium、Small、Line、Pulse Inner、Pulse Outside 五种模式，采用纯 Go 色场、遮罩与高斯辉光绘制，无需 WebGPU 或浏览器依赖。
 
-### shadcn / Maia 原生组件层
+### Golet Forma 原生组件层
 
-通过 [`backend/ui/shadcn`](backend/ui/shadcn/README.md) 使用纯 Go 的 Maia 组件。Studio 的「shadcn · Maia」提供官方 65 个目录项的交互演示与明暗切换。当前已建立原生实现入口，复杂组件的高级能力及全状态视觉一致性仍在补齐，详见[移植清单](backend/ui/shadcn/PORTING.md)。
+通过 [`backend/ui/forma`](backend/ui/forma/README.md) 使用纯 Go 的 Maia 组件。Studio 的「Forma · Maia」提供官方 65 个目录项的交互演示与明暗切换。当前已建立原生实现入口，复杂组件的高级能力及全状态视觉一致性仍在补齐，详见[移植清单](backend/ui/forma/PORTING.md)。

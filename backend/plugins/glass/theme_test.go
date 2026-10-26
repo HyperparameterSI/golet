@@ -106,7 +106,7 @@ func TestThemeButtonPressMaterial(t *testing.T) {
 func TestVividRimContrast(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		contrast := func(style Style) int {
-			th := ui.ShadcnTheme(dark)
+			th := ui.FormaTheme(dark)
 			tt := ui.NewTester(func(c *ui.Context) {
 				c.SetTheme(th)
 				ui.Box(c).Fill().Background(ui.RGB(64, 64, 64)).Children(func() {

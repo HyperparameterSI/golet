@@ -63,6 +63,8 @@ go vet ./backend/examples/studio ./backend/examples/internal/...
 
 「插件 → 边框光束」打开纯 Go 原生演示窗口，支持 Medium、Small、Line、Pulse Inner、Pulse Outside 五种动画，以及四组彩色卡片、暂停/继续、隐藏、周期、强度、内辉光范围调节。外观跟随 Studio 的明暗主题；减少动态效果时自动静止。实现与上游差异见 [插件说明](../../plugins/borderbeam/README.md)。
 
-### shadcn · Maia
+### Forma · Maia
 
-「原生控件 → shadcn · Maia」展示固定官方目录的 65 个条目，使用纯 Go 原生组件。下拉框选择组件，Dark 切换明暗，“跟随 Studio 主题”验证全局主题适配。高级能力与视觉验收状态见 [原生组件说明](../../ui/shadcn/README.md)。
+「原生控件 → Forma · Maia」展示固定官方目录的 65 个条目，使用纯 Go 原生组件。下拉框选择组件，Dark 切换明暗，“跟随 Studio 主题”验证全局主题适配。高级能力与视觉验收状态见 [原生组件说明](../../ui/forma/README.md)。
+
+Maia 原生演示现支持 Neutral、Zinc、Stone、Blue、Violet、Emerald、Rose 七套配色，搭配 Dark、Maia/Soft/Sharp 圆角和 14/16 DIP 字号。主题按选择缓存，不在动画帧中重复构造。自定义方式见 `backend/ui/forma/README.md` 的 `NewTheme` 示例。

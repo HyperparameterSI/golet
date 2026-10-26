@@ -1,5 +1,5 @@
 // Author: HyperparameterSI
-package shadcn
+package forma
 
 import (
 	"time"
@@ -12,14 +12,14 @@ func Popover(c *ui.Context, anchor ui.Element, open *bool, build func()) ui.Elem
 }
 func Tooltip(c *ui.Context, anchor ui.Element, text string) ui.Element {
 	return ui.TooltipBase(c, anchor, func(tip ui.Element) {
-		tip.Padding(6, 12).Radius(12).FontSize(12).Background(c.Theme().Text).TextColor(c.Theme().Background).Children(func() { ui.Text(c, text) })
+		tip.Padding(6, 12).Radius(radius(c, 12)).FontSize(fontSize(c, 12)).Background(c.Theme().Text).TextColor(c.Theme().Background).Children(func() { ui.Text(c, text) })
 	})
 }
 func Dialog(c *ui.Context, open *bool, title string, build func()) ui.Element {
 	return ui.DialogBase(c, open, func(back, p ui.Element) {
 		back.Background(ui.RGBA(0, 0, 0, .8))
 		w, _ := c.Size()
-		panel(c, p).Width(min(448, max(0, w-32))).Radius(32).Padding(24).Gap(24).Label(title)
+		panel(c, p).Width(min(448, max(0, w-32))).Radius(radius(c, 32)).Padding(24).Gap(24).Label(title)
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
 			CardTitle(c, title).Grow(1)
 			Button(c, "×", ButtonOptions{Variant: Ghost, Size: IconSmall}).Label("Close dialog").OnClick(func() { *open = false })
@@ -35,7 +35,7 @@ func AlertDialog(c *ui.Context, open *bool, title, description string, confirm f
 		}
 		back.Background(ui.RGBA(0, 0, 0, .8))
 		w, _ := c.Size()
-		panel(c, p).Width(min(448, max(0, w-32))).Radius(32).Padding(24).Gap(24).Label(title)
+		panel(c, p).Width(min(448, max(0, w-32))).Radius(radius(c, 32)).Padding(24).Gap(24).Label(title)
 		CardTitle(c, title)
 		CardDescription(c, description)
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
@@ -64,7 +64,7 @@ func Sheet(c *ui.Context, open *bool, side Side, title string, build func()) ui.
 	return ui.DialogBase(c, open, func(back, p ui.Element) {
 		back.Background(ui.RGBA(0, 0, 0, .8))
 		w, h := c.Size()
-		p.Absolute().Background(c.Theme().Surface).Padding(24).Gap(24).Label(title)
+		p.Absolute().Background(token(c, "popover", c.Theme().Surface)).TextColor(token(c, "popover-foreground", c.Theme().Text)).Padding(24).Gap(24).Label(title)
 		switch side {
 		case Left:
 			p.Left(0).Top(0).Bottom(0).Width(min(384, w*.75))
@@ -86,7 +86,7 @@ func Drawer(c *ui.Context, open *bool, title string, build func()) ui.Element {
 	return ui.DialogBase(c, open, func(back, p ui.Element) {
 		back.Background(ui.RGBA(0, 0, 0, .8))
 		_, h := c.Size()
-		p.Absolute().Left(8).Right(8).Bottom(8).MaxHeight(h - 16).Radius(32).Padding(24).Gap(16).Background(c.Theme().Surface).Label(title)
+		p.Absolute().Left(8).Right(8).Bottom(8).MaxHeight(h - 16).Radius(radius(c, 32)).Padding(24).Gap(16).Background(token(c, "popover", c.Theme().Surface)).TextColor(token(c, "popover-foreground", c.Theme().Text)).Label(title)
 		offset := ui.Local(p, "drawer-offset", func() ui.Point { return ui.Point{} })
 		p.Draggable(offset, ui.DraggableOptions{Axis: ui.Vertical, Bounds: &ui.Rect{H: h}, Snap: func(v ui.Point) ui.Point {
 			if v.Y > h*.25 {
@@ -94,7 +94,7 @@ func Drawer(c *ui.Context, open *bool, title string, build func()) ui.Element {
 			}
 			return ui.Point{}
 		}})
-		ui.Box(c).Size(100, 6).Radius(32).Background(c.Theme().SurfaceHover).AlignSelf(ui.Center)
+		ui.Box(c).Size(100, 6).Radius(radius(c, 32)).Background(c.Theme().SurfaceHover).AlignSelf(ui.Center)
 		CardTitle(c, title)
 		build()
 	})
@@ -149,7 +149,10 @@ func menuItems(c *ui.Context, open *bool, items []MenuItem) {
 			Separator(c).MarginY(4)
 			continue
 		}
-		e := Button(c, item.Label, ButtonOptions{Variant: Ghost, Disabled: item.Disabled}).Radius(12).Justify(ui.Start).Padding(8, 12)
+		e := Button(c, item.Label, ButtonOptions{Variant: Ghost, Disabled: item.Disabled}).Radius(radius(c, 12)).Justify(ui.Start).Padding(8, 12)
+		if !e.Hovered() || item.Disabled {
+			e.TextColor(token(c, "popover-foreground", c.Theme().Text))
+		}
 		if first && !item.Disabled {
 			e.AutoFocus()
 			first = false

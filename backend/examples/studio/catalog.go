@@ -12,9 +12,9 @@ type Demo struct {
 }
 
 var demos = []Demo{
-	{"Shadcn", "shadcn · Maia", "原生控件", "65 个官方目录项的纯 Go 原生演示与移植对照。", []string{"Button", "Input", "Dialog", "Select", "Tabs"}, "backend/examples/studio/shadcn.go"},
+	{"Forma", "Forma · Maia", "原生控件", "65 个官方目录项的纯 Go 原生演示与移植对照。", []string{"Button", "Input", "Dialog", "Select", "Tabs"}, "backend/examples/studio/forma.go"},
 	{"BorderBeam", "边框光束", "插件", "流动色彩、呼吸光效与主题边缘辉光，纯 Go 原生绘制。", []string{"borderbeam.Box", "Medium", "Small", "Line", "PulseInner", "PulseOutside", "Paused"}, "backend/examples/studio/borderbeam.go"},
-	{"Themes", "原生主题实验室", "原生控件", "切换 Maia 中性与 Liquid Glass，体验明暗外观、背景材质与真实控件交互。", []string{"ShadcnTheme", "glass.Theme", "Light", "Dark", "Material", "Button", "TextInput", "Select", "Tabs"}, "backend/examples/internal/gallerydemo/themes.go"},
+	{"Themes", "原生主题实验室", "原生控件", "切换 Maia 中性与 Liquid Glass，体验明暗外观、背景材质与真实控件交互。", []string{"FormaTheme", "glass.Theme", "Light", "Dark", "Material", "Button", "TextInput", "Select", "Tabs"}, "backend/examples/internal/gallerydemo/themes.go"},
 	{"Overview", "基础与布局", "原生控件", "响应式布局、状态更新和主题。", []string{"Row", "Column", "Box", "Grid", "Spacer", "Text", "Button", "Badge", "Avatar", "Progress", "Spinner"}, "backend/examples/internal/gallerydemo/demo.go"},
 	{"Controls", "表单与选择", "原生控件", "完整表单：输入、选择、数值、日期与颜色。", []string{"Button", "PrimaryButton", "IconButton", "Checkbox", "CheckboxGroup", "Switch", "Toggle", "ToggleGroup", "Radio", "RadioGroup", "Select", "Combobox", "Autocomplete", "SearchField", "TokenField", "Slider", "StepSlider", "RangeSlider", "NumberInput", "Stepper", "Rating", "Meter", "Calendar", "DateInput", "TimeInput", "ColorWell", "Tabs", "Segmented", "Toolbar", "Breadcrumbs", "Collapsible", "Accordion", "AccordionItem", "Field", "Fieldset", "Label"}, "backend/examples/internal/gallerydemo/demo.go"},
 	{"Text", "文本与输入", "原生控件", "文本排版、编辑、选择、验证与多语言字符。", []string{"TextInput", "TextArea", "RichText", "Link", "FontFeatures", "Selection"}, "backend/examples/internal/gallerydemo/demo.go"},

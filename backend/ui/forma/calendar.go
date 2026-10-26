@@ -1,5 +1,5 @@
 // Author: HyperparameterSI
-package shadcn
+package forma
 
 import (
 	"fmt"
@@ -102,13 +102,13 @@ func Calendar(c *ui.Context, date *time.Time, options ...CalendarOptions) ui.Ele
 	e.Label(title).Children(func() {
 		ui.Row(c).Height(32).AlignItems(ui.Center).Children(func() {
 			Button(c, "‹", ButtonOptions{Variant: Ghost, Size: IconSmall}).Label("Previous month").OnClick(func() { *cursor = month.AddDate(0, -1, 0) })
-			ui.Text(c, title).FontSize(14).FontWeight(500).Grow(1).TextAlign(ui.Center)
+			ui.Text(c, title).FontSize(fontSize(c, 14)).FontWeight(500).Grow(1).TextAlign(ui.Center)
 			Button(c, "›", ButtonOptions{Variant: Ghost, Size: IconSmall}).Label("Next month").OnClick(func() { *cursor = month.AddDate(0, 1, 0) })
 		})
 		ui.Column(c).Gap(8).Children(func() {
 			ui.Row(c).Children(func() {
 				for i := 0; i < 7; i++ {
-					ui.Text(c, names[(int(first)+i)%7]).Width(32).FontSize(12.8).TextAlign(ui.Center).TextColor(c.Theme().TextMuted)
+					ui.Text(c, names[(int(first)+i)%7]).Width(32).FontSize(fontSize(c, 12.8)).TextAlign(ui.Center).TextColor(c.Theme().TextMuted)
 				}
 			})
 			for week := 0; week < 6; week++ {
@@ -126,7 +126,7 @@ func Calendar(c *ui.Context, date *time.Time, options ...CalendarOptions) ui.Ele
 						b := Button(c, fmt.Sprint(d.Day()), ButtonOptions{Variant: v, Size: IconSmall, Disabled: disabled}).Label(d.Format("2006-01-02")).Checked(chosen)
 						b.FontWeight(400)
 						if middle {
-							b.Background(c.Theme().SurfaceHover).TextColor(c.Theme().Text).Radius(0)
+							b.Background(c.Theme().SurfaceHover).TextColor(c.Theme().Text).Radius(radius(c, 0))
 						}
 						if *focusDate == d.Format("2006-01-02") {
 							b.Focus()

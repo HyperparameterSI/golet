@@ -27,7 +27,7 @@ Go module、包名、CLI 路径、配置文件、环境变量、build tags、IPC
 - React + TypeScript + Tailwind v4 + Vite；本地 Button、Card、Input，CVA、Radix Slot、可扩展的 `components.json`、`@/` 别名。
 - 明暗主题、键盘焦点、禁用/加载状态、错误提示、ARIA live region，以及实际 Go 绑定的调用示例。
 - shadcn 模板不再创建一秒一次的时钟 IPC 事件。
-- 原生 `ui.ShadcnTheme(bool)`，native 模板缓存两套主题，按系统明暗模式使用；不引入 WebView 或新的运行时依赖。
+- 原生 `ui.FormaTheme(bool)`，native 模板缓存两套主题，按系统明暗模式使用；不引入 WebView 或新的运行时依赖。
 - 监听器移除、快照保留列表原地压缩，清除尾部函数引用，保持快照独立、once 语义、可重入回调和并发安全。
 - 删除继承的网站第三方统计脚本。网站 canonical URL 为部署配置，当前未发布网站。
 - CI 增加 Studio 前端绑定生成与生产构建。

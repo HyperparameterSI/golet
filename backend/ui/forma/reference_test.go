@@ -1,5 +1,5 @@
 // Author: HyperparameterSI
-package shadcn
+package forma
 
 import (
 	"crypto/sha256"
@@ -13,7 +13,7 @@ import (
 // TestPinnedRegistry prevents silent reference changes or catalog omissions.
 // Reference sources are read only by tests; none are embedded in applications.
 func TestPinnedRegistry(t *testing.T) {
-	data, err := os.ReadFile("reference/manifest.json")
+	data, err := os.ReadFile("../../../docs/references/shadcn-base-maia/manifest.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestPinnedRegistry(t *testing.T) {
 			t.Fatalf("missing reference for %s", component.Name)
 		}
 		for _, file := range component.Files {
-			data, err := os.ReadFile(filepath.Join("reference", file.File))
+			data, err := os.ReadFile(filepath.Join("../../../docs/references/shadcn-base-maia", file.File))
 			if err != nil {
 				t.Fatal(err)
 			}

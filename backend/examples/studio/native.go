@@ -48,8 +48,8 @@ func (s *Showcase) Open(id string) error {
 		switch id {
 		case "Editor":
 			win = editordemo.Open()
-		case "Shadcn":
-			win = openShadcn()
+		case "Forma":
+			win = openForma()
 		case "BorderBeam":
 			win = openBorderBeam()
 		case "Loading":

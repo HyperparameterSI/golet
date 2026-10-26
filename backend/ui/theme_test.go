@@ -157,13 +157,13 @@ func TestSemanticThemeFallbacks(t *testing.T) {
 		if dark {
 			base = DarkTheme()
 		}
-		preset := ShadcnTheme(dark)
+		preset := FormaTheme(dark)
 		base.FontSize = 14
 		if *preset != *base {
 			t.Fatal("native presets must share the same semantic palette")
 		}
 		preset.Radius = 99
-		if ShadcnTheme(dark).Radius == 99 {
+		if FormaTheme(dark).Radius == 99 {
 			t.Fatal("customizing one theme must not mutate other themes")
 		}
 	}
@@ -173,7 +173,7 @@ func TestStandardControlHeightsAgree(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		value, selected := "", "One"
 		tt := coreNewTester(func(c *context) {
-			c.SetTheme(ShadcnTheme(dark))
+			c.SetTheme(FormaTheme(dark))
 			coreColumn(c).Children(func() {
 				coreButton(c, "Secondary").Label("secondary")
 				corePrimaryButton(c, "Primary").Label("primary")

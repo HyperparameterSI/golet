@@ -1,5 +1,5 @@
 // Author: HyperparameterSI
-package shadcn
+package forma
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 
 // Attachment is a file presentation. Loading and error states do not start I/O.
 func Attachment(c *ui.Context, name, description, state string, action func()) ui.Element {
-	e := ui.Row(c).Gap(8).Padding(8, 10).Radius(16).Border(1, c.Theme().Border).Background(c.Theme().Surface).AlignItems(ui.Center)
+	e := ui.Row(c).Gap(8).Padding(8, 10).Radius(radius(c, 16)).Border(1, c.Theme().Border).Background(c.Theme().Surface).AlignItems(ui.Center)
 	if state == "error" {
 		e.Border(1, c.Theme().Danger.Alpha(.3))
 	}
@@ -18,9 +18,9 @@ func Attachment(c *ui.Context, name, description, state string, action func()) u
 		if state == "uploading" || state == "processing" {
 			Spinner(c)
 		} else {
-			ui.Text(c, "↗").FontSize(18)
+			ui.Text(c, "↗").FontSize(fontSize(c, 18))
 		}
-		ui.Column(c).Gap(2).Children(func() { Label(c, name); CardDescription(c, description).FontSize(12) })
+		ui.Column(c).Gap(2).Children(func() { Label(c, name); CardDescription(c, description).FontSize(fontSize(c, 12)) })
 		if action != nil {
 			Button(c, "×", ButtonOptions{Variant: Ghost, Size: IconXS}).Label("Remove attachment").OnClick(action)
 		}
@@ -29,14 +29,14 @@ func Attachment(c *ui.Context, name, description, state string, action func()) u
 }
 func Bubble(c *ui.Context, text string, variant Variant) ui.Element {
 	bg, fg, _, border := colors(c, variant)
-	return ui.Column(c).Padding(10, 14).Radius(24).Background(bg).TextColor(fg).Border(1, border).Children(func() { ui.Text(c, text).FontSize(14) })
+	return ui.Column(c).Padding(10, 14).Radius(radius(c, 24)).Background(bg).TextColor(fg).Border(1, border).Children(func() { ui.Text(c, text).FontSize(fontSize(c, 14)) })
 }
 func Message(c *ui.Context, author string, end bool, build func()) ui.Element {
 	e := ui.Column(c).Gap(8)
 	if end {
 		e.AlignItems(ui.End)
 	}
-	return e.Children(func() { ui.Text(c, author).FontSize(12).TextColor(c.Theme().TextMuted); build() })
+	return e.Children(func() { ui.Text(c, author).FontSize(fontSize(c, 12)).TextColor(c.Theme().TextMuted); build() })
 }
 
 // MessageScroller follows new content only while already at the bottom.
@@ -57,12 +57,12 @@ func Trace(c *ui.Context, title string, open *bool, build func()) ui.Element {
 	})
 }
 func CodeBlock(c *ui.Context, language, code string) ui.Element {
-	return ui.Column(c).Radius(12).Border(1, c.Theme().Border).Clip().Children(func() {
+	return ui.Column(c).Radius(radius(c, 12)).Border(1, c.Theme().Border).Clip().Children(func() {
 		ui.Row(c).Padding(12, 16).AlignItems(ui.Center).Children(func() {
 			CardDescription(c, language).Grow(1)
 			Button(c, "Copy", ButtonOptions{Variant: Ghost, Size: Small}).OnClick(func() { c.WriteClipboard(code) })
 		})
-		ui.ScrollBoth(c).MaxHeight(320).Padding(16).Children(func() { ui.Text(c, code).Font("monospace").FontSize(14).Selectable() })
+		ui.ScrollBoth(c).MaxHeight(320).Padding(16).Children(func() { ui.Text(c, code).Font("monospace").FontSize(fontSize(c, 14)).Selectable() })
 	})
 }
 
@@ -81,7 +81,7 @@ func Questionnaire(c *ui.Context, index *int, questions []Question, onComplete f
 			return
 		}
 		q := questions[*index]
-		ui.Text(c, fmt.Sprintf("%d / %d", *index+1, len(questions))).FontSize(12).TextColor(c.Theme().TextMuted)
+		ui.Text(c, fmt.Sprintf("%d / %d", *index+1, len(questions))).FontSize(fontSize(c, 12)).TextColor(c.Theme().TextMuted)
 		CardTitle(c, q.Title)
 		CardDescription(c, q.Description)
 		if q.Answer != nil {

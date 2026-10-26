@@ -1,5 +1,5 @@
 // Author: HyperparameterSI
-package shadcn
+package forma
 
 import (
 	"fmt"
@@ -13,14 +13,14 @@ import (
 func Skeleton(c *ui.Context) ui.Element {
 	t := c.Theme()
 	reduced := c.Preferences().ReduceMotion
-	e := ui.Box(c).Radius(12)
+	e := ui.Box(c).Radius(radius(c, 12))
 	e.Draw(func(p *ui.Painter, r ui.Rect) {
 		alpha := float32(1)
 		if !reduced {
 			alpha = .75 + .25*float32(math.Cos(float64(p.Now().UnixNano())/float64(time.Second)*math.Pi))
 			p.After(time.Second / 30)
 		}
-		p.Fill(r, t.SurfaceHover.Alpha(alpha), 12)
+		p.Fill(r, t.SurfaceHover.Alpha(alpha), radius(c, 12))
 	})
 	return e
 }
@@ -69,7 +69,7 @@ func Carousel(c *ui.Context, index *int, count int, slide func(int)) ui.Element 
 // Table draws Maia headers and cells over Golet's virtualized, selectable list.
 // Column resizing and cell-block selection remain available in ui.Table.
 func Table(c *ui.Context, state *ui.ListState, columns []ui.TableColumn, count int, cell func(int, int)) ui.Element {
-	root := ui.Column(c).Role(ui.RoleTable).FontSize(14)
+	root := ui.Column(c).Role(ui.RoleTable).FontSize(fontSize(c, 14))
 	sizeCell := func(e ui.Element, col ui.TableColumn) {
 		if col.Width > 0 {
 			e.Width(col.Width).Shrink(0)
@@ -123,16 +123,20 @@ func Table(c *ui.Context, state *ui.ListState, columns []ui.TableColumn, count i
 // ChartContainer is Maia's themed composition surface for ui/chart plots.
 // Importing other shadcn controls does not link chart geometry into an app.
 func ChartContainer(c *ui.Context, axes chart.Axes, build func(ui.Element)) ui.Element {
-	return chart.Plot(c, axes, build).FontSize(12).TextColor(c.Theme().TextMuted).AspectRatio(16.0 / 9)
+	return chart.Plot(c, axes, build).FontSize(fontSize(c, 12)).TextColor(c.Theme().TextMuted).AspectRatio(16.0 / 9)
 }
 func ChartLegend(c *ui.Context, labels []string, colors []ui.Color) ui.Element {
+	defaults := ChartColors(c)
 	return ui.Row(c).Gap(16).Center().Children(func() {
 		for i, label := range labels {
-			color := c.Theme().Accent
+			color := defaults[i%5]
 			if i < len(colors) {
 				color = colors[i]
 			}
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() { ui.Box(c).Size(8, 8).Radius(2).Background(color); ui.Text(c, label).FontSize(12) })
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Box(c).Size(8, 8).Radius(radius(c, 2)).Background(color)
+				ui.Text(c, label).FontSize(fontSize(c, 12))
+			})
 		}
 	})
 }
@@ -147,14 +151,14 @@ func Sonner(c *ui.Context) {
 		viewport.Gap(8)
 		for _, toast := range toasts {
 			parts := ui.ToastBase(c, toast)
-			parts.Root.Width(356).Padding(16).Gap(8).Radius(16).Background(c.Theme().Surface).Border(1, c.Theme().Border).Shadow(0, 4, 12, 0, ui.RGBA(0, 0, 0, .1)).Children(func() {
+			parts.Root.Width(356).Padding(16).Gap(8).Radius(radius(c, 16)).Background(c.Theme().Surface).Border(1, c.Theme().Border).Shadow(0, 4, 12, 0, ui.RGBA(0, 0, 0, .1)).Children(func() {
 				Label(c, toast.Title)
 				if toast.Description != "" {
 					CardDescription(c, toast.Description)
 				}
 				ui.Row(c).Gap(8).Children(func() {
 					if toast.Action != "" {
-						parts.ActionButton().Padding(6, 12).Radius(32).Background(c.Theme().Accent).TextColor(c.Theme().AccentText).Children(func() { ui.Text(c, toast.Action) })
+						parts.ActionButton().Padding(6, 12).Radius(radius(c, 32)).Background(c.Theme().Accent).TextColor(c.Theme().AccentText).Children(func() { ui.Text(c, toast.Action) })
 					}
 					parts.CloseButton().Padding(6).Children(func() { ui.Text(c, "×") })
 				})

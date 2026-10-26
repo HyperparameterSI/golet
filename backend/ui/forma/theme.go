@@ -1,16 +1,16 @@
 // Author: HyperparameterSI
 
-// Package shadcn provides opt-in, pure Go native components based on shadcn's
-// Base UI Maia registry. Reference sources and attribution live in reference/.
+// Package forma provides opt-in, pure Go native components based on shadcn's
+// Base UI Maia registry. Reference sources and attribution live in docs/references/shadcn-base-maia/.
 // Build components inside ui.View; never retain an Element between builds.
-package shadcn
+package forma
 
 import "github.com/HyperparameterSI/golet/backend/ui"
 
 // Theme returns the neutral Maia palette. Keep a copy per window and pass it to
 // Context.SetTheme; the component layer also respects caller theme overrides.
 func Theme(dark bool) *ui.Theme {
-	t := ui.ShadcnTheme(dark)
+	t := ui.FormaTheme(dark)
 	t.Radius = 16
 	t.Spacing = 4
 	t.FontSize = 14
@@ -60,18 +60,16 @@ func colors(c *ui.Context, v Variant) (bg, fg, hover, border ui.Color) {
 		fg = t.AccentText
 		hover = bg.Alpha(.8)
 	case Outline:
-		bg = t.InputBorder
-		if bg == ui.Transparent {
-			bg = t.Border
-		}
+		bg = Color(c, "input")
 		bg = bg.Alpha(.3)
 		hover = t.Border.Alpha(.5)
 		border = t.Border
 	case Secondary:
-		bg = t.SurfaceHover
+		bg = token(c, "secondary", t.SurfaceHover)
+		fg = token(c, "secondary-foreground", t.Text)
 		hover = bg.Mix(t.Text, .05)
 	case Ghost:
-		hover = t.SurfaceHover
+		hover = token(c, "accent", t.SurfaceHover)
 	case Destructive:
 		bg = t.Danger.Alpha(.1)
 		hover = t.Danger.Alpha(.2)
@@ -120,7 +118,7 @@ func Button(c *ui.Context, label string, options ...ButtonOptions) ui.Element {
 		height, padding = 40, 16
 	}
 	bg, fg, hover, border := colors(c, o.Variant)
-	e := ui.ButtonBase(c).Height(height).Padding(0, padding).Gap(6).Radius(32).FontSize(font).FontWeight(500).TextColor(fg).Disabled(o.Disabled).Label(label)
+	e := ui.ButtonBase(c).Height(height).Padding(0, padding).Gap(6).Radius(radius(c, 32)).FontSize(fontSize(c, font)).FontWeight(500).TextColor(fg).Disabled(o.Disabled).Label(label)
 	if o.Size >= Icon {
 		e.Width(height).Padding(0)
 	}
@@ -130,13 +128,16 @@ func Button(c *ui.Context, label string, options ...ButtonOptions) ui.Element {
 	fill := bg
 	if e.Hovered() && !o.Disabled {
 		fill = hover
+		if o.Variant == Ghost {
+			e.TextColor(token(c, "accent-foreground", c.Theme().Text))
+		}
 	}
 	e.Background(fill).Border(1, border)
 	if e.Pressed() && !o.Disabled {
 		e.Translate(0, 1)
 	}
 
-	focus(c, e, 32, o.Invalid)
+	focus(c, e, radius(c, 32), o.Invalid)
 	e.Children(func() {
 		text := ui.Text(c, label)
 		if o.Variant == Link && e.Hovered() {
@@ -153,5 +154,5 @@ func Badge(c *ui.Context, label string, variant ...Variant) ui.Element {
 		v = variant[0]
 	}
 	bg, fg, _, border := colors(c, v)
-	return ui.Row(c).Height(20).Padding(0, 8).Gap(4).Center().Radius(32).Background(bg).Border(1, border).TextColor(fg).FontSize(12).FontWeight(500).Children(func() { ui.Text(c, label) })
+	return ui.Row(c).Height(20).Padding(0, 8).Gap(4).Center().Radius(radius(c, 32)).Background(bg).Border(1, border).TextColor(fg).FontSize(fontSize(c, 12)).FontWeight(500).Children(func() { ui.Text(c, label) })
 }

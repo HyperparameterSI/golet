@@ -1,5 +1,5 @@
 // Author: HyperparameterSI
-package shadcn
+package forma
 
 // Components returns the pinned Base UI Maia registry names in stable order.
 // Presence in the catalog is not a claim of pixel-level parity; see README.md.

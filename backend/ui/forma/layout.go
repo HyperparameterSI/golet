@@ -1,23 +1,23 @@
 // Author: HyperparameterSI
-package shadcn
+package forma
 
 import "github.com/HyperparameterSI/golet/backend/ui"
 
 // Card is a Maia card. Compose its Header, Content and Footer inside Children.
 func Card(c *ui.Context) ui.Element {
-	return ui.Column(c).Gap(24).PaddingY(24).Radius(16).Background(c.Theme().Surface).Border(1, c.Theme().Text.Alpha(.1)).FontSize(14)
+	return ui.Column(c).Gap(24).PaddingY(24).Radius(radius(c, 16)).Background(token(c, "card", c.Theme().Surface)).TextColor(token(c, "card-foreground", c.Theme().Text)).Border(1, c.Theme().Border).FontSize(fontSize(c, 14))
 }
 func CardHeader(c *ui.Context) ui.Element { return ui.Column(c).Gap(8).PaddingX(24) }
 func CardTitle(c *ui.Context, title string) ui.Element {
-	return ui.Text(c, title).FontSize(16).FontWeight(500)
+	return ui.Text(c, title).FontSize(fontSize(c, 16)).FontWeight(500)
 }
 func CardDescription(c *ui.Context, text string) ui.Element {
-	return ui.Text(c, text).FontSize(14).TextColor(c.Theme().TextMuted)
+	return ui.Text(c, text).FontSize(fontSize(c, 14)).TextColor(c.Theme().TextMuted)
 }
 func CardContent(c *ui.Context) ui.Element { return ui.Column(c).PaddingX(24).Gap(16) }
 func CardFooter(c *ui.Context) ui.Element  { return ui.Row(c).PaddingX(24).Gap(8) }
 func Label(c *ui.Context, text string) ui.Element {
-	return ui.Text(c, text).FontSize(14).FontWeight(500)
+	return ui.Text(c, text).FontSize(fontSize(c, 14)).FontWeight(500)
 }
 
 // Separator separates adjacent groups in either orientation.
@@ -73,18 +73,18 @@ func GroupItem(e ui.Element, index, count int, vertical ...bool) ui.Element {
 	return e
 }
 func Kbd(c *ui.Context, text string) ui.Element {
-	return ui.Text(c, text).FontSize(12).FontWeight(500).Padding(0, 4).Height(20).Radius(4).Background(c.Theme().SurfaceHover).TextColor(c.Theme().TextMuted)
+	return ui.Text(c, text).FontSize(fontSize(c, 12)).FontWeight(500).Padding(0, 4).Height(20).Radius(radius(c, 4)).Background(c.Theme().SurfaceHover).TextColor(c.Theme().TextMuted)
 }
 func Alert(c *ui.Context, title, description string, destructive ...bool) ui.Element {
 	fg := c.Theme().Text
 	if len(destructive) > 0 && destructive[0] {
 		fg = c.Theme().Danger
 	}
-	return ui.Column(c).Role(ui.RoleStatus).Padding(16).Gap(4).Radius(16).Border(1, c.Theme().Border).TextColor(fg).Children(func() { Label(c, title); ui.Text(c, description).FontSize(14) })
+	return ui.Column(c).Role(ui.RoleStatus).Padding(16).Gap(4).Radius(radius(c, 16)).Border(1, c.Theme().Border).TextColor(fg).Children(func() { Label(c, title); ui.Text(c, description).FontSize(fontSize(c, 14)) })
 }
 func Empty(c *ui.Context, title, description string, actions func()) ui.Element {
-	return ui.Column(c).Center().Padding(48).Gap(16).Radius(8).Children(func() {
-		ui.Text(c, title).FontSize(18).FontWeight(500)
+	return ui.Column(c).Center().Padding(48).Gap(16).Radius(radius(c, 8)).Children(func() {
+		ui.Text(c, title).FontSize(fontSize(c, 18)).FontWeight(500)
 		CardDescription(c, description)
 		if actions != nil {
 			actions()
@@ -92,7 +92,7 @@ func Empty(c *ui.Context, title, description string, actions func()) ui.Element 
 	})
 }
 func Item(c *ui.Context, title, description string, actions func()) ui.Element {
-	return ui.Row(c).Padding(16).Gap(16).Radius(16).Border(1, c.Theme().Border).AlignItems(ui.Center).Children(func() {
+	return ui.Row(c).Padding(16).Gap(16).Radius(radius(c, 16)).Border(1, c.Theme().Border).AlignItems(ui.Center).Children(func() {
 		ui.Column(c).Grow(1).Gap(4).Children(func() { Label(c, title); CardDescription(c, description) })
 		if actions != nil {
 			actions()
@@ -119,10 +119,10 @@ func Breadcrumb(c *ui.Context, items []string, selected *int) ui.Element {
 				})
 			}
 			if i == len(items)-1 {
-				ui.Text(c, item).FontSize(14)
+				ui.Text(c, item).FontSize(fontSize(c, 14))
 				continue
 			}
-			link := ui.ButtonBase(c).Label(item).Role(ui.RoleLink).Padding(0).FontSize(14).TextColor(c.Theme().TextMuted)
+			link := ui.ButtonBase(c).Label(item).Role(ui.RoleLink).Padding(0).FontSize(fontSize(c, 14)).TextColor(c.Theme().TextMuted)
 			if link.Hovered() {
 				link.TextColor(c.Theme().Text)
 			}

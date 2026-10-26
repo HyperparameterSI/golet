@@ -1,5 +1,5 @@
 // Author: HyperparameterSI
-package shadcn
+package forma
 
 import (
 	"math"
@@ -17,11 +17,8 @@ type InputOptions struct {
 
 func inputStyle(c *ui.Context, e ui.Element, radius float32, o InputOptions) ui.Element {
 	t := c.Theme()
-	border := t.InputBorder
-	if border == ui.Transparent {
-		border = t.Border
-	}
-	e.Radius(radius).Border(1, border).Background(border.Alpha(.3)).FontSize(14).TextColor(t.Text).Disabled(o.Disabled).ReadOnly(o.ReadOnly).Placeholder(o.Placeholder)
+	border := Color(c, "input")
+	e.Radius(radius).Border(1, border).Background(border.Alpha(.3)).FontSize(fontSize(c, 14)).TextColor(t.Text).Disabled(o.Disabled).ReadOnly(o.ReadOnly).Placeholder(o.Placeholder)
 	if o.Disabled {
 		e.Opacity(.5)
 	}
@@ -33,24 +30,25 @@ func Input(c *ui.Context, value *string, options ...InputOptions) ui.Element {
 	if len(options) > 0 {
 		o = options[0]
 	}
-	return inputStyle(c, ui.TextInputBase(c, value).Height(36).Padding(4, 12).MinWidth(0), 32, o)
+	return inputStyle(c, ui.TextInputBase(c, value).Height(36).Padding(4, 12).MinWidth(0), radius(c, 32), o)
 }
 func Textarea(c *ui.Context, value *string, options ...InputOptions) ui.Element {
 	o := InputOptions{}
 	if len(options) > 0 {
 		o = options[0]
 	}
-	return inputStyle(c, ui.TextAreaBase(c, value).MinHeight(64).Padding(12).MinWidth(0), 12, o)
+	return inputStyle(c, ui.TextAreaBase(c, value).MinHeight(64).Padding(12).MinWidth(0), radius(c, 12), o)
 }
 
 // InputGroup shares one surface and focus outline across its input and addons.
 // Use InputGroupInput inside it to avoid nested input borders.
 func InputGroup(c *ui.Context, build func()) ui.Element {
-	e := ui.Row(c).AlignItems(ui.Center).Gap(6).MinHeight(36).Radius(32).Border(1, c.Theme().Border).Background(c.Theme().Border.Alpha(.3)).PaddingX(12).Role(ui.RoleGroup)
+	border := Color(c, "input")
+	e := ui.Row(c).AlignItems(ui.Center).Gap(6).MinHeight(36).Radius(radius(c, 32)).Border(1, border).Background(border.Alpha(.3)).PaddingX(12).Role(ui.RoleGroup)
 	e.DrawOver(func(p *ui.Painter, r ui.Rect) {
 		if e.FocusWithin() {
-			p.Stroke(r, c.Theme().Focus, 32, 1)
-			p.Stroke(ui.Rect{X: r.X - 1.5, Y: r.Y - 1.5, W: r.W + 3, H: r.H + 3}, c.Theme().Focus.Alpha(.5), 32, 3)
+			p.Stroke(r, c.Theme().Focus, radius(c, 32), 1)
+			p.Stroke(ui.Rect{X: r.X - 1.5, Y: r.Y - 1.5, W: r.W + 3, H: r.H + 3}, c.Theme().Focus.Alpha(.5), radius(c, 32), 3)
 		}
 	})
 	return e.Children(build)
@@ -62,17 +60,17 @@ func InputGroupInput(c *ui.Context, value *string, options ...InputOptions) ui.E
 	if len(options) > 0 {
 		o = options[0]
 	}
-	e := ui.TextInputBase(c, value).Height(34).Grow(1).MinWidth(0).Padding(4, 0).FontSize(14).TextColor(c.Theme().Text).Placeholder(o.Placeholder).Disabled(o.Disabled).ReadOnly(o.ReadOnly).FocusRing(false)
+	e := ui.TextInputBase(c, value).Height(34).Grow(1).MinWidth(0).Padding(4, 0).FontSize(fontSize(c, 14)).TextColor(c.Theme().Text).Placeholder(o.Placeholder).Disabled(o.Disabled).ReadOnly(o.ReadOnly).FocusRing(false)
 	if o.Disabled {
 		e.Opacity(.5)
 	}
 	if o.Invalid {
-		e.Border(1, c.Theme().Danger).Radius(4)
+		e.Border(1, c.Theme().Danger).Radius(radius(c, 4))
 	}
 	return e
 }
 func Field(c *ui.Context, label string, build func()) ui.Element {
-	return ui.Field(c, label, build).Gap(8).FontSize(14)
+	return ui.Field(c, label, build).Gap(8).FontSize(fontSize(c, 14))
 }
 func Form(c *ui.Context, build func()) ui.Element {
 	return ui.Column(c).Gap(24).Role(ui.RoleGroup).Children(build)
@@ -89,14 +87,14 @@ func Checkbox(c *ui.Context, on *bool, label string) ui.Element {
 			if *on {
 				bg, border = t.Accent, t.Accent
 			}
-			p.Fill(r, bg, 6)
-			p.Stroke(r, border, 6, 1)
+			p.Fill(r, bg, radius(c, 6))
+			p.Stroke(r, border, radius(c, 6), 1)
 			if *on {
 				path.Reset().MoveTo(r.X+3, r.Y+8).LineTo(r.X+6.5, r.Y+11).LineTo(r.X+12.5, r.Y+5)
 				p.StrokePath(path, 1.5, t.AccentText)
 			}
 			if e.FocusVisible() {
-				p.Stroke(ui.Rect{X: r.X - 3, Y: r.Y - 3, W: r.W + 6, H: r.H + 6}, t.Focus.Alpha(.5), 9, 3)
+				p.Stroke(ui.Rect{X: r.X - 3, Y: r.Y - 3, W: r.W + 6, H: r.H + 6}, t.Focus.Alpha(.5), radius(c, 6)+3, 3)
 			}
 		})
 		if label != "" {
@@ -148,13 +146,16 @@ func Radio[T comparable](c *ui.Context, selected *T, value T, label string) ui.E
 	return e
 }
 func Toggle(c *ui.Context, on *bool, label string) ui.Element {
-	e := ui.ToggleBase(c, on).Height(36).MinWidth(36).PaddingX(12).Radius(32).Gap(4).Label(label)
+	e := ui.ToggleBase(c, on).Height(36).MinWidth(36).PaddingX(12).Radius(radius(c, 32)).Gap(4).Label(label)
 	e.Draw(func(p *ui.Painter, r ui.Rect) {
 		if *on || e.Hovered() {
-			p.Fill(r, c.Theme().SurfaceHover, 32)
+			p.Fill(r, token(c, "accent", c.Theme().SurfaceHover), radius(c, 32))
 		}
 	})
-	focus(c, e, 32, false)
+	if *on || e.Hovered() {
+		e.TextColor(token(c, "accent-foreground", c.Theme().Text))
+	}
+	focus(c, e, radius(c, 32), false)
 	e.Children(func() { Label(c, label) })
 	return e
 }
@@ -180,12 +181,12 @@ func Slider(c *ui.Context, value *float64, lo, hi float64) ui.Element {
 	return e.FocusRing(false)
 }
 func Progress(c *ui.Context, value float64) ui.Element {
-	return ui.Progress(c, value).Height(8).Radius(32)
+	return ui.Progress(c, value).Height(8).Radius(radius(c, 32))
 }
 
 // DatePicker composes Golet's native date editing and calendar popover.
 func DatePicker(c *ui.Context, date *time.Time) ui.Element {
-	return ui.DateInput(c, date).Height(36).Radius(32).PaddingX(12)
+	return ui.DateInput(c, date).Height(36).Radius(radius(c, 32)).PaddingX(12)
 }
 
 // InputOTP accepts ASCII digits, supports paste and preserves a single native
@@ -211,7 +212,7 @@ func InputOTP(c *ui.Context, value *string, length int) ui.Element {
 		if e.FocusVisible() {
 			_, caret := e.TextAnchorCaret()
 			caret = min(length-1, caret)
-			p.Stroke(ui.Rect{X: r.X + float32(caret*36), Y: r.Y, W: 36, H: r.H}, c.Theme().Focus, caretRadius(caret, length), 1)
+			p.Stroke(ui.Rect{X: r.X + float32(caret*36), Y: r.Y, W: 36, H: r.H}, c.Theme().Focus, radius(c, caretRadius(caret, length)), 1)
 		}
 	})
 	return e

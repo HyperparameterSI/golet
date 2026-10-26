@@ -8,6 +8,10 @@ import "runtime"
 // LightTheme or DarkTheme and set it with Context.SetTheme.
 type Theme struct {
 	Dark bool
+	// Tokens holds optional, namespaced semantic colors for component libraries.
+	// Core controls do not interpret them. The immutable pointer also preserves
+	// Theme's comparability for render caches.
+	Tokens *ThemeTokens
 	// Optional materials replace styled control and panel backgrounds.
 	// Nil keeps the ordinary solid theme. Materials belong to the caller;
 	// core UI never imports a renderer plugin. High contrast uses solid fills.

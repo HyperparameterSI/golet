@@ -74,7 +74,7 @@ The theme exposes `ControlMaterial`, `AccentMaterial` and `PanelMaterial`.
 Set any slot to nil to retain solid styling for that group. High contrast
 automatically skips theme materials; reduced motion uses the UI animation
 system. Explicitly applied materials remain under the application's control.
-To offer a “Reduce transparency” option, switch to `ui.ShadcnTheme(dark)`.
+To offer a “Reduce transparency” option, switch to `ui.FormaTheme(dark)`.
 
 This uses Golet's existing Metal, Direct3D, OpenGL and CPU effects, not Apple's
 AppKit controls or a webview. Refraction samples previously drawn content

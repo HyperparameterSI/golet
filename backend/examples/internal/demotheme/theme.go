@@ -58,7 +58,7 @@ func Apply(c *ui.Context) {
 		if liquid {
 			presets[style][shade] = glass.Theme(dark)
 		} else {
-			presets[style][shade] = ui.ShadcnTheme(dark)
+			presets[style][shade] = ui.FormaTheme(dark)
 		}
 	}
 	c.SetTheme(presets[style][shade])
