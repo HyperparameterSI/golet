@@ -49,6 +49,39 @@ wire protocol, TypeScript generation, and the checklist for adding features.
   in the PR, and find its cause with `-dumpdep` ("Binary size" in the
   architecture guide).
 
+## Default application window style
+
+When creating a Golet application's main window, default to
+`TitleBarStyle: golet.TitleBarHiddenInset` and
+`TrafficLightPosition: &golet.Point{X: 12, Y: 11}`, following the Feo window
+configuration. Use this convention unless the user explicitly requests another
+window style or the window is a platform-specific dialog or utility window.
+This is an application-authoring convention; it does not change the framework's
+zero-value `WindowOptions` behavior.
+
+```go
+// Author: HyperparameterSI
+window := golet.NewWindow(golet.WindowOptions{
+    Title:                "My App",
+    URL:                  "/",
+    Width:                1200,
+    Height:               820,
+    MinWidth:             860,
+    MinHeight:            620,
+    TitleBarStyle:        golet.TitleBarHiddenInset,
+    TrafficLightPosition: &golet.Point{X: 12, Y: 11},
+})
+```
+
+Adapt the title, URL and dimensions to the application. For native UI, use
+`Content` in place of `URL` and keep the same title-bar convention. Keep native
+window controls enabled; do not set `Frameless: true` for this style.
+`TrafficLightPosition` applies to macOS; other platforms use their supported
+hidden-title-bar behavior. Reserve space for window controls using Golet's
+`--golet-titlebar-*` CSS variables, and mark the custom title-bar drag area with
+`--app-region: drag`, excluding interactive controls. For native UI, use
+`ui.Context.TitleBar` and `ui.Element.DragWindow`.
+
 ## Commands
 
 ```sh
