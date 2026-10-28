@@ -6,6 +6,7 @@ package d3d11
 
 import (
 	"runtime"
+	"slices"
 	"syscall"
 	"testing"
 	"time"
@@ -85,6 +86,28 @@ func TestDrawsAsTheCPURenderer(t *testing.T) {
 			gputest.Compare(t, "d3d11-translated"+[]string{"", "-between-pixels"}[i], pix, stride, s)
 		}
 		r.Release()
+	}
+}
+
+// TestBorderedCardDrawsAsTheCPURenderer draws the card of #531 (a large
+// opaque card with a border of 2 pixels at scale 2, and a small button like
+// it) with round corners, as Direct3D draws continuous ones, and requires the
+// CPU renderer's pixels along their straight edges, exactly.
+func TestBorderedCardDrawsAsTheCPURenderer(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	s := gputest.BorderedCardScene(false)
+	r, err := New(hiddenWindow(t, s.Width, s.Height))
+	if err != nil {
+		t.Skip("no Direct3D 11:", err)
+	}
+	defer r.Release()
+	for range 2 {
+		if err := r.draw(s); err != nil {
+			t.Fatal(err)
+		}
+		pix, stride := r.readBack(t)
+		gputest.CompareStraightEdges(t, "d3d11-bordered-card", pix, stride, s)
 	}
 }
 
@@ -171,6 +194,131 @@ func resizeSettles(t *testing.T, r *Renderer) {
 	frame(230, 155)
 	if r.bw != 230 || r.bh != 155 || r.resizing {
 		t.Fatalf("%s: settled: buffers %dx%d, resizing %v; want 230x155 and not resizing", kind, r.bw, r.bh, r.resizing)
+	}
+}
+
+// TestSwapChainBackground checks that the window's swap chain shows its
+// frames unscaled, and the scene's background beyond them (#222): where the
+// window grew before the frame of its size presents, DWM shows that, not
+// black.
+func TestSwapChainBackground(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	r, err := New(hiddenWindow(t, 200, 150))
+	if err != nil {
+		t.Skip("no Direct3D 11:", err)
+	}
+	defer r.Release()
+	const scGetDesc1, scGetBackgroundColor = 18, 26 // IDXGISwapChain1
+	for _, bg := range []scene.Color{{R: 255, G: 255, B: 255, A: 255}, {R: 24, G: 24, B: 27, A: 255}, {}} {
+		if err := r.draw(&scene.Scene{Width: 200, Height: 150, Background: bg}); err != nil {
+			t.Fatal(err)
+		}
+		var desc swapChainDesc1
+		call(r.swapChain, scGetDesc1, uintptr(unsafe.Pointer(&desc)))
+		if desc.Scaling != scalingNone {
+			t.Fatalf("the swap chain scales frames as %d; want DXGI_SCALING_NONE", desc.Scaling)
+		}
+		var got [4]float32
+		call(r.swapChain, scGetBackgroundColor, uintptr(unsafe.Pointer(&got)))
+		want := [4]float32{float32(bg.R) / 255, float32(bg.G) / 255, float32(bg.B) / 255, 1}
+		if bg.A == 0 {
+			want = [4]float32{0, 0, 0, 1}
+		}
+		for i := range 3 {
+			if d := got[i] - want[i]; d < -0.002 || d > 0.002 {
+				t.Fatalf("background %v: the swap chain shows %v beyond the frame; want %v", bg, got, want)
+			}
+		}
+	}
+}
+
+// releaseImages arms every image of a scene to keep only the renderer's
+// copy of its pixels: the restore re-makes them from a copy it took, and
+// dropped counts the uploads and drops them again.
+func releaseImages(s *scene.Scene, restores, drops *int) int {
+	armed := 0
+	for i := range s.Ops {
+		if img := s.Ops[i].Image; img != nil && img.Scene == nil && img.Restore == nil {
+			pix := slices.Clone(img.Pix)
+			img.Restore = func() []byte { *restores++; return pix }
+			img.Dropped = func() { *drops++; img.Pix = nil }
+			armed++
+		}
+	}
+	return armed
+}
+
+// TestReleasedImageUploadsFromItsRestore checks issue #664's contract with
+// the renderer: an image whose pixels an owner dropped uploads them again
+// from the restore, drawing as before, as a renderer that lost or evicted
+// its texture does. The first draw takes the new-texture path, which an
+// eviction after 240 frames takes too.
+func TestReleasedImageUploadsFromItsRestore(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	s := gputest.Scene()
+	restores, drops := 0, 0
+	armed := releaseImages(s, &restores, &drops)
+	r, err := New(hiddenWindow(t, s.Width, s.Height))
+	if err != nil {
+		t.Skip("no Direct3D 11:", err)
+	}
+	defer r.Release()
+	if err := r.draw(s); err != nil {
+		t.Fatal(err)
+	}
+	if restores != 0 {
+		t.Fatalf("%d restores for pixels the first draw had", restores)
+	}
+	if drops != armed {
+		t.Fatalf("%d drops of %d images", drops, armed)
+	}
+	// The CPU renderer the comparison draws with re-makes the pixels of
+	// the images it draws.
+	pix, stride := r.readBack(t)
+	gputest.Compare(t, "d3d11 released", pix, stride, s)
+	if restores != armed {
+		t.Fatalf("%d restores of %d images in the CPU render", restores, armed)
+	}
+	// The textures stay for the frames that follow: the restore runs no
+	// more, and the dropped pixels go.
+	if err := r.draw(s); err != nil {
+		t.Fatal(err)
+	}
+	if restores != armed || drops != armed {
+		t.Fatalf("%d restores, %d drops after a frame with the textures live", restores, drops)
+	}
+}
+
+// TestReleasedImageWithNewRenderer uploads from the restore again in a
+// renderer of its own, as a device that was made again does.
+func TestReleasedImageWithNewRenderer(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	s := gputest.Scene()
+	restores, drops := 0, 0
+	armed := releaseImages(s, &restores, &drops)
+	for i := range 2 {
+		r, err := New(hiddenWindow(t, s.Width, s.Height))
+		if err != nil {
+			t.Skip("no Direct3D 11:", err)
+		}
+		if err := r.draw(s); err != nil {
+			r.Release()
+			t.Fatal(err)
+		}
+		// The first renderer uploaded the pixels it had; the second
+		// found them dropped by the first and re-made them.
+		if want := i * armed; restores != want {
+			t.Fatalf("renderer %d: %d restores, want %d", i, restores, want)
+		}
+		if drops != (i+1)*armed {
+			t.Fatalf("renderer %d: %d drops, want %d", i, drops, (i+1)*armed)
+		}
+		pix, stride := r.readBack(t)
+		gputest.Compare(t, "d3d11 released, new renderer", pix, stride, s)
+		r.Release()
 	}
 }
 

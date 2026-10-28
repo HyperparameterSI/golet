@@ -24,7 +24,7 @@ var demos = []Demo{
 	{"Charts", "图表", "高级组件", "折线、面积、柱状与饼图等数据可视化。", []string{"LineChart", "AreaChart", "BarChart", "PieChart", "ScatterChart", "Sparkline"}, "backend/examples/internal/gallerydemo/charts.go"},
 	{"Markdown", "Markdown", "高级组件", "Markdown 文档、代码块与交互链接。", []string{"markdown.View", "CodeBlock", "Tables"}, "backend/examples/internal/gallerydemo/markdown.go"},
 	{"Styling", "样式与布局", "原生控件", "网格、边框、渐变、阴影和文字装饰。", []string{"Grid", "Border", "Gradient", "Shadow", "Flex", "Scroll"}, "backend/examples/internal/gallerydemo/demo.go"},
-	{"Drawing", "绘图与图像", "原生控件", "自定义绘制、路径、SVG 与位图。", []string{"Canvas", "Painter", "SVG", "Image"}, "backend/examples/internal/gallerydemo/demo.go"},
+	{"Drawing", "绘图与图像", "原生控件", "自定义绘制、路径、SVG、位图与视频播放。", []string{"Canvas", "Painter", "SVG", "Image", "Video", "VideoPlayer"}, "backend/examples/internal/gallerydemo/demo.go"},
 	{"Glass", "玻璃效果", "插件", "可调参数的玻璃折射与材质。", []string{"glass.Effect", "Refraction"}, "backend/examples/internal/gallerydemo/demo.go"},
 	{"Overlays", "弹层与反馈", "原生控件", "弹窗、菜单、提示和原生对话框。", []string{"Modal", "AlertDialog", "Popover", "Tooltip", "MenuButton", "ContextMenu", "Toast", "Dialog"}, "backend/examples/internal/gallerydemo/demo.go"},
 	{"Motion", "动画与手势", "原生控件", "转场、弹簧、拖动与动画状态。", []string{"Transition", "Spring", "Animation", "Gesture"}, "backend/examples/internal/gallerydemo/demo.go"},

@@ -344,6 +344,54 @@ awake. On Linux, `OnLockScreen` is called when the screen saver starts,
 which usually locks the screen, and `IdleTime` is 0 on desktops that do not
 report it.
 
+## Now Playing and media keys
+
+`golet.NowPlaying` shows what the app plays where the system shows media:
+Now Playing in Control Center and the menu bar on macOS, the media
+controls of the volume flyout and the lock screen on Windows, and on Linux
+the MPRIS clients, as GNOME's and KDE's media controls and `playerctl`.
+While it shows something, the media keys of keyboards and headsets, and
+those controls, send the app commands:
+
+```go
+golet.NowPlaying.Set(golet.NowPlayingInfo{
+	Title: "Spring", Artist: "Vivaldi", Album: "The Four Seasons",
+	Artwork:  cover, // PNG or JPEG
+	Duration: 3*time.Minute + 20*time.Second,
+	Commands: golet.MediaPlay | golet.MediaPause | golet.MediaNext | golet.MediaPrevious | golet.MediaSeek,
+})
+golet.NowPlaying.OnCommand(func(cmd golet.MediaCommand, pos time.Duration) {
+	switch cmd {
+	case golet.MediaPause:
+		player.Pause()
+		golet.NowPlaying.SetPlayback(golet.PlaybackPaused, pos) // where playback is
+	case golet.MediaSeek:
+		player.Seek(pos)
+		golet.NowPlaying.SetPlayback(golet.PlaybackPlaying, pos)
+	case golet.MediaNext:
+		playNext() // and Set the next track's info
+	}
+})
+golet.NowPlaying.Clear() // the app no longer shows in the controls
+```
+
+The system advances the position while the state is `PlaybackPlaying`, so
+the app sets it again only when playback jumps. The play/pause key sends
+`MediaPause` while the state is playing and `MediaPlay` otherwise, and
+only the commands the info offers reach `OnCommand` (`Commands` 0 offers
+play, pause and stop). `pos` is where `MediaSeek` moves to, and for the
+other commands where playback is as they come. An app playing a player of package `audio` can let
+`Control` play, pause, stop and seek it, and show its state:
+
+```go
+release := golet.NowPlaying.Control(music) // an *audio.Player
+defer release()
+```
+
+`Control` hears the player's end; after the app plays, pauses or seeks it
+itself, `NowPlaying.Sync` shows it. In browsers, `NowPlaying` is the
+page's Media Session.
+
 ## Network
 
 `golet.Network` tells whether the computer is online and whether the
@@ -391,6 +439,50 @@ func init() {
 	golet.Network.OnChanged(func(s golet.NetworkStatus) { Connectivity.Broadcast(s) })
 }
 ```
+
+### Proxies
+
+Web pages reach the network through the webview, which follows the
+proxy the user set in the system's settings, with its bypass list and
+setup script (PAC file): WebView2 as Chromium does, from Windows' proxy
+settings; WKWebView from macOS's; WebKitGTK through GIO's default proxy
+resolver, which reads GNOME's settings, or KDE's through libproxy.
+
+Go's `http.DefaultClient` reads only `HTTP_PROXY`, `HTTPS_PROXY` and
+`NO_PROXY`. Package `netproxy` makes Go's requests follow the system's
+settings as the pages do, and Golet's own requests use it: those of the
+[updater](updates.md) and, unless their options name a client, of the
+[fetch](plugins/fetch.md) and [websocket](plugins/websocket.md) plugins.
+Your own clients opt in with its transport:
+
+```go
+import "github.com/HyperparameterSI/golet/backend/netproxy"
+
+client := &http.Client{Transport: netproxy.Transport(), Timeout: time.Minute}
+```
+
+or, for a transport of your own, `t.Proxy = netproxy.Proxy`. For each
+request:
+
+1. Loopback hosts (`localhost`, `*.localhost`, `127.0.0.0/8`, `::1`) are
+   reached directly.
+2. When `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY` or `NO_PROXY` (or its
+   lowercase name) is set, the environment decides, as
+   `http.ProxyFromEnvironment` does, so that a proxy set for one run of
+   the app wins.
+3. Otherwise the system's settings for the URL decide: on Windows the
+   user's, read by WinHTTP, with automatic detection (WPAD) and setup
+   scripts; on macOS those of System Settings > Network > Proxies, read
+   by CFNetwork, with setup scripts; on Linux GIO's default proxy
+   resolver, as WebKitGTK. Without an answer, requests go direct.
+
+The system's answer for a scheme and host is kept for 5 seconds, so
+turning the proxy on or off, or changing it, applies to the requests that
+follow while the app runs. Requests under way, such as a download or a
+stream, keep their connection. Go's transport speaks to HTTP and HTTPS
+proxies and SOCKS5, not SOCKS4; it sends a proxy's password only when the
+system's answer holds it, as GNOME's settings can. In browsers, the
+browser makes Go's requests, through its own proxy.
 
 ## Secrets
 
@@ -498,9 +590,11 @@ negative) before they are reported, and never more than 500 ms
 (`MaxDelay`). A watch compares what it sees with what it saw, so events say
 what is different, not every step that made it so: treat them as hints to
 read the files again. A write is a file whose size or modification time
-changed, or that the system says was written: permissions and other
-metadata, which indexers and antivirus touch, are not reported, nor are
-directories written, whose changes are their entries'.
+changed, or that the system says was written, or a file replaced at its
+path by another, as editors and atomic saves replace it (a temporary file
+renamed over it): permissions and other metadata, which indexers and
+antivirus touch, are not reported, nor are directories written, whose
+changes are their entries'.
 
 A watch doesn't look again until `Next` has taken the last batch: when the
 app is busy, what changed meanwhile comes in the next batch, so nothing is

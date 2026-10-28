@@ -51,6 +51,9 @@ func click(w *golet.Window, x, y float64) bool {
 	return true
 }
 
+// clickPage clicks a window's page: click reaches web views too.
+func clickPage(w *golet.Window, x, y float64) bool { return click(w, x, y) }
+
 // appClick clicks through the application, whose event monitors see it.
 func appClick(w *golet.Window, x, y float64) bool {
 	waitOnScreen(w)
@@ -119,6 +122,16 @@ func appActive() (active bool, supported bool) {
 func collectionBehavior(w *golet.Window) (behavior uint, supported bool) {
 	golet.RunOnMain(func() { behavior = darwin.TestCollectionBehavior(w.NativeHandle()) })
 	return behavior, true
+}
+
+func material(w *golet.Window) (class string, style int, radius float64, active bool, supported bool) {
+	golet.RunOnMain(func() { class, style, radius, active = darwin.TestMaterial(w.NativeHandle()) })
+	return class, style, radius, active, true
+}
+
+func roundedBacking(w *golet.Window) (opaque bool, alpha, red float64, supported bool) {
+	golet.RunOnMain(func() { opaque, alpha, red = darwin.TestRoundedBacking(w.NativeHandle()) })
+	return opaque, alpha, red, true
 }
 
 func dockDevTools(w *golet.Window) (ok bool) {
@@ -197,6 +210,7 @@ func titleButtonColor(*golet.Window, string) (uint8, uint8, uint8, bool) { retur
 
 // AppKit composes the window: there is no redirection bitmap to go without.
 func composition(*golet.Window) (bool, bool, bool) { return false, false, false }
+func canCompose() bool                             { return false }
 func loseComposition(bool) bool                    { return false }
 
 // WebKit creates web views with their windows.
@@ -326,3 +340,60 @@ func endSheetButton(w *golet.Window, i int) (ok bool) {
 
 // Panels' window styles are Windows'.
 func panelStyles(*golet.Window) (bool, bool, bool, bool) { return false, false, false, false }
+
+// throttlingOff reports whether the page of w, or of its first web view,
+// is set up to keep running while it can't be seen, and how many of the
+// settings that take the platform has.
+func throttlingOff(w *golet.Window, webView bool) (off bool, settings int) {
+	golet.RunOnMain(func() { off, settings = darwin.TestBackgroundThrottlingOff(w.NativeHandle(), webView) })
+	return off, settings
+}
+
+// mockCapture gives a window's page WebKit's mock camera and microphone.
+func mockCapture(w *golet.Window) (ok bool) {
+	golet.RunOnMain(func() { ok = darwin.TestMockCaptureDevices(w.NativeHandle()) })
+	return ok
+}
+
+// pageGestures reports whether a swipe navigates and a pinch magnifies the
+// page of a window, or with webView 0 or more, of its web view of that
+// index.
+func pageGestures(w *golet.Window, webView int) (swipe, pinch, ok bool) {
+	golet.RunOnMain(func() { swipe, pinch, ok = darwin.TestPageGestures(w.NativeHandle(), webView) })
+	return swipe, pinch, ok
+}
+
+// A WKWebView's magnification follows a trackpad's gesture through its
+// phases, which a test can't make.
+func pinchPage(*golet.Window, int, float64, float64, ...float64) bool { return false }
+
+// pageMenusHooked tells that the tests can right-click a page and read
+// the menu it opens, through rightClickPage, pageMenu, choosePageMenuItem
+// and dismissPageMenu.
+const pageMenusHooked = true
+
+// rightClickPage right-clicks (x, y) in a window's page.
+func rightClickPage(w *golet.Window, x, y float64) bool {
+	waitOnScreen(w)
+	golet.RunOnMain(func() { darwin.TestRightClickPage(w.NativeHandle(), x, y) })
+	return true
+}
+
+// pageMenu returns the titles of the items of the web view's context menu
+// shown over a page, "-" for separators, and whether one is shown. AppKit
+// tracks the menu in a loop of its own, which runs the main thread's work.
+func pageMenu() (labels []string, shown bool) {
+	golet.RunOnMain(func() { labels, shown = darwin.TestPageMenu() })
+	return labels, shown
+}
+
+// choosePageMenuItem chooses an item of that menu by its title.
+func choosePageMenuItem(label string) (ok bool) {
+	golet.RunOnMain(func() { ok = darwin.TestChoosePageMenuItem(label) })
+	return ok
+}
+
+func dismissPageMenu() { golet.RunOnMain(darwin.TestDismissPageMenu) }
+
+// Only Windows' tests start a process that takes the foreground.
+func takeForeground(*golet.Window) {}

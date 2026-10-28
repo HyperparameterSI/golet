@@ -24,6 +24,8 @@ func click(*golet.Window, float64, float64) bool { return false }
 
 func appClick(*golet.Window, float64, float64) bool { return false }
 
+func clickPage(*golet.Window, float64, float64) bool { return false }
+
 func heldAppClick(*golet.Window, float64, float64) bool { return false }
 
 func drag(*golet.Window, [][2]float64) bool { return false }
@@ -35,9 +37,11 @@ func pinch(*golet.Window, float64, float64, float64) (float64, bool) { return 0,
 func webViewAttached(*golet.Window) (bool, bool) { return false, false }
 
 // Collection behaviors and deactivating the app are macOS's.
-func collectionBehavior(*golet.Window) (uint, bool) { return 0, false }
-func deactivateApp() bool                           { return false }
-func appActive() (bool, bool)                       { return false, false }
+func collectionBehavior(*golet.Window) (uint, bool)               { return 0, false }
+func deactivateApp() bool                                         { return false }
+func material(*golet.Window) (string, int, float64, bool, bool)   { return "", 0, 0, false, false }
+func roundedBacking(*golet.Window) (bool, float64, float64, bool) { return false, 0, 0, false }
+func appActive() (bool, bool)                                     { return false, false }
 
 func dockDevTools(*golet.Window) bool { return false }
 
@@ -89,6 +93,7 @@ func menuBarColors(*golet.Window) (uint32, uint32, bool) { return 0, 0, false }
 func titleButtonColor(*golet.Window, string) (uint8, uint8, uint8, bool) { return 0, 0, 0, false }
 
 func composition(*golet.Window) (bool, bool, bool) { return false, false, false }
+func canCompose() bool                             { return false }
 func loseComposition(bool) bool                    { return false }
 
 func failWebViews(int) bool { return false }
@@ -154,3 +159,18 @@ func endSheetButton(*golet.Window, int) bool               { return false }
 
 // Panels' window styles are Windows'.
 func panelStyles(*golet.Window) (bool, bool, bool, bool) { return false, false, false, false }
+
+func throttlingOff(*golet.Window, bool) (bool, int)                   { return false, 0 }
+func mockCapture(*golet.Window) bool                                  { return false }
+func pageGestures(*golet.Window, int) (bool, bool, bool)              { return false, false, false }
+func pinchPage(*golet.Window, int, float64, float64, ...float64) bool { return false }
+
+// Right-clicking a page and reading the menu it opens are not hooked here.
+const pageMenusHooked = false
+
+func rightClickPage(*golet.Window, float64, float64) bool { return false }
+func pageMenu() ([]string, bool)                          { return nil, false }
+func choosePageMenuItem(string) bool                      { return false }
+func dismissPageMenu()                                    {}
+
+func takeForeground(*golet.Window) {}

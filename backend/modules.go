@@ -739,7 +739,11 @@ func (t *Tray) SetIcon(png []byte, template bool) error {
 	return err
 }
 
-// SetTitle sets the text next to the icon (macOS).
+// SetTitle sets the text next to the icon (macOS). Its digits all have
+// the same width, so a number that changes, such as a rate, keeps the
+// item's width as long as the text keeps its length: pad the value to a
+// fixed number of characters with figure spaces (U+2007), as wide as a
+// digit, rather than ordinary spaces.
 func (t *Tray) SetTitle(title string) { t.do(func(n platform.Tray) { n.SetTitle(title) }) }
 
 // SetToolTip sets the hover text.
@@ -779,10 +783,29 @@ func (t *Tray) Destroy() {
 	})
 }
 
-// OnClick is called when the icon is clicked and it has no menu.
-func (t *Tray) OnClick(fn func()) (off func()) { return t.onClick.add(fn, false) }
+// OnClick is called when the icon is clicked and it has no menu. On Linux
+// it is the panel's activation as well: GNOME's AppIndicator extension
+// sends it for a double click, and opens the menu for a single one after
+// the double click time. While nothing listens the icon answers no
+// activation, so its menu still opens on the first click.
+func (t *Tray) OnClick(fn func()) func() {
+	off := t.onClick.add(fn, false)
+	t.activatable()
+	return func() {
+		off()
+		t.activatable()
+	}
+}
 
-// OnRightClick is called when the icon is right-clicked.
+// activatable tells the native tray whether a click has anywhere to go. It
+// reads the listeners on the main thread, so that the last call wins
+// whichever goroutines add and remove them.
+func (t *Tray) activatable() {
+	t.do(func(n platform.Tray) { n.SetActivatable(t.onClick.len() > 0) })
+}
+
+// OnRightClick is called when the icon is right-clicked, or Control-clicked
+// on macOS.
 func (t *Tray) OnRightClick(fn func()) (off func()) { return t.onRight.add(fn, false) }
 
 // Dark reports whether the bar the icon shows on is dark: the macOS menu

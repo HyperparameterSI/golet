@@ -6,12 +6,16 @@ package web
 
 import "github.com/HyperparameterSI/golet/backend/internal/platform"
 
-func (app) ListCookies(_ string, done func([]platform.Cookie, error)) {
+func (app) ListCookies(_ platform.DataStore, _ string, done func([]platform.Cookie, error)) {
 	done(nil, platform.ErrUnsupported)
 }
-func (app) SetCookie(_ platform.Cookie, done func(error))       { done(platform.ErrUnsupported) }
-func (app) DeleteCookie(_ platform.CookieKey, done func(error)) { done(platform.ErrUnsupported) }
-func (app) ClearCookies(done func(error))                       { done(platform.ErrUnsupported) }
+func (app) SetCookie(_ platform.DataStore, _ platform.Cookie, done func(error)) {
+	done(platform.ErrUnsupported)
+}
+func (app) DeleteCookie(_ platform.DataStore, _ platform.CookieKey, done func(error)) {
+	done(platform.ErrUnsupported)
+}
+func (app) ClearCookies(_ platform.DataStore, done func(error)) { done(platform.ErrUnsupported) }
 func (app) CompileContentRules(_, _, _ string, done func(any, error)) {
 	done(nil, platform.ErrUnsupported)
 }

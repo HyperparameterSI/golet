@@ -15,6 +15,7 @@ import (
 	. "github.com/HyperparameterSI/golet/backend/internal/l10n"
 
 	// The translations, which apps import for the languages they ship.
+	_ "github.com/HyperparameterSI/golet/backend/locales/ja"
 	_ "github.com/HyperparameterSI/golet/backend/locales/zh-Hans"
 	_ "github.com/HyperparameterSI/golet/backend/locales/zh-Hant"
 )

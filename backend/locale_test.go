@@ -20,6 +20,7 @@ import (
 	"github.com/HyperparameterSI/golet/backend/ui"
 
 	// Golet's own strings in the languages the tests show.
+	_ "github.com/HyperparameterSI/golet/backend/locales/ja"
 	_ "github.com/HyperparameterSI/golet/backend/locales/zh-Hans"
 	_ "github.com/HyperparameterSI/golet/backend/locales/zh-Hant"
 )

@@ -5,6 +5,7 @@
 package windows
 
 import (
+	"log"
 	"math"
 	"time"
 	"unicode/utf16"
@@ -152,6 +153,14 @@ type surface struct {
 	// redirection bitmap, where GDI cannot (compositor.go); nil while none
 	// shows.
 	comp *compositor
+	// gdiFailed tells that SetDIBitsToDevice refused a frame, which was
+	// logged once.
+	gdiFailed bool
+	// bg is the content's background (SetBackground), and bgBrush a brush
+	// of it while it is opaque, which fills what the window shows beyond
+	// the surface as it grows (fillUncovered).
+	bg      platform.Color
+	bgBrush uintptr
 
 	// layer holds the web views under the frames, once there are some
 	// (webview_embed.go): placed are where the content shows them, and
@@ -218,8 +227,12 @@ func (s *surface) Native() platform.SurfaceNative {
 func (s *surface) viaComposition() bool { return s.w.noRedirect || s.layer != nil }
 
 // ShowsMaterial reports whether the window shows its material behind the
-// content: it has one, and no redirection bitmap to cover it.
-func (s *surface) ShowsMaterial() bool { return s.w.noRedirect && s.w.vibrancy != "" }
+// content: it has one, no redirection bitmap to cover it, and DWM draws
+// materials. A flyout has no redirection bitmap before Windows 11 22H2 as
+// well, to show what is behind it, but no material there.
+func (s *surface) ShowsMaterial() bool {
+	return s.w.noRedirect && s.w.vibrancy != "" && systemBackdrops()
+}
 
 func (s *surface) freeComp() {
 	if s.comp != nil {
@@ -235,6 +248,10 @@ func (s *surface) Size() (float64, float64, float64) {
 }
 
 func (s *surface) RequestFrame() { procInvalidateRectW.Call(s.hwnd, 0, 0) }
+
+// FramesAtOnce marks that RequestFrame paints at once, not at the display's
+// next refresh (platform.ImmediateFrameSurface).
+func (s *surface) FramesAtOnce() {}
 
 // FrameNow draws a frame at once, for one the content left to draw until
 // the swap chain had room for it.
@@ -267,6 +284,65 @@ func (s *surface) RefreshRate() float64 {
 	return float64(dm.DisplayFrequency)
 }
 
+// AwaitRefresh returns once DWM composes its next frame (DwmFlush): the
+// frames drawn in memory show at once, through GDI or DirectComposition,
+// and WM_PAINT comes as soon as one is asked for, so the content holds
+// them to the refreshes with it (platform.RefreshSurface). It is called
+// off the main thread.
+func (s *surface) AwaitRefresh() { procDwmFlush.Call() }
+
+var _ platform.RefreshSurface = (*surface)(nil)
+
+// SetBackground keeps a brush of the content's background, for the window
+// to show where it grew before the surface's frame of its new size shows
+// (platform.BackgroundSurface).
+func (s *surface) SetBackground(c platform.Color) {
+	if c == s.bg {
+		return
+	}
+	s.bg = c
+	if s.bgBrush != 0 {
+		procDeleteObject.Call(s.bgBrush)
+		s.bgBrush = 0
+	}
+	if c.A == 255 {
+		s.bgBrush, _, _ = procCreateSolidBrush.Call(uintptr(c.R) | uintptr(c.G)<<8 | uintptr(c.B)<<16)
+	}
+}
+
+var _ platform.BackgroundSurface = (*surface)(nil)
+
+// fillUncovered paints the part of the window's client area that the
+// surface does not cover yet, as the window has just grown, with the
+// content's background. Windows resizes the window, and DWM may show it at
+// its new size, before WM_SIZE fits the surface to it and the surface
+// presents the frame of that size: until then, DWM would show what the
+// window's redirection bitmap holds there, black, as the window paints no
+// background of its own. Only that part is painted, once per change of
+// size, never under the surface: GDI shows nothing over a flip-model swap
+// chain, and frames are not slowed.
+func (s *surface) fillUncovered() {
+	if s.bgBrush == 0 || s.w.noRedirect {
+		// A window without a redirection bitmap shows nothing GDI draws:
+		// its material shows there, not black.
+		return
+	}
+	var c, sr rect
+	procGetClientRect.Call(s.w.hwnd, uintptr(unsafe.Pointer(&c)))
+	procGetClientRect.Call(s.hwnd, uintptr(unsafe.Pointer(&sr))) // the surface is at the client area's origin
+	if sr.Right >= c.Right && sr.Bottom >= c.Bottom {
+		return // the window did not grow
+	}
+	dc, _, _ := procGetDC.Call(s.w.hwnd)
+	if dc == 0 {
+		return
+	}
+	procExcludeClipRect.Call(dc, 0, 0, uintptr(sr.Right), uintptr(sr.Bottom))
+	procFillRect.Call(dc, uintptr(unsafe.Pointer(&c)), s.bgBrush)
+	procReleaseDC.Call(s.w.hwnd, dc)
+	procGdiFlush.Call()
+}
+
 func (s *surface) PresentPixels(pix []byte, stride, width, height int) {
 	if len(pix) < stride*height || width == 0 || height == 0 {
 		return
@@ -292,8 +368,12 @@ func (s *surface) PresentPixels(pix []byte, stride, width, height int) {
 	}
 	bi := bitmapInfoHeader{Width: int32(stride / 4), Height: -int32(height), Planes: 1, BitCount: 32}
 	bi.Size = uint32(unsafe.Sizeof(bi))
-	procSetDIBitsToDevice.Call(dc, 0, 0, uintptr(width), uintptr(height), 0, 0, 0, uintptr(height),
+	lines, _, _ := procSetDIBitsToDevice.Call(dc, 0, 0, uintptr(width), uintptr(height), 0, 0, 0, uintptr(height),
 		uintptr(unsafe.Pointer(&pix[0])), uintptr(unsafe.Pointer(&bi)), 0)
+	if lines == 0 && !s.gdiFailed {
+		s.gdiFailed = true
+		log.Printf("golet: native UI shows nothing: SetDIBitsToDevice drew no lines of a %dx%d frame", width, height)
+	}
 }
 
 func (s *surface) SetCursor(c platform.Cursor) {
@@ -475,7 +555,8 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
 		dc, _, _ := procBeginPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps)))
 		s.paintDC = dc
 		// Frames that follow each other as the content asks for them may
-		// wait until the swap chain has room for one.
+		// wait until the swap chain has room for one, or, drawn in memory,
+		// until the display's next refresh (AwaitRefresh).
 		s.send(platform.SurfaceEvent{Kind: platform.SurfaceFrame, Paced: !s.now})
 		s.paintDC = 0
 		procEndPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps)))
@@ -593,6 +674,9 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
 			s.send(platform.SurfaceEvent{Kind: platform.PointerZoom, X: s.toDIP(pt.X), Y: s.toDIP(pt.Y), Scale: math.Exp(delta / 120 * math.Ln2 / 3), Mods: mods()})
 			return 0, true
 		}
+		// A line of the system's "lines to scroll" is 33 DIPs, as
+		// browsers scroll about 100 pixels a notch at the default 3;
+		// the terminal plugin scrolls a row a line (wheelRows).
 		dist := delta / 120 * float64(wheelLines()) * 33
 		ev := platform.SurfaceEvent{Kind: platform.PointerScroll, X: s.toDIP(pt.X), Y: s.toDIP(pt.Y), Mods: mods(), Precise: precise}
 		if m == wmMouseWheel {
@@ -723,6 +807,7 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
 		s.destroyAccess()
 		s.revokeFileDrops()
 		s.freeComp()
+		s.SetBackground(platform.Color{})
 		delete(s.w.b.surfaces, hwnd)
 		return 0, true
 	}

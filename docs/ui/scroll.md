@@ -11,7 +11,8 @@ does. A notch of a mouse wheel glides over a short ease out, as browsers
 scroll it, and notches in a row add up, until the app scrolls the
 container (a `ScrollState`, a `ListState`'s `ScrollTo`, `ScrollIntoView`
 and `ScrollToEnd`, or `ScrollIntoView` of an element in it), which takes
-over; a touchpad follows the fingers, and while the desktop asks for less
+over; a touchpad follows the fingers, as a finger dragged on a
+touchscreen does on Linux, and while the desktop asks for less
 motion, a notch scrolls at once.
 
 ```go
@@ -73,7 +74,11 @@ if app.added {
 }
 ```
 
-The keyboard focus scrolls into view as it moves.
+The keyboard focus scrolls into view as it moves. An element with a
+`TextInputClient` of the app's ([text input clients](text-input-client.md))
+scrolls its caret into view, where `BoundsForRange` places it, rather than
+its whole box: a code editor as high as its lines shows the line being
+edited as it takes the focus, not its first.
 
 ## Scroll bars
 

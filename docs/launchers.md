@@ -61,7 +61,8 @@ panel := golet.NewWindow(golet.WindowOptions{
 	Hidden:        true,
 	Frameless:     true,
 	Transparent:   true,
-	Vibrancy:      golet.VibrancyPopover, // Acrylic on Windows 11
+	Vibrancy:      golet.VibrancyGlass, // Liquid Glass on macOS 26, Acrylic on Windows 11
+	CornerRadius:  16,
 	Width:         680,
 	Height:        420,
 	DisableResize: true,

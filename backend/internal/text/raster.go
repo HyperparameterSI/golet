@@ -127,6 +127,16 @@ func (s *System) BeginFrame() {
 	s.rooms = 0
 }
 
+// TransientUses returns how many times Mask returned a mask drawn for the
+// frame being painted alone, since the system started: a scene drawing one
+// must not be drawn again after the next frame of any window begins
+// (BeginFrame), which draws over it.
+func (s *System) TransientUses() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.transientUses
+}
+
 // Full reports whether an atlas filled up during the frame being painted
 // and left out glyphs or masks it draws. MakeRoom then makes room for them.
 func (s *System) Full() bool {
@@ -365,6 +375,7 @@ func (s *System) Mask(key uint64, draw func() (w, h int, pix []byte)) GlyphImage
 		return e.GlyphImage
 	}
 	if g, ok := s.transient[key]; ok {
+		s.transientUses++
 		return g
 	}
 	last, seen := s.recent[key]
@@ -392,6 +403,7 @@ func (s *System) Mask(key uint64, draw func() (w, h int, pix []byte)) GlyphImage
 	} else {
 		s.transient[key] = g
 		s.recent[key] = s.frame
+		s.transientUses++
 	}
 	return g
 }

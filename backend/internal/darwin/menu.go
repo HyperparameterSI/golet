@@ -5,6 +5,8 @@
 package darwin
 
 import (
+	"runtime"
+
 	"github.com/ebitengine/purego/objc"
 
 	"github.com/HyperparameterSI/golet/backend/internal/accelerator"
@@ -79,6 +81,7 @@ func registerMenuTarget() {
 		method("goletMenuItemClicked:", func(self id, _ objc.SEL, item id) {
 			theBackend.h.MenuItemClicked(sendInt(item, "tag"))
 		}),
+		method("goletContextItemClicked:", contextItemClicked),
 	})
 }
 
@@ -155,6 +158,15 @@ func (b *Backend) buildItem(it *platform.MenuItem, owner int) id {
 }
 
 func applyItemState(item id, it *platform.MenuItem) {
+	if it.Type != platform.MenuItemSeparator && menuImage != nil {
+		var img id
+		if it.Icon != nil {
+			img = menuImage(it.Icon)
+		}
+		if send(item, "image") != img {
+			send(item, "setImage:", uintptr(img))
+		}
+	}
 	send(item, "setEnabled:", boolArg(it.Enabled))
 	send(item, "setHidden:", boolArg(!it.Visible))
 	state := uintptr(0)
@@ -165,6 +177,37 @@ func applyItemState(item id, it *platform.MenuItem) {
 	if it.ToolTip != "" {
 		send(item, "setToolTip:", uintptr(nsString(it.ToolTip)))
 	}
+}
+
+// menuImage is iconImage once LinkMenuIcons links it, when the app first
+// gives a menu item an icon.
+var menuImage func(ic *platform.MenuIcon) id
+
+// LinkMenuIcons links the code of the icons of menu items.
+func LinkMenuIcons() { menuImage = iconImage }
+
+// iconImage returns the NSImage of an icon, made once and released once
+// no snapshot holds the icon: AppKit draws it at 16 points, keeping its
+// aspect, from the representation fit for the display (an image of 32
+// pixels for Retina), and tints a template image as the menu's text, white
+// on the highlight. Its menu items show their state (the check) beside it.
+func iconImage(ic *platform.MenuIcon) id {
+	img, _ := ic.Native(func() any {
+		img := send(send(class("NSImage"), "alloc"), "initWithData:", uintptr(nsData(ic.PNG)))
+		if img == 0 {
+			return nil
+		}
+		size := msgSize(img, sel("size"))
+		if box := float64(platform.MenuIconSize); size.Width > 0 && size.Height > 0 {
+			scale := box / max(size.Width, size.Height)
+			msgSetSize(img, sel("setSize:"), NSSize{size.Width * scale, size.Height * scale})
+		}
+		send(img, "setTemplate:", boolArg(ic.Template))
+		// NSImage may be released on any thread.
+		runtime.AddCleanup(ic, func(img id) { release(img) }, img)
+		return img
+	}).(id)
+	return img
 }
 
 func (b *Backend) UpdateMenuItem(it *platform.MenuItem) {
@@ -286,6 +329,19 @@ type tray struct {
 	dark bool
 }
 
+// secondaryClick reports whether a click on a status item, ending with an
+// event of type typ and modifier flags, is a right-click: the right button's,
+// or the primary button's with Control held, as a Control-click is a
+// secondary click across macOS, and in windows of native UI.
+func secondaryClick(typ, flags uint) bool {
+	const (
+		leftMouseUp  = 2       // NSEventTypeLeftMouseUp
+		rightMouseUp = 4       // NSEventTypeRightMouseUp
+		control      = 1 << 18 // NSEventModifierFlagControl
+	)
+	return typ == rightMouseUp || typ == leftMouseUp && flags&control != 0
+}
+
 func registerTrayTarget() {
 	classDef("GoletTrayTarget", "NSObject", nil, []objc.MethodDef{
 		method("goletTrayClicked:", func(self id, _ objc.SEL, sender id) {
@@ -294,7 +350,7 @@ func registerTrayTarget() {
 				return
 			}
 			ev := send(theBackend.app, "currentEvent")
-			if ev != 0 && sendInt(ev, "type") == 4 { // NSEventTypeRightMouseUp
+			if ev != 0 && secondaryClick(uint(sendInt(ev, "type")), uint(send(ev, "modifierFlags"))) {
 				t.h.RightClicked()
 			} else {
 				t.h.Clicked()
@@ -330,6 +386,15 @@ func (b *Backend) NewTray(h platform.TrayHandler) (platform.Tray, error) {
 		send(t.button, "setTarget:", uintptr(trayTarget))
 		send(t.button, "setAction:", uintptr(sel("goletTrayClicked:")))
 		send(t.button, "sendActionOn:", 1<<2|1<<4) // left and right mouse up
+		// Draw the title's digits at one width, so a changing number
+		// (a rate, a timer) doesn't resize the item and shift the icon and
+		// the items beside it. The menu bar's font at its size and weight,
+		// set on the button rather than in an attributed title, keeps
+		// AppKit's colors for light and dark bars and the highlight.
+		size := msgFloat(msgFloatID(class("NSFont"), sel("menuBarFontOfSize:"), 0), sel("pointSize"))
+		if font := msgFloat2ID(class("NSFont"), sel("monospacedDigitSystemFontOfSize:weight:"), size, 0); font != 0 { // NSFontWeightRegular
+			send(t.button, "setFont:", uintptr(font))
+		}
 		send(t.button, "addObserver:forKeyPath:options:context:", uintptr(trayTarget), uintptr(nsString("effectiveAppearance")), 0, 0)
 	})
 	b.trays[t.button] = t
@@ -396,6 +461,9 @@ func (t *tray) SetMenu(m *platform.Menu) {
 		send(t.item, "setMenu:", uintptr(t.b.buildMenu(m, "", t.owner)))
 	})
 }
+
+// SetActivatable does nothing: AppKit reports its clicks itself.
+func (t *tray) SetActivatable(bool) {}
 
 func (t *tray) PopUpMenu(m *platform.Menu) {
 	if m == nil || t.item == 0 {

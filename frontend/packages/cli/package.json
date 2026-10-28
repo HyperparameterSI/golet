@@ -1,6 +1,6 @@
 {
   "name": "golet-cli",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "The golet command line tool: create, develop and package Golet desktop apps",
   "keywords": [
     "golet",
@@ -40,11 +40,11 @@
     "test": "bun test"
   },
   "optionalDependencies": {
-    "@golet/cli-darwin-arm64": "0.1.12",
-    "@golet/cli-darwin-x64": "0.1.12",
-    "@golet/cli-linux-arm64": "0.1.12",
-    "@golet/cli-linux-x64": "0.1.12",
-    "@golet/cli-win32-arm64": "0.1.12",
-    "@golet/cli-win32-x64": "0.1.12"
+    "@golet/cli-darwin-arm64": "0.1.13",
+    "@golet/cli-darwin-x64": "0.1.13",
+    "@golet/cli-linux-arm64": "0.1.13",
+    "@golet/cli-linux-x64": "0.1.13",
+    "@golet/cli-win32-arm64": "0.1.13",
+    "@golet/cli-win32-x64": "0.1.13"
   }
 }

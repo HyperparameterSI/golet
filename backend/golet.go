@@ -69,7 +69,7 @@ import (
 )
 
 // Version is the Golet version.
-const Version = "0.1.12"
+const Version = "0.1.13"
 
 func init() {
 	// Cocoa, GTK and Win32 all require the UI to live on the thread that

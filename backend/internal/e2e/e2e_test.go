@@ -126,6 +126,10 @@ func TestMain(m *testing.M) {
 		cookiesWhileOpening()
 		return
 	}
+	if os.Getenv("GOLET_E2E_AUTOMATION_APP") == "1" {
+		automationApp()
+		return
+	}
 	golet.Bind(Greeter{}, probe, streams, Bench{})
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -137,6 +141,15 @@ func TestMain(m *testing.M) {
 		w.Header().Set("Content-Disposition", `attachment; filename="report.bin"`)
 		io.WriteString(w, "binary report")
 	})
+	mux.HandleFunc("/capture", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		io.WriteString(w, capturePage)
+	})
+	mux.HandleFunc("/pip", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		io.WriteString(w, pipPage)
+	})
+	mux.HandleFunc("/session/", sessionPage)
 	mux.HandleFunc("POST /echo", func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		fmt.Fprintf(w, "echo:%s", b)
@@ -162,7 +175,9 @@ func TestMain(m *testing.M) {
 	golet.App.OnWindowAllClosed(func() {})
 	// A window requested from a goroutine before Run waits for the app to
 	// be ready (TestEarlyWindow).
-	go func() { earlyWindow <- golet.NewWindow(golet.WindowOptions{Hidden: true, Title: "early"}) }()
+	go func() {
+		earlyWindow <- golet.NewWindow(golet.WindowOptions{Hidden: true, Title: "early", Page: firstPages()})
+	}()
 	code := 1
 	golet.App.WhenReady(func() {
 		go func() {
@@ -184,7 +199,7 @@ func TestMain(m *testing.M) {
 // slow runner over ten seconds.
 func warmUp() {
 	start := time.Now()
-	w := golet.NewWindow(golet.WindowOptions{Hidden: true, Title: "warm-up"})
+	w := golet.NewWindow(golet.WindowOptions{Hidden: true, Title: "warm-up", Page: firstPages()})
 	defer w.Destroy()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -193,6 +208,22 @@ func warmUp() {
 	} else if d := time.Since(start); d > 3*time.Second {
 		fmt.Printf("e2e: the webview took %v to start\n", d.Round(time.Millisecond))
 	}
+}
+
+// firstPages are the options of the pages TestMain shows first, the one of
+// which that comes first decides the arguments of WebView2's browser:
+// with GOLET_E2E_UNTHROTTLED, those of ThrottlingOff
+// (TestBackgroundThrottling), and with GOLET_E2E_AUTOPLAY, AutoplayAllow's
+// (TestAutoplay).
+func firstPages() golet.PageOptions {
+	var o golet.PageOptions
+	if os.Getenv("GOLET_E2E_UNTHROTTLED") != "" {
+		o.BackgroundThrottling = golet.ThrottlingOff
+	}
+	if os.Getenv("GOLET_E2E_AUTOPLAY") != "" {
+		o.Autoplay = golet.AutoplayAllow
+	}
+	return o
 }
 
 // quitDuringDialog is a helper process for TestQuitDuringDialog: it quits
@@ -709,6 +740,106 @@ func TestVibrancy(t *testing.T) {
 	}
 }
 
+// TestGlass gives a frameless window of native UI Liquid Glass, clear, cut
+// to its corners (macOS 26; the HUD material before), which SetActiveAppearance
+// keeps drawn as active once another app is in front, as a floating panel's
+// must be for the clear glass to stay clear. SetVibrancy swaps the glass for another
+// material, which keeps the corners, and back.
+func TestGlass(t *testing.T) {
+	view := ui.View(func(c *ui.Context) { c.Root().Background(ui.Transparent) })
+	w := newWindow(t, golet.WindowOptions{Width: 300, Height: 200, Frameless: true, Transparent: true,
+		Vibrancy: golet.VibrancyGlassClear, CornerRadius: 16, Content: view})
+	w.SetActiveAppearance(true)
+	class, style, radius, _, ok := material(w)
+	if !ok {
+		t.Skip("the material is macOS's")
+	}
+	glass := class == "NSGlassEffectView"
+	if !glass && class != "NSVisualEffectView" || glass && style != 1 || radius != 16 {
+		t.Errorf("material %s, style %d, corners %v; want the clear glass, or the HUD material before macOS 26, cut to 16", class, style, radius)
+	}
+	// Without SetActiveAppearance, a window draws as inactive once the app is.
+	// Focusing other activates the app, done once other is key: it is waited
+	// for so that the activation does not land after the Finder's and bring
+	// the app back in front.
+	other := newWindow(t, golet.WindowOptions{Width: 200, Height: 100, Frameless: true, Transparent: true, Vibrancy: golet.VibrancyGlassClear, Content: view})
+	other.Focus()
+	eventually(t, "the other window focused", other.IsFocused)
+	if deactivateApp() {
+		eventually(t, "the app deactivated", func() bool { active, _ := appActive(); return !active })
+		// The Finder can be frontmost before AppKit has told the app that it
+		// resigned active, which the windows draw by. So other's appearance
+		// is waited for, and w's is checked once the app is known inactive.
+		if !wait.Poll(func() bool { _, _, _, active, _ := material(other); return !active }) {
+			t.Error("a window without SetActiveAppearance draws as active with another app in front")
+		}
+		if _, _, _, active, _ := material(w); !active {
+			t.Error("with another app in front, the window no longer draws as active")
+		}
+	}
+	w.SetVibrancy(golet.VibrancyPopover)
+	if class, _, radius, _, _ := material(w); class != "NSVisualEffectView" || radius != 16 {
+		t.Errorf("popover: material %s, corners %v", class, radius)
+	}
+	w.SetVibrancy(golet.VibrancyGlass)
+	if class, style, _, _, _ := material(w); glass && (class != "NSGlassEffectView" || style != 0) {
+		t.Errorf("regular glass: material %s, style %d", class, style)
+	}
+	w.SetVibrancy(golet.VibrancyNone)
+	if class, _, _, _, _ := material(w); class != "" {
+		t.Errorf("no material: %s", class)
+	}
+}
+
+// TestRoundedOpaqueWindow rounds a frameless window that is not
+// transparent: the window is made clear and its color goes to the content
+// view, cut to the corners, so that nothing fills them, the color set later
+// too (macOS).
+func TestRoundedOpaqueWindow(t *testing.T) {
+	w := newWindow(t, golet.WindowOptions{Width: 300, Height: 200, Frameless: true, CornerRadius: 12, BackgroundColor: "#ff0000",
+		Content: ui.View(func(c *ui.Context) { c.Root().Background(ui.Transparent) })})
+	opaque, alpha, _, ok := roundedBacking(w)
+	if !ok {
+		t.Skip("the corners are cut on macOS")
+	}
+	if _, _, radius, _, _ := material(w); opaque || alpha != 1 || radius != 12 {
+		t.Errorf("opaque %v, the content view's color's alpha %v, corners %v; want a clear window, its color on the content view, cut to 12", opaque, alpha, radius)
+	}
+	w.SetBackgroundColor("#00ff0080")
+	if opaque, alpha, _, _ := roundedBacking(w); opaque || alpha < .49 || alpha > .51 {
+		t.Errorf("after SetBackgroundColor: opaque %v, alpha %v; want a clear window, the new color on the content view", opaque, alpha)
+	}
+}
+
+// TestRoundedSystemBacking rounds a frameless window without a
+// BackgroundColor: its content view takes the system's window color, which
+// follows the appearance as the window's did, light and then dark (macOS).
+func TestRoundedSystemBacking(t *testing.T) {
+	golet.Theme.SetSource(golet.ThemeLight)
+	defer golet.Theme.SetSource(golet.ThemeSystem)
+	w := newWindow(t, golet.WindowOptions{Width: 300, Height: 200, Frameless: true, CornerRadius: 12,
+		Content: ui.View(func(c *ui.Context) { c.Root().Background(ui.Transparent) })})
+	opaque, alpha, light, ok := roundedBacking(w)
+	if !ok {
+		t.Skip("the corners are cut on macOS")
+	}
+	if opaque || alpha != 1 || light < .5 {
+		t.Errorf("light: opaque %v, alpha %v, red %v; want a clear window, a light window color on the content view", opaque, alpha, light)
+	}
+	golet.Theme.SetSource(golet.ThemeDark)
+	eventually(t, "the window color turned dark", func() bool {
+		_, alpha, red, _ := roundedBacking(w)
+		return alpha == 1 && red < .5
+	})
+	// A color of the app's own stays, whatever the appearance.
+	w.SetBackgroundColor("#ff0000")
+	golet.Theme.SetSource(golet.ThemeLight)
+	eventually(t, "the app is light again", func() bool { return !golet.Theme.IsDark() })
+	if _, alpha, red, _ := roundedBacking(w); alpha != 1 || red != 1 {
+		t.Errorf("after SetBackgroundColor and a light appearance: alpha %v, red %v; want the app's red", alpha, red)
+	}
+}
+
 // On Windows, a window with a material behind its page has no redirection
 // bitmap, which hides what GDI draws: the controls of a hidden title bar
 // show through DirectComposition, in every window again once its device
@@ -785,6 +916,46 @@ func TestVibrancyWindowControls(t *testing.T) {
 		closeMenus()
 		eventually(t, "the menus to close", func() bool { menus, _ = popupMenus(); return len(menus) == 0 })
 	}
+}
+
+// TestWindowButtonsTheme draws the window controls of a hidden title bar
+// for a dark background in a light app and for a light one in a dark app,
+// then as the app again (Windows): under the pointer, the backplate of a
+// button is its glyph's color over the gray page, lighter for light glyphs.
+func TestWindowButtonsTheme(t *testing.T) {
+	golet.Theme.SetSource(golet.ThemeLight)
+	defer golet.Theme.SetSource(golet.ThemeSystem)
+	w := newWindow(t, golet.WindowOptions{X: 40, Y: 40, Width: 300, Height: 150, TitleBarStyle: golet.TitleBarHidden,
+		Content: ui.View(func(c *ui.Context) { c.Root().Background(ui.RGB(0x80, 0x80, 0x80)) })})
+	light := func() (light, ok bool) {
+		r, _, _, ok := titleButtonColor(w, "minimize")
+		return r > 0x80, ok && r != 0x80
+	}
+	if _, _, _, ok := titleButtonColor(w, "minimize"); !ok {
+		t.Skip("golet draws the window controls on Windows")
+	}
+	t.Cleanup(func() {
+		if t.Failed() {
+			r, g, b, ok := titleButtonColor(w, "minimize")
+			noRedirect, composed, _ := composition(w)
+			t.Logf("the minimize button shows %02x%02x%02x (read %v); no redirection bitmap %v, composed %v", r, g, b, ok, noRedirect, composed)
+		}
+	})
+	readable := false
+	for deadline := time.Now().Add(3 * time.Second); !readable && time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		l, ok := light()
+		readable = ok && !l
+	}
+	if !readable {
+		t.Skip("the screen does not show the dark glyphs of a light app's window controls")
+	}
+	w.SetWindowButtonsTheme(golet.ThemeDark)
+	eventually(t, "light glyphs in a light app", func() bool { l, ok := light(); return ok && l })
+	golet.Theme.SetSource(golet.ThemeDark)
+	w.SetWindowButtonsTheme(golet.ThemeLight)
+	eventually(t, "dark glyphs in a dark app", func() bool { l, ok := light(); return ok && !l })
+	w.SetWindowButtonsTheme(golet.ThemeSystem)
+	eventually(t, "light glyphs again, as the dark app", func() bool { l, ok := light(); return ok && l })
 }
 
 // The toolbar that insets the traffic lights holds no items: in full screen
@@ -999,6 +1170,24 @@ func TestWindowGeometryAndState(t *testing.T) {
 	w.Page().SetZoomFactor(1.5)
 	if z := w.Page().ZoomFactor(); z != 1.5 {
 		t.Errorf("zoom = %v", z)
+	}
+}
+
+// ProcessID is the page's web content process on macOS and WebView2's
+// browser process on Windows, never the app's own; Linux has none.
+func TestPageProcessID(t *testing.T) {
+	w := newWindow(t, golet.WindowOptions{Width: 300, Height: 200})
+	w.Page().LoadHTML(`<p>process</p>`, "")
+	waitFor(t, w, "document.readyState === 'complete'")
+	pid := w.Page().ProcessID()
+	if runtime.GOOS == "linux" {
+		if pid != 0 {
+			t.Errorf("ProcessID = %d on Linux, want 0", pid)
+		}
+		return
+	}
+	if pid <= 0 || pid == os.Getpid() {
+		t.Errorf("ProcessID = %d, want another process than the app's (%d)", pid, os.Getpid())
 	}
 }
 
@@ -1376,6 +1565,44 @@ func TestWindowState(t *testing.T) {
 		b := w.Bounds()
 		return b.Width == 500 && b.Height == 400
 	})
+}
+
+// TestCloseInFrame closes a window from its own content as it builds a
+// frame, as a close button does, twice, and its state is still saved.
+func TestCloseInFrame(t *testing.T) {
+	run := strconv.Itoa(int(windowStateRuns.Add(1)))
+	golet.App.SetPath(golet.PathUserData, t.TempDir())
+	defer golet.App.SetPath(golet.PathUserData, "")
+	var self atomic.Pointer[golet.Window]
+	var frames, closes atomic.Int32
+	w := newWindow(t, golet.WindowOptions{StateKey: "e2e-close-" + run, Width: 320, Height: 240, Content: ui.View(func(c *ui.Context) {
+		if frames.Add(1) >= 2 {
+			if w := self.Load(); w != nil {
+				w.Close()
+				w.Close()
+			}
+		}
+		c.AnimationFrame()
+		ui.Box(c).Fill().Background(ui.RGB(255, 255, 255))
+	})})
+	w.OnClosed(func() { closes.Add(1) })
+	self.Store(w)
+	eventually(t, "the window closed", w.IsDestroyed)
+
+	var later atomic.Int32
+	other := newWindow(t, golet.WindowOptions{Width: 200, Height: 150, Content: ui.View(func(c *ui.Context) {
+		later.Add(1)
+		ui.Box(c).Fill()
+	})})
+	eventually(t, "a frame of another window", func() bool { return later.Load() > 0 })
+	other.Destroy()
+	if n := closes.Load(); n != 1 {
+		t.Errorf("OnClosed ran %d times, want 1", n)
+	}
+	w = newWindow(t, golet.WindowOptions{StateKey: "e2e-close-" + run, Width: 100, Height: 100})
+	if b := w.Bounds(); b.Width != 320 || b.Height != 240 {
+		t.Errorf("restored bounds = %+v, want 320×240", b)
+	}
 }
 
 // TestFileDrop drops files with synthetic DOM events, the platform side
@@ -1877,7 +2104,23 @@ func TestClearBrowsingData(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitFor(t, w, `window.run`)
-	mustEval(t, w, `(localStorage.setItem("token", "secret"), window.oldPage = true)`)
+	observer := newWindow(t, golet.WindowOptions{Hidden: true})
+	if err := observer.Page().LoadURL("app://localhost/"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, observer, `window.run`)
+	mustEval(t, observer, `(() => {
+		localStorage.getItem("token");
+		window.stored = false;
+		addEventListener("storage", e => {
+			if (e.key === "token" && e.newValue === "secret") window.stored = true;
+		});
+		return true;
+	})()`)
+	// Eval waits for JavaScript, not for the storage process to apply its
+	// writes. Observe the write from another page before asking to delete it.
+	mustEval(t, w, `(localStorage.removeItem("token"), localStorage.setItem("token", "secret"), window.oldPage = true)`)
+	waitFor(t, observer, `window.stored`)
 	if err := golet.App.ClearBrowsingData(); err != nil {
 		t.Fatal(err)
 	}
@@ -2153,6 +2396,80 @@ func TestWindowOpenHandler(t *testing.T) {
 	case <-time.After(wait.Guard):
 		t.Fatal("window open handler not called")
 	}
+}
+
+// userInitiatedPage opens a window and navigates from a timer its script
+// starts as it loads, without a user's gesture, and has three things to
+// click that do the same: a button calling window.open(), a
+// target="_blank" link, and a button setting location.href.
+const userInitiatedPage = `<!doctype html><body style="margin:0">
+<button style="position:absolute;left:0;top:0;width:200px;height:100px" onclick="window.open('https://example.com/clicked')">open</button>
+<a href="https://example.com/link" target="_blank" style="position:absolute;left:0;top:100px;width:200px;height:100px;display:block">link</a>
+<button style="position:absolute;left:200px;top:0;width:200px;height:100px" onclick="location.href = 'https://example.com/went'">go</button>
+<script>setTimeout(() => { window.open('https://example.com/timer'); location.href = 'https://example.com/moved' }, 0)</script>
+</body>`
+
+// TestUserInitiated checks that WindowOpenRequest.UserInitiated and
+// NavigateEvent.UserInitiated are false for what a page's script does on
+// its own, and, where the tests can click a page, true for what a click
+// does, its handler's window.open() and location.href included.
+func TestUserInitiated(t *testing.T) {
+	w := newWindow(t, golet.WindowOptions{Width: 400, Height: 300})
+	opens := make(chan golet.WindowOpenRequest, 4)
+	w.Page().SetWindowOpenHandler(func(req golet.WindowOpenRequest) *golet.WindowOptions {
+		opens <- req
+		return nil
+	})
+	type navigation struct {
+		url  string
+		user bool
+	}
+	navs := make(chan navigation, 4)
+	w.Page().OnWillNavigate(func(e *golet.NavigateEvent) {
+		navs <- navigation{e.URL, e.UserInitiated}
+		e.PreventDefault() // the page stays
+	})
+	opened := func(url string, user bool) {
+		t.Helper()
+		select {
+		case req := <-opens:
+			if req.URL != url || req.UserInitiated != user {
+				t.Errorf("window open request %q, UserInitiated %v; want %q, %v", req.URL, req.UserInitiated, url, user)
+			}
+		case <-time.After(wait.Guard):
+			t.Fatalf("the window open handler was not asked about %s", url)
+		}
+	}
+	navigated := func(url string, user bool) {
+		t.Helper()
+		select {
+		case n := <-navs:
+			if n.url != url || n.user != user {
+				t.Errorf("navigation to %q, UserInitiated %v; want %q, %v", n.url, n.user, url, user)
+			}
+		case <-time.After(wait.Guard):
+			t.Fatalf("OnWillNavigate was not told about %s", url)
+		}
+	}
+	w.Page().LoadHTML(userInitiatedPage, "https://example.com/")
+	if runtime.GOOS != "linux" {
+		// WebKitGTK blocks a window.open() without a user's gesture
+		// itself, before asking the app.
+		opened("https://example.com/timer", false)
+	}
+	navigated("https://example.com/moved", false)
+
+	// A user clicks the window of the app in front (see TestClick).
+	w.Focus()
+	eventually(t, "the window focused", w.IsFocused)
+	if !clickPage(w, 100, 50) {
+		t.Skip("clicking a page is not automated on this platform")
+	}
+	opened("https://example.com/clicked", true)
+	clickPage(w, 100, 150)
+	opened("https://example.com/link", true)
+	clickPage(w, 300, 50)
+	navigated("https://example.com/went", true)
 }
 
 func TestMenuActivation(t *testing.T) {
@@ -2498,8 +2815,8 @@ func TestWindowOpenAllowed(t *testing.T) {
 	if id, _ := golet.EvalAs[int](child.Page(), "golet.windowId"); id != child.ID() {
 		t.Errorf("child bridge reports window %d, want %d", id, child.ID())
 	}
-	// On Linux new windows are independent pages (see Window.SetWindowOpenHandler).
-	if opener, _ := golet.EvalAs[bool](child.Page(), "window.opener !== null"); !opener && runtime.GOOS == "darwin" {
+	// On Linux new windows are independent pages (see Page.SetWindowOpenHandler).
+	if opener, _ := golet.EvalAs[bool](child.Page(), "window.opener !== null"); !opener && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
 		t.Error("window.opener is not set")
 	}
 }
@@ -3183,6 +3500,54 @@ func TestContentWindowVibrancy(t *testing.T) {
 
 	w.SetVibrancy(golet.VibrancyNone)
 	eventually(t, "the view told no material shows", func() bool { return !shows.Load() })
+}
+
+// TestContentWindowTransparent shows a transparent window of native UI over
+// a blue one: where its view draws nothing, the screen shows the blue
+// window behind it, not black, and its opaque pane where it draws one. On
+// Windows the window has no redirection bitmap, whose opaque surface would
+// cover what is behind.
+func TestContentWindowTransparent(t *testing.T) {
+	var frames atomic.Int32
+	newWindow(t, golet.WindowOptions{X: 40, Y: 40, Width: 400, Height: 300, Frameless: true, Content: ui.View(func(c *ui.Context) {
+		c.Root().Background(ui.RGB(0, 0, 255))
+	})})
+	view := func(c *ui.Context) {
+		frames.Add(1)
+		c.Root().Background(ui.Transparent)
+		ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
+			ui.Box(c).Width(200)
+			ui.Box(c).Grow(1).Background(ui.RGB(255, 0, 0))
+		})
+	}
+	w := newWindow(t, golet.WindowOptions{X: 40, Y: 40, Width: 400, Height: 300, Frameless: true, Transparent: true, AlwaysOnTop: true, Content: ui.View(view)})
+	eventually(t, "a frame", func() bool { return frames.Load() > 0 })
+	noRedirect, _, onWindows := composition(w)
+	if !onWindows {
+		t.Skip("reads the screen through a window of Windows")
+	}
+	if !canCompose() {
+		t.Skip("no DirectComposition: the window keeps its bitmap")
+	}
+	if !noRedirect {
+		t.Fatal("a transparent window of native UI has a redirection bitmap")
+	}
+	color := func(x float64, want func(r, g, b uint8) bool) func() bool {
+		return func() bool { r, g, b, ok := screenColor(w, x, 150); return ok && want(r, g, b) }
+	}
+	red := color(300, func(r, g, b uint8) bool { return r > 200 && g < 60 && b < 60 })
+	// Some displays, as the Windows ARM64 runners', never show GDI what
+	// DirectComposition composes: there the pane never reads, as in
+	// TestContentWindowVibrancy, and nothing tells it apart from a pane not
+	// shown yet.
+	readable := false
+	for deadline := time.Now().Add(3 * time.Second); !readable && time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		readable = red()
+	}
+	if !readable {
+		t.Skip("the screen does not show the window's pane: not reading what is behind it")
+	}
+	eventually(t, "the window behind, beside the pane", color(100, func(r, g, b uint8) bool { return b > 200 && r < 60 && g < 60 }))
 }
 
 // TestContentWindowRepaintsWhatChanged moves the red row of a window of

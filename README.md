@@ -13,7 +13,7 @@ Golet 基于 [MyGo](https://github.com/egoist/mygo) 的完整实现迁移，保�
 - **实验性 3D 视口**：[Scene3D](backend/plugins/scene3d/README.md) 提供纯 Go 软件渲染、摄像机、网格、深度测试、基础灯光、OBJ 加载和 Forma 同窗口演示；原生 GPU 三维管线尚未实现。运行 `go run ./backend/examples/scene3d`。
 - **诊断日志**：核心生命周期、窗口、IPC 和协议错误支持结构化处理器，详细日志按需开启；见[日志接入说明](docs/logging.md)。
 
-已集成 MyGo v0.6.3 的新增能力与修复，包括内容拦截、PDF 中文文本修复、触控板缩放和终端增强；详见[上游集成记录](docs/upstream-v0.6.3.md)。
+已同步 MyGo v0.7.1 及截至 2026-10-28 的后续更新（`ceab6416`），包括局部重绘优化、视频、独立 WebView 会话、系统代理、自动化和打包改进；详见[上游集成记录与验证范围](docs/upstream-2026-10-28.md)。
 
 ## 从零构建一个跨平台项目
 
@@ -21,7 +21,7 @@ Golet 有两种使用方式：通过 CLI 创建独立应用，或在已有 Go �
 
 ### 1. 准备环境与框架
 
-- Go：当前源码要求 **1.27.1+**，以根目录 `go.mod` 为准。
+- Go：当前源码要求 **1.27.3+**，以根目录 `go.mod` 为准。
 - Web 项目：Node.js **22.12+**（推荐 24）及 pnpm。纯 Go 原生 UI 项目不需要 Node.js、pnpm 或 Bun。
 - WebView 运行环境：macOS 使用系统 WKWebView；Windows 需要 WebView2 Runtime；Linux 需要 WebKitGTK（Debian/Ubuntu 可安装 `libwebkit2gtk-4.1-0`）。原生 UI 的平台依赖见[原生 UI 文档](docs/native.md)。
 
@@ -193,7 +193,7 @@ go tool golet build
 mkdir my-native-lib
 cd my-native-lib
 go mod init example.com/my-native-lib
-go mod edit -go=1.27.1
+go mod edit -go=1.27.3
 go mod edit -replace=github.com/HyperparameterSI/golet=../golet
 go mod edit -require=github.com/HyperparameterSI/golet@v0.0.0
 go get -tool github.com/HyperparameterSI/golet/backend/cmd/golet
@@ -294,7 +294,7 @@ TanStack Start 使用 [SPA 模式](https://tanstack.com/start/latest/docs/framew
 
 ## 本地开始
 
-需要 Go 1.27.1+ 和 Node.js 22.12+（推荐 Node.js 24）。Studio 支持 pnpm，无需安装 Bun；框架自身的测试、bridge/plugin 打包和发布脚本仍使用 Bun。最终应用不依赖 Node.js 或 Bun。Go 的自动工具链机制可下载 `go.mod` 指定的版本。
+需要 Go 1.27.3+ 和 Node.js 22.12+（推荐 Node.js 24）。Studio 支持 pnpm，无需安装 Bun；框架自身的测试、bridge/plugin 打包和发布脚本仍使用 Bun。最终应用不依赖 Node.js 或 Bun。Go 的自动工具链机制可下载 `go.mod` 指定的版本。
 
 ```sh
 pnpm install

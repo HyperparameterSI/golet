@@ -9,6 +9,7 @@ import (
 	"github.com/HyperparameterSI/golet/backend/internal/platform"
 
 	// Golet's own strings in the languages the tests show.
+	_ "github.com/HyperparameterSI/golet/backend/locales/ja"
 	_ "github.com/HyperparameterSI/golet/backend/locales/zh-Hans"
 	_ "github.com/HyperparameterSI/golet/backend/locales/zh-Hant"
 )
@@ -27,7 +28,7 @@ func TestControlsSayTheLanguage(t *testing.T) {
 	if !tt.HasText("No matches") || !tt.HasText("Done") {
 		t.Fatalf("in English: %q", tt.Texts())
 	}
-	for _, lang := range []string{"zh-Hans", "zh-Hant"} {
+	for _, lang := range []string{"ja", "zh-Hans", "zh-Hant"} {
 		tt.SetLocale(lang)
 		tx := l10n.In(lang)
 		if !tt.HasText(tx.NoMatches()) || !tt.HasText(tx.Done()) || tt.HasText("Done") {

@@ -11,6 +11,7 @@ import (
 
 	// Golet's own strings in the languages of the gallery that Golet is
 	// translated to; its others show them in English.
+	_ "github.com/HyperparameterSI/golet/backend/locales/ja"
 	_ "github.com/HyperparameterSI/golet/backend/locales/zh-Hans"
 	_ "github.com/HyperparameterSI/golet/backend/locales/zh-Hant"
 )

@@ -258,6 +258,23 @@ func (s *surface) RequestFrame() {
 	})
 }
 
+// SetFrameRate has the display link tick fps times a second, or at the
+// display's rate for 0: on a ProMotion display, the display then refreshes
+// as often, while nothing else on it asks for more. Without a display
+// link, the timer goes on at the display's rate, and package ui draws only
+// the frames due.
+func (s *surface) SetFrameRate(fps float64) {
+	if s.link == 0 {
+		return
+	}
+	r := caFrameRateRange{} // CAFrameRateRangeDefault: the display's
+	if fps > 0 {
+		f := float32(fps)
+		r = caFrameRateRange{Minimum: f, Maximum: f, Preferred: f}
+	}
+	msgSetRateRange(s.link, sel("setPreferredFrameRateRange:"), r)
+}
+
 // FrameNow draws a frame at once, for one the display link's tick left to
 // draw until the renderer had a drawable.
 func (s *surface) FrameNow() {
@@ -545,6 +562,19 @@ func (s *surface) sideButton(kind platform.SurfaceEventKind, back bool, mods pla
 	}
 }
 
+// swipeBack reports whether a swipe of deltaX goes back, as Safari and
+// WebKit read swipeWithEvent:'s deltaX: positive, a swipe to the left,
+// goes back, negative forward; ok is false for a vertical swipe.
+func swipeBack(deltaX float64) (back, ok bool) {
+	switch {
+	case deltaX > 0:
+		return true, true
+	case deltaX < 0:
+		return false, true
+	}
+	return false, false
+}
+
 func (s *surface) mouse(kind platform.SurfaceEventKind, ev id, button int) {
 	x, y := s.location(ev)
 	s.send(platform.SurfaceEvent{Kind: kind, X: x, Y: y, Button: button, Clicks: sendInt(ev, "clickCount"), Mods: eventMods(ev)})
@@ -640,13 +670,20 @@ func physicalKey(ev id) platform.Key {
 	return keyAtCodeForLayout(code, kbGetLayoutType(keyboardType))
 }
 
-// stringOf returns the text of an NSString or NSAttributedString.
+// stringOf returns the text of an NSString or NSAttributedString. Other
+// objects with a stringValue (an NSNumber set as an AXValue) give that text,
+// and anything else gives "".
 func stringOf(obj id) string {
 	if obj == 0 {
 		return ""
 	}
 	if respondsTo(obj, "string") {
 		obj = send(obj, "string")
+	} else if !respondsTo(obj, "UTF8String") && respondsTo(obj, "stringValue") {
+		obj = send(obj, "stringValue")
+	}
+	if !respondsTo(obj, "UTF8String") {
+		return ""
 	}
 	return goString(obj)
 }
@@ -697,8 +734,10 @@ func registerSurfaceClass() {
 			}
 			if kind == platform.PointerDown {
 				if btn == 0 {
-					release(s.w.lastMouseDown)
-					s.w.lastMouseDown = retain(ev)
+					// Native UI's drag regions drag the window
+					// (StartDrag), and its data drags start with the
+					// press.
+					s.w.pressedLeft(ev)
 				}
 				send(s.w.win, "makeFirstResponder:", uintptr(self))
 			}
@@ -870,11 +909,12 @@ func registerSurfaceClass() {
 			x, y := s.location(ev)
 			dx, dy := msgFloat(ev, sel("scrollingDeltaX")), msgFloat(ev, sel("scrollingDeltaY"))
 			precise := sendBool(ev, "hasPreciseScrollingDeltas")
+			momentum := sendInt(ev, "momentumPhase") != 0
 			if !precise {
 				// A mouse wheel scrolls by lines: 40 DIPs, as in browsers.
 				dx, dy = dx*40, dy*40
 			}
-			s.send(platform.SurfaceEvent{Kind: platform.PointerScroll, X: x, Y: y, DX: -dx, DY: -dy, Precise: precise, Mods: eventMods(ev)})
+			s.send(platform.SurfaceEvent{Kind: platform.PointerScroll, X: x, Y: y, DX: -dx, DY: -dy, Precise: precise, Momentum: momentum, Mods: eventMods(ev)})
 		}),
 		method("magnifyWithEvent:", func(self id, _ objc.SEL, ev id) {
 			s := b().surfaceOf(self)
@@ -885,6 +925,21 @@ func registerSurfaceClass() {
 			// its last event, as a fraction of its size then.
 			x, y := s.location(ev)
 			s.send(platform.SurfaceEvent{Kind: platform.PointerZoom, X: x, Y: y, Scale: 1 + msgFloat(ev, sel("magnification")), Mods: eventMods(ev)})
+		}),
+		method("swipeWithEvent:", func(self id, _ objc.SEL, ev id) {
+			s := b().surfaceOf(self)
+			if s == nil {
+				return
+			}
+			// A swipe goes back and forward, as the side buttons do: the
+			// buttons of mice whose makers' software sends swipes for
+			// them, as Logi Options+ does, and touchpads set to swipe
+			// between pages.
+			if back, ok := swipeBack(msgFloat(ev, sel("deltaX"))); ok {
+				mods := eventMods(ev)
+				s.sideButton(platform.PointerDown, back, mods)
+				s.sideButton(platform.PointerUp, back, mods)
+			}
 		}),
 		method("keyDown:", func(self id, _ objc.SEL, ev id) {
 			s := b().surfaceOf(self)

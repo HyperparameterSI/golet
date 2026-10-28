@@ -50,6 +50,11 @@ func click(w *golet.Window, x, y float64) bool {
 	return fake(func() bool { return linux.TestClickSurface(w.NativeHandle(), x, y) })
 }
 
+// clickPage clicks a window's page, through XTEST.
+func clickPage(w *golet.Window, x, y float64) bool {
+	return fake(func() bool { return linux.TestClickPage(w.NativeHandle(), x, y) })
+}
+
 // appClick is click, already through XTEST.
 func appClick(w *golet.Window, x, y float64) bool { return click(w, x, y) }
 
@@ -75,9 +80,11 @@ func drag(w *golet.Window, points [][2]float64) bool {
 func webViewAttached(*golet.Window) (bool, bool) { return false, false }
 
 // Collection behaviors and deactivating the app are macOS's.
-func collectionBehavior(*golet.Window) (uint, bool) { return 0, false }
-func deactivateApp() bool                           { return false }
-func appActive() (bool, bool)                       { return false, false }
+func collectionBehavior(*golet.Window) (uint, bool)               { return 0, false }
+func deactivateApp() bool                                         { return false }
+func material(*golet.Window) (string, int, float64, bool, bool)   { return "", 0, 0, false, false }
+func roundedBacking(*golet.Window) (bool, float64, float64, bool) { return false, 0, 0, false }
+func appActive() (bool, bool)                                     { return false, false }
 
 // WebKitGTK docks the inspector inside the web view.
 func dockDevTools(*golet.Window) bool { return false }
@@ -201,6 +208,7 @@ func titleButtonColor(*golet.Window, string) (uint8, uint8, uint8, bool) { retur
 
 // Linux shows no material.
 func composition(*golet.Window) (bool, bool, bool) { return false, false, false }
+func canCompose() bool                             { return false }
 func loseComposition(bool) bool                    { return false }
 
 // WebKitGTK creates web views with their windows.
@@ -340,3 +348,61 @@ func endSheetButton(*golet.Window, int) bool               { return false }
 
 // Panels' window styles are Windows'.
 func panelStyles(*golet.Window) (bool, bool, bool, bool) { return false, false, false, false }
+
+// throttlingOff reports whether the page of w, or of its first web view,
+// is set up to keep running while it can't be seen, and how many of the
+// settings that take the platform has.
+func throttlingOff(w *golet.Window, webView bool) (off bool, settings int) {
+	golet.RunOnMain(func() { off, settings = linux.TestBackgroundThrottlingOff(w.NativeHandle(), webView) })
+	return off, settings
+}
+
+// mockCapture gives a window's page WebKit's mock camera and microphone.
+func mockCapture(w *golet.Window) (ok bool) {
+	golet.RunOnMain(func() { ok = linux.TestMockCaptureDevices(w.NativeHandle()) })
+	return ok
+}
+
+// pageGestures reports whether a swipe navigates and a pinch zooms the page
+// of a window, or with webView 0 or more, of its web view of that index.
+func pageGestures(w *golet.Window, webView int) (swipe, pinch, ok bool) {
+	golet.RunOnMain(func() { swipe, pinch, ok = linux.TestPageGestures(w.NativeHandle(), webView) })
+	return swipe, pinch, ok
+}
+
+// pinchPage pinches the touchpad over the page of a window, or of its web
+// view, from 1 through scales, with GDK's events, which only Wayland
+// makes.
+func pinchPage(w *golet.Window, webView int, x, y float64, scales ...float64) (ok bool) {
+	golet.RunOnMain(func() { ok = linux.TestPinchPage(w.NativeHandle(), webView, x, y, scales) })
+	return ok
+}
+
+// pageMenusHooked tells that the tests can right-click a page and read
+// the menu it opens, through rightClickPage, pageMenu, choosePageMenuItem
+// and dismissPageMenu.
+const pageMenusHooked = true
+
+// rightClickPage clicks (x, y) in a window's page with the secondary
+// button, through XTEST.
+func rightClickPage(w *golet.Window, x, y float64) bool {
+	return fake(func() bool { return linux.TestRightClickPage(w.NativeHandle(), x, y) })
+}
+
+// pageMenu returns the labels of the items of the web view's context menu
+// shown over a page, "-" for separators, and whether one is shown.
+func pageMenu() (labels []string, shown bool) {
+	golet.RunOnMain(func() { labels, shown = linux.TestPageMenu() })
+	return labels, shown
+}
+
+// choosePageMenuItem chooses an item of that menu by its label.
+func choosePageMenuItem(label string) (ok bool) {
+	golet.RunOnMain(func() { ok = linux.TestChoosePageMenuItem(label) })
+	return ok
+}
+
+func dismissPageMenu() { golet.RunOnMain(linux.TestDismissPageMenu) }
+
+// Only Windows' tests start a process that takes the foreground.
+func takeForeground(*golet.Window) {}

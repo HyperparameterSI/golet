@@ -30,11 +30,13 @@ import (
 	"time"
 
 	"github.com/HyperparameterSI/golet/backend"
+	"github.com/HyperparameterSI/golet/backend/netproxy"
 )
 
 // Options configure the plugin.
 type Options struct {
-	// Client makes the opening handshakes; nil means http.DefaultClient.
+	// Client makes the opening handshakes; nil means a client of
+	// netproxy.Transport(), which follows the system's proxy settings.
 	// Its Timeout and CheckRedirect are ignored: connections last, and
 	// redirects fail them, as in browsers.
 	Client *http.Client
@@ -55,7 +57,7 @@ var Plugin = New(Options{})
 // New returns the plugin with options.
 func New(opts Options) golet.Plugin {
 	if opts.Client == nil {
-		opts.Client = http.DefaultClient
+		opts.Client = &http.Client{Transport: netproxy.Transport()}
 	}
 	if opts.MaxMessageSize <= 0 {
 		opts.MaxMessageSize = 64 << 20

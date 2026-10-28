@@ -40,6 +40,10 @@ func click(w *golet.Window, x, y float64) (ok bool) {
 	return ok
 }
 
+// Clicks reach windows showing native UI only: a web view's page is
+// not clicked.
+func clickPage(*golet.Window, float64, float64) bool { return false }
+
 // appClick clicks with the system's input, which activates windows, and
 // returns once the app handled the click.
 func appClick(w *golet.Window, x, y float64) (ok bool) {
@@ -75,9 +79,11 @@ func drag(w *golet.Window, points [][2]float64) (ok bool) {
 func webViewAttached(*golet.Window) (bool, bool) { return false, false }
 
 // Collection behaviors and deactivating the app are macOS's.
-func collectionBehavior(*golet.Window) (uint, bool) { return 0, false }
-func deactivateApp() bool                           { return false }
-func appActive() (bool, bool)                       { return false, false }
+func collectionBehavior(*golet.Window) (uint, bool)               { return 0, false }
+func deactivateApp() bool                                         { return false }
+func material(*golet.Window) (string, int, float64, bool, bool)   { return "", 0, 0, false, false }
+func roundedBacking(*golet.Window) (bool, float64, float64, bool) { return false, 0, 0, false }
+func appActive() (bool, bool)                                     { return false, false }
 
 // WebView2 opens DevTools in a window of its own.
 func dockDevTools(*golet.Window) bool { return false }
@@ -210,6 +216,12 @@ func titleButtonColor(w *golet.Window, name string) (r, g, b uint8, ok bool) {
 func composition(w *golet.Window) (noRedirect, composed, supported bool) {
 	golet.RunOnMain(func() { noRedirect, composed = win.TestComposed(w.NativeHandle()) })
 	return noRedirect, composed, true
+}
+
+// canCompose reports whether DirectComposition is available.
+func canCompose() (ok bool) {
+	golet.RunOnMain(func() { ok = win.TestCanCompose() })
+	return ok
 }
 
 // loseComposition takes the device of DirectComposition away, as a draw
@@ -364,4 +376,67 @@ func endSheetButton(*golet.Window, int) bool               { return false }
 func panelStyles(w *golet.Window) (tool, topmost, owned, supported bool) {
 	golet.RunOnMain(func() { tool, topmost, owned = win.TestPanelStyles(w.NativeHandle()) })
 	return tool, topmost, owned, true
+}
+
+// throttlingOff reports whether the page of w, or of its first web view,
+// is set up to keep running while it can't be seen, and how many of the
+// settings that take the platform has.
+func throttlingOff(w *golet.Window, webView bool) (off bool, settings int) {
+	golet.RunOnMain(func() { off, settings = win.TestBackgroundThrottlingOff(w.NativeHandle(), webView) })
+	return off, settings
+}
+
+// WebView2 tells no capture.
+func mockCapture(*golet.Window) bool { return false }
+
+// pageGestures reports whether a swipe navigates and a pinch zooms the page
+// of a window, or with webView 0 or more, of its web view of that index.
+func pageGestures(w *golet.Window, webView int) (swipe, pinch, ok bool) {
+	golet.RunOnMain(func() { swipe, pinch, ok = win.TestPageGestures(w.NativeHandle(), webView) })
+	return swipe, pinch, ok
+}
+
+// WebView2 takes touch input from Windows' pointer messages, which a test
+// can't send it.
+func pinchPage(*golet.Window, int, float64, float64, ...float64) bool { return false }
+
+// pageMenusHooked tells that the tests can right-click a page and read
+// the menu it opens, through rightClickPage, pageMenu, choosePageMenuItem
+// and dismissPageMenu. A menu WebView2 draws itself can't be read: the
+// tests change theirs, which Golet draws.
+const pageMenusHooked = true
+
+// rightClickPage right-clicks (x, y) in a window's page, with the
+// DevTools protocol's mouse events.
+func rightClickPage(w *golet.Window, x, y float64) (ok bool) {
+	golet.RunOnMain(func() { ok = win.TestRightClickPage(w.NativeHandle(), x, y) })
+	return ok
+}
+
+// pageMenu returns the labels of the items of the context menu Golet
+// draws over a page, "-" for separators, and whether one is shown. The
+// modal loop of a menu runs the main thread's work.
+func pageMenu() (labels []string, shown bool) {
+	golet.RunOnMain(func() { labels, shown = win.TestPageMenu() })
+	return labels, shown
+}
+
+// choosePageMenuItem chooses an item of that menu by its label.
+func choosePageMenuItem(label string) (ok bool) {
+	golet.RunOnMain(func() { ok = win.TestChoosePageMenuItem(label) })
+	return ok
+}
+
+func dismissPageMenu() { golet.RunOnMain(win.TestEndMenu) }
+
+// takeForeground brings a window to the foreground, after Alt pressed and
+// released when Windows refuses it: a process that sent the last input may
+// take the foreground.
+func takeForeground(w *golet.Window) {
+	golet.RunOnMain(func() {
+		if !win.TestForeground(w.NativeHandle()) {
+			win.TestPressKeys(0x12) // VK_MENU
+			win.TestForeground(w.NativeHandle())
+		}
+	})
 }

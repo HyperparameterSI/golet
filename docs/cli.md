@@ -227,6 +227,7 @@ Prints the version of the CLI.
 | Variable | |
 |---|---|
 | `CGO_ENABLED` | `0` by default when unset or empty; set to `1` for app dependencies that need cgo, including in `golet dev`, `golet build` and `golet generate` |
+| `GOLET_LDFLAGS` | more `-ldflags` for the builds of `golet build`, after its own, such as `-X example.com/app/internal/crash.DSN=…` or `-buildid=`; split at spaces outside quotes, as `go build -ldflags` splits them |
 | `GOLET_INSPECTOR` | `1` keeps the [inspector of native UI](ui/inspector.md) in production builds of `golet build`, which leave it out |
 | `GOLET_UPDATER_PRIVATE_KEY` | the secret key that signs updates, for `golet build` |
 | `GOLET_WINDOWS_CERTIFICATE_PASSWORD` | the password of `windows.certificate`, for `golet build` |

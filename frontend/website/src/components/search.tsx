@@ -113,7 +113,7 @@ export function Search() {
         variant="outline"
         onClick={() => setOpen(true)}
         onPointerEnter={() => void loadIndex().catch(() => {})}
-        className="hidden h-8 w-56 justify-start gap-2 bg-muted/40 px-2.5 font-normal text-muted-foreground shadow-none hover:bg-muted md:flex dark:bg-muted/30"
+        className="hidden h-8 w-56 justify-start gap-2 bg-muted/40 px-2.5 font-normal text-muted-foreground shadow-none hover:bg-muted lg:flex dark:bg-muted/30"
       >
         <SearchIcon />
         Search docs…
@@ -123,7 +123,7 @@ export function Search() {
         variant="ghost"
         size="icon"
         onClick={() => setOpen(true)}
-        className="md:hidden"
+        className="lg:hidden"
         aria-label="Search docs"
       >
         <SearchIcon />

@@ -30,8 +30,9 @@ import (
 )
 
 type gallery struct {
-	win *golet.Window
-	md  markdownDemo
+	win   *golet.Window
+	video *ui.VideoPlayer
+	md    markdownDemo
 	// router shows the pages: "/overview", "/list", and a row of the list,
 	// "/list/42".
 	router *ui.Router
@@ -42,6 +43,8 @@ type gallery struct {
 	// language is the language chosen on the Languages page, "" for the
 	// system's.
 	language string
+	// zoom is how many steps of zooms the gallery is zoomed from 1.
+	zoom     int
 	count    int
 	agree    bool
 	notify   bool
@@ -155,6 +158,11 @@ type gallery struct {
 	draft    string
 	// chart is the state of the Charts page.
 	chart galleryCharts
+	// The card whose menu is drawn in the window: its settings, and what
+	// its menu did last.
+	cardZoom   string
+	cardPinned bool
+	cardDid    string
 }
 
 // galleryTask is a task of the Drag and drop card.
@@ -419,7 +427,24 @@ func (g *gallery) view(c *ui.Context) {
 			g.router.Push(pagePath(p))
 		}
 	}
+	// Ctrl+= and Ctrl+- (Cmd on macOS) zoom the gallery in and out, as a
+	// browser zooms a page, sharp; Ctrl+0 zooms it back.
+	switch {
+	case c.Shortcut(ui.Cmd, ui.KeyEqual) || c.Shortcut(ui.Cmd|ui.Shift, ui.KeyEqual):
+		g.zoom = min(g.zoom+1, len(zooms)-1-zoomOne)
+	case c.Shortcut(ui.Cmd, ui.KeyMinus):
+		g.zoom = max(g.zoom-1, -zoomOne)
+	case c.Shortcut(ui.Cmd, ui.Key0):
+		g.zoom = 0
+	}
+	c.SetZoom(zooms[zoomOne+g.zoom])
 }
+
+// zooms are the zooms Ctrl+= and Ctrl+- step through, as browsers'.
+var zooms = []float32{0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3}
+
+// zoomOne is the index of 1 in zooms.
+const zoomOne = 5
 
 // toolbar goes back and forward in the history of the pages, and shows
 // the path of the page: Cmd+[ and Cmd+] on macOS, Alt+Left and Alt+Right
@@ -1348,6 +1373,7 @@ func repeat(t ui.Track, n int) []ui.Track {
 }
 
 func (g *gallery) drawing(c *ui.Context) {
+	g.videoCard(c)
 	t := c.Theme()
 	ui.Text(c, "Element.Draw paints with rectangles, shadows, paths and text. This drawing moves with the time of each frame, which paints it again without building the page.").TextColor(t.TextMuted)
 	ui.Box(c).Height(320).Radius(10).Background(t.Surface).Draw(func(p *ui.Painter, r ui.Rect) {
@@ -1811,6 +1837,35 @@ func (g *gallery) overlays(c *ui.Context) {
 					entry.Children(func() { ui.Text(c, item) })
 				}
 			})
+			// A menu drawn in the window, with the theme's look, rather than
+			// the system's.
+			card := ui.Row(c).Padding(6, 12).Radius(t.Radius).Border(1, t.Border).Focusable().Label("Card")
+			card.PopoverMenu(func(m *ui.Menu) {
+				if m.Item("Duplicate").Shortcut(ui.Cmd, ui.KeyD).Chosen() {
+					g.cardDid = "Duplicated"
+				}
+				if m.Item("Pinned").Checked(g.cardPinned).Chosen() {
+					g.cardPinned = !g.cardPinned
+				}
+				m.Submenu("Zoom", func(m *ui.Menu) {
+					for _, z := range []string{"Small", "Medium", "Large"} {
+						if m.Item(z).Radio(g.cardZoom == z).Chosen() {
+							g.cardZoom = z
+						}
+					}
+				})
+				m.Separator()
+				if m.Item("Delete").Disabled(g.cardPinned).Chosen() {
+					g.cardDid = "Deleted"
+				}
+			})
+			card.Children(func() {
+				label := "Right-click me"
+				if g.cardDid != "" {
+					label = g.cardDid
+				}
+				ui.Text(c, label)
+			})
 			ui.Button(c, "Hover me").Tooltip("Tooltips show after the pointer rests a moment.")
 			if ui.Button(c, "Alert").Clicked() {
 				g.alert = true
@@ -1842,7 +1897,7 @@ func (g *gallery) overlays(c *ui.Context) {
 
 // Open opens the shared native gallery at the requested page on the UI thread.
 func Open(page string) *golet.Window {
-	g := &gallery{sharedTheme: true, router: ui.NewRouter(pagePath(page)), items: []motionItem{{1, "Item 1"}, {2, "Item 2"}, {3, "Item 3"}}, nextItem: 3, size: "Medium", fruit: "Apple", plan: "Pro", volume: 35, picked: -1, starred: map[int]bool{}, split: 160, copies: 1, tree: map[string]bool{"ui": true}, birthday: time.Date(1815, 12, 10, 0, 0, 0, 0, time.UTC), now: time.Now(), font: "Helvetica", tags: []string{"go", "native"}, sections: [3]bool{true}, sectionsOpen: [2]bool{true, true}, stars: 4, battery: 35, quality: 75, priceLow: 100, priceHigh: 350, meeting: time.Date(2026, 10, 15, 9, 30, 0, 0, time.Local), tint: ui.Hex("#2563eb"), lens: [2]float32{110, 190}, glassEdge: 1, notes: 12, notifyMail: true, pathDepth: 4, chart: newCharts()}
+	g := &gallery{sharedTheme: true, router: ui.NewRouter(pagePath(page)), items: []motionItem{{1, "Item 1"}, {2, "Item 2"}, {3, "Item 3"}}, nextItem: 3, size: "Medium", fruit: "Apple", cardZoom: "Medium", plan: "Pro", volume: 35, picked: -1, starred: map[int]bool{}, split: 160, copies: 1, tree: map[string]bool{"ui": true}, birthday: time.Date(1815, 12, 10, 0, 0, 0, 0, time.UTC), now: time.Now(), font: "Helvetica", tags: []string{"go", "native"}, sections: [3]bool{true}, sectionsOpen: [2]bool{true, true}, stars: 4, battery: 35, quality: 75, priceLow: 100, priceHigh: 350, meeting: time.Date(2026, 10, 15, 9, 30, 0, 0, time.Local), tint: ui.Hex("#2563eb"), lens: [2]float32{110, 190}, glassEdge: 1, notes: 12, notifyMail: true, pathDepth: 4, chart: newCharts()}
 	// The languages of the Languages page's menu.
 	if pageOf(pagePath(page)) == "" {
 		g.router = ui.NewRouter("/overview")

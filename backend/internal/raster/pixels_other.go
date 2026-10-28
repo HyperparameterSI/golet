@@ -1,6 +1,6 @@
 // Author: HyperparameterSI
 
-//go:build !darwin && !linux
+//go:build !darwin && !linux && !windows
 
 package raster
 

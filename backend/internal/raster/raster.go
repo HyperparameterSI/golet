@@ -87,6 +87,23 @@ func Render(dst *Image, s *scene.Scene) {
 	r.d.draw(dst, s, image.Rect(0, 0, dst.W, dst.H), r.opBounds(s))
 }
 
+// restorePixels makes the pixels of the images s draws within area again
+// where an owner dropped them, leaving out the ops that miss it. The GPU
+// renderers ask Image.Pixels, which restores them, and so does the op
+// that draws an image without a transform; the ops that draw one with a
+// transform read Pix, so a bitmap released after its uploads
+// (Bitmap.ReleasePixels) would be sampled from no pixels, which panics on
+// a slice of length 0.
+func restorePixels(s *scene.Scene, area image.Rectangle, bounds []image.Rectangle) {
+	for i := range s.Ops {
+		op := &s.Ops[i]
+		if op.Kind != scene.OpImage || op.Image == nil || !bounds[i].Overlaps(area) {
+			continue
+		}
+		op.Image.Pixels()
+	}
+}
+
 // A large area is drawn on several cores at once, in bands of bandRows
 // rows that each takes in turn, as rows differ in how much they draw:
 // each pixel is what drawing the area whole gives, as no pixel depends on
@@ -118,6 +135,11 @@ func (d *drawer) draw(dst *Image, s *scene.Scene, area image.Rectangle, bounds [
 	// the GPU (gpu.Builder).
 	s = d.fold.Fold(s)
 	area = area.Intersect(image.Rect(0, 0, dst.W, dst.H))
+	// An owner may have dropped an image's pixels (Bitmap.ReleasePixels)
+	// once a GPU renderer uploaded them: make them again before the bands
+	// draw, as the ops that sample them read Pix directly, and once, as
+	// the bands draw on several cores.
+	restorePixels(s, area, bounds)
 	d.blurred = d.blurImages(s, area, bounds)
 	defer func() { d.blurred = nil }()
 	// px draws operation from, an effect over the backdrop b.
@@ -277,10 +299,11 @@ func (r *renderer) render(dst *Image, s *scene.Scene, area image.Rectangle, boun
 				}
 			}
 		case scene.OpPushClip:
-			radii := scene.Corners(op.Rect, op.Radii, op.Continuous)
-			c := clip{shape: newShape(op.Rect, radii), round: hasRadii(radii), spans: -1}
-			c.transform = op.Transform
-			c.inverse, c.valid = op.Transform.Inverse()
+			rect, transform := scene.MovedClip(op.Rect, op.Transform)
+			radii := scene.Corners(rect, op.Radii, op.Continuous)
+			c := clip{shape: newShape(rect, radii), round: hasRadii(radii), spans: -1}
+			c.transform = transform
+			c.inverse, c.valid = transform.Inverse()
 			if c.continuous && !c.transform.Set {
 				// Continuous corners take long to find the spans of, which
 				// every operation within the clip needs.
@@ -1434,7 +1457,7 @@ func mixMask(src, dst byte, coverage uint32) byte {
 
 func (r *renderer) image(op *scene.Op) {
 	img := op.Image
-	if img == nil || img.W == 0 || img.H == 0 || op.Rect.Empty() || unflipped(op.Src).Empty() {
+	if img == nil || img.W == 0 || img.H == 0 || op.Rect.Empty() || unflipped(op.Src).Empty() || img.Pixels() == nil {
 		return
 	}
 	opacity := op.Opacity
@@ -1519,6 +1542,11 @@ func abs32(v float32) float32 { return float32(math.Abs(float64(v))) }
 // sample reads a premultiplied pixel at (u, v) with bilinear filtering,
 // clamped to src.
 func sample(img *scene.Image, u, v float32, src scene.Rect) [4]float32 {
+	if len(img.Pix) < 4*img.W*img.H {
+		// Pixels an owner dropped and a renderer did not restore: draw
+		// nothing rather than read past the slice.
+		return [4]float32{}
+	}
 	u, v = u-0.5, v-0.5
 	x0, y0 := int(math.Floor(float64(u))), int(math.Floor(float64(v)))
 	tx, ty := u-float32(x0), v-float32(y0)

@@ -33,11 +33,13 @@ import (
 	"strings"
 
 	"github.com/HyperparameterSI/golet/backend"
+	"github.com/HyperparameterSI/golet/backend/netproxy"
 )
 
 // Options configure the plugin.
 type Options struct {
-	// Client makes the requests; nil means http.DefaultClient. Its
+	// Client makes the requests; nil means a client of
+	// netproxy.Transport(), which follows the system's proxy settings. Its
 	// CheckRedirect limits the redirects followed when the request's
 	// redirect mode is "follow".
 	Client *http.Client
@@ -52,7 +54,7 @@ var Plugin = New(Options{})
 // New returns the plugin with options.
 func New(opts Options) golet.Plugin {
 	if opts.Client == nil {
-		opts.Client = http.DefaultClient
+		opts.Client = &http.Client{Transport: netproxy.Transport()}
 	}
 	return golet.Plugin{Name: "fetch", Service: &service{opts}}
 }

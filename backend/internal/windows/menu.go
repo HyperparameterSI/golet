@@ -22,8 +22,18 @@ type menuEntry struct {
 	menu  uintptr // the HMENU holding the item
 	radio bool
 	accel string
+	// native is the number of an item of WebView2's own in a page's
+	// context menu (context_menu.go), 0 for the app's.
+	native int
 	// look is how Golet draws the item, nil where Windows does.
 	look *menuLook
+	// icon is the item's icon, and bmp the bitmap Windows draws of it
+	// where it draws the item.
+	icon *platform.MenuIcon
+	bmp  uintptr
+	// dpi is that of the menu's bitmaps, 0 for an item of the menu bar,
+	// which shows no icon.
+	dpi int
 }
 
 type menuTable struct {
@@ -33,6 +43,9 @@ type menuTable struct {
 	// looks are the items Golet draws (menudraw.go), by their data.
 	looks    map[uintptr]*menuLook
 	nextLook uintptr
+	// bitmaps are the bitmaps of the icons of Windows 10's menus, by the
+	// owner of their items, which frees them (menuicon.go).
+	bitmaps map[uintptr]int
 }
 
 func newMenuTable() menuTable { return menuTable{entries: map[uint16]*menuEntry{}} }
@@ -70,10 +83,15 @@ func (t *menuTable) drop(owner int) {
 			delete(t.looks, key)
 		}
 	}
+	for bmp, o := range t.bitmaps {
+		if o == owner {
+			t.freeBitmap(bmp)
+		}
+	}
 }
 
-// buildMenu creates a native menu bar or popup menu.
-func (b *Backend) buildMenu(m *platform.Menu, bar bool, owner int, accels map[accelKey]uint16) uintptr {
+// buildMenu creates a native menu bar or popup menu, for a window at dpi.
+func (b *Backend) buildMenu(m *platform.Menu, bar bool, owner int, accels map[accelKey]uint16, dpi int) uintptr {
 	var h uintptr
 	if bar {
 		h, _, _ = procCreateMenu.Call()
@@ -83,9 +101,27 @@ func (b *Backend) buildMenu(m *platform.Menu, bar bool, owner int, accels map[ac
 	// Golet draws the items of popup menus (menudraw.go), which leave room
 	// for checks when any item has one.
 	drawn := !bar && fluentMenus()
-	column := false
+	column, icons := false, false
 	for _, it := range m.Items {
 		column = column || it.Visible && (it.Type == platform.MenuItemCheckbox || it.Type == platform.MenuItemRadio || it.Checked)
+		icons = icons || it.Visible && it.Icon != nil && it.Type != platform.MenuItemSeparator
+	}
+	// The items of a menu bar show no icons; Windows 10 draws those of its
+	// menus' as bitmaps.
+	icons = icons && !bar
+	var tint uint32
+	if icons && !drawn {
+		tint = b.menuTextColor()
+	}
+	bitmap := func(it *platform.MenuItem, item uint32, byPosition bool) uintptr {
+		if !icons || drawn || it.Icon == nil {
+			return 0
+		}
+		bmp := b.menus.addBitmap(owner, it.Icon, dpi, tint)
+		if bmp != 0 {
+			setItemBitmap(h, item, byPosition, bmp)
+		}
+		return bmp
 	}
 	pos := 0
 	var looks []*menuLook
@@ -94,16 +130,9 @@ func (b *Backend) buildMenu(m *platform.Menu, bar bool, owner int, accels map[ac
 		if !drawn {
 			return nil
 		}
-		l.owner, l.column = owner, column
+		l.owner, l.column, l.icons, l.menu, l.pos = owner, column, icons, h, pos
 		looks = append(looks, l)
-		var ftype uint32
-		switch {
-		case l.separator:
-			ftype = mftSeparator
-		case l.radio:
-			ftype = mftRadioCheck
-		}
-		ownerDraw(h, pos, ftype, b.menus.addLook(l))
+		ownerDraw(h, pos, l.ftype(), b.menus.addLook(l))
 		return l
 	}
 	for _, it := range m.Items {
@@ -120,18 +149,29 @@ func (b *Backend) buildMenu(m *platform.Menu, bar bool, owner int, accels map[ac
 			flags |= mfGrayed
 		}
 		if it.Submenu != nil {
-			sub := b.buildMenu(it.Submenu, false, owner, accels)
+			sub := b.buildMenu(it.Submenu, false, owner, accels, dpi)
 			procAppendMenuW.Call(h, flags|mfPopup, sub, uintptr(unsafe.Pointer(u16(it.Label))))
-			look(&menuLook{label: it.Label, submenu: true})
+			bitmap(it, uint32(pos), true)
+			look(&menuLook{label: it.Label, submenu: true, icon: it.Icon})
 			continue
 		}
 		if it.Checked {
 			flags |= mfChecked
 		}
-		e := &menuEntry{uid: it.ID, role: it.Role, owner: owner, menu: h, radio: it.Type == platform.MenuItemRadio}
+		e := &menuEntry{uid: it.ID, role: it.Role, owner: owner, menu: h, radio: it.Type == platform.MenuItemRadio, icon: it.Icon, native: it.Native}
+		if !bar {
+			e.dpi = dpi
+		}
 		cmd := b.menus.add(e)
 		label := it.Label
-		if a, err := accelerator.Parse(it.Accelerator, "windows"); err == nil && it.Accelerator != "" {
+		if it.Native != 0 {
+			// WebView2's item shows its shortcut as WebView2 words it, and
+			// WebView2 hears its key.
+			if it.Accelerator != "" {
+				e.accel = it.Accelerator
+				label += "\t" + e.accel
+			}
+		} else if a, err := accelerator.Parse(it.Accelerator, "windows"); err == nil && it.Accelerator != "" {
 			e.accel = acceleratorText(a)
 			label += "\t" + e.accel
 			if vk, ok := virtualKey(a.Key); ok && accels != nil {
@@ -139,7 +179,8 @@ func (b *Backend) buildMenu(m *platform.Menu, bar bool, owner int, accels map[ac
 			}
 		}
 		procAppendMenuW.Call(h, flags, uintptr(cmd), uintptr(unsafe.Pointer(u16(label))))
-		e.look = look(&menuLook{label: it.Label, accel: e.accel, radio: e.radio})
+		e.bmp = bitmap(it, uint32(cmd), false)
+		e.look = look(&menuLook{label: it.Label, accel: e.accel, radio: e.radio, icon: it.Icon})
 		if e.radio && e.look == nil {
 			setItemInfo(h, cmd, label, it.Enabled, it.Checked, true, false)
 		}
@@ -175,7 +216,7 @@ func (w *window) installMenu(m *platform.Menu) {
 	w.menu, w.hmenu, w.owner, w.accels = m, 0, 0, map[accelKey]uint16{}
 	if m != nil && len(m.Items) > 0 {
 		w.owner = w.b.menus.newOwner()
-		w.hmenu = w.b.buildMenu(m, true, w.owner, w.accels)
+		w.hmenu = w.b.buildMenu(m, true, w.owner, w.accels, dpiOf(w.hwnd))
 	}
 	w.attachMenu()
 	if old != 0 {
@@ -294,6 +335,17 @@ func (b *Backend) SetApplicationMenu(m *platform.Menu) {
 }
 
 func (b *Backend) UpdateMenuItem(it *platform.MenuItem) {
+	// The menus built later, of trays and of new windows, from the
+	// snapshots kept, show the item as it is now.
+	b.appMenu.Apply(it)
+	for _, w := range b.windows {
+		if w.menu != b.appMenu {
+			w.menu.Apply(it)
+		}
+	}
+	for _, t := range b.trays {
+		t.menu.Apply(it)
+	}
 	for cmd, e := range b.menus.entries {
 		if e.uid != it.ID {
 			continue
@@ -303,8 +355,19 @@ func (b *Backend) UpdateMenuItem(it *platform.MenuItem) {
 			label += "\t" + e.accel
 		}
 		if e.look != nil {
-			e.look.label = it.Label
+			e.look.label, e.look.icon = it.Label, it.Icon
+			if it.Icon != nil && !e.look.icons {
+				b.menus.iconColumn(e.menu)
+			}
+		} else if it.Icon != e.icon && e.dpi != 0 {
+			b.menus.freeBitmap(e.bmp)
+			e.bmp = 0
+			if it.Icon != nil {
+				e.bmp = b.menus.addBitmap(e.owner, it.Icon, e.dpi, b.menuTextColor())
+			}
+			setItemBitmap(e.menu, uint32(cmd), false, e.bmp)
 		}
+		e.icon = it.Icon
 		setItemInfo(e.menu, cmd, label, it.Enabled, it.Checked, e.radio, e.look != nil)
 	}
 	for _, w := range b.windows {
@@ -399,9 +462,6 @@ func (b *Backend) PopupMenu(m *platform.Menu, pw platform.Window, pos *platform.
 	}
 	id := b.menus.newOwner()
 	defer b.menus.drop(id)
-	menu := b.buildMenu(m, false, id, nil)
-	defer procDestroyMenu.Call(menu)
-
 	var pt point
 	if pos != nil && w != nil {
 		dpi := dpiOf(w.hwnd)
@@ -410,6 +470,8 @@ func (b *Backend) PopupMenu(m *platform.Menu, pw platform.Window, pos *platform.
 	} else {
 		procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
 	}
+	menu := b.buildMenu(m, false, id, nil, monitorDPI(monitorAt(int(pt.X), int(pt.Y))))
+	defer procDestroyMenu.Call(menu)
 	var flags uintptr
 	if m.RightToLeft {
 		// Its right edge at the point, laid out from the right.
