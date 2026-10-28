@@ -46,6 +46,8 @@ func (s *Showcase) Open(id string) error {
 		}
 		var win *golet.Window
 		switch id {
+		case "Scene3D":
+			win, err = openScene3D()
 		case "Editor":
 			win = editordemo.Open()
 		case "Forma":

@@ -10,6 +10,7 @@ Golet 基于 [MyGo](https://github.com/egoist/mygo) 的完整实现迁移，保�
 - **Go ↔ TypeScript**：生成类型安全客户端，支持事件、流式通道和插件。
 - **桌面能力**：窗口、菜单、托盘、剪贴板、对话框、快捷键、文件监听、自动更新及跨平台打包。
 - **无 cgo**：三平台可交叉编译；原生 UI 也支持 WebAssembly。
+- **实验性 3D 视口**：[Scene3D](backend/plugins/scene3d/README.md) 提供纯 Go 软件渲染、摄像机、网格、深度测试、基础灯光、OBJ 加载和 Forma 同窗口演示；原生 GPU 三维管线尚未实现。运行 `go run ./backend/examples/scene3d`。
 - **诊断日志**：核心生命周期、窗口、IPC 和协议错误支持结构化处理器，详细日志按需开启；见[日志接入说明](docs/logging.md)。
 
 已集成 MyGo v0.6.3 的新增能力与修复，包括内容拦截、PDF 中文文本修复、触控板缩放和终端增强；详见[上游集成记录](docs/upstream-v0.6.3.md)。

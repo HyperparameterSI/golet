@@ -25,6 +25,9 @@ func TestCatalogSourcesAndIDs(t *testing.T) {
 	if !seen["Browser"] {
 		t.Fatal("Browser demo missing")
 	}
+	if !seen["Scene3D"] {
+		t.Fatal("Scene3D demo missing")
+	}
 }
 
 // Keep visual widget coverage current when the generated public API grows.

@@ -1,0 +1,12 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/HyperparameterSI/golet/backend/plugins/scene3d
+cpu: Apple M5
+BenchmarkSoftware/1-cube-640x360-10         	    6051	    178506 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSoftware/1-cube-640x360-10         	    6721	    186699 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSoftware/1-cube-640x360-10         	    6474	    181079 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSoftware/100-cubes-640x360-10      	    3187	    368829 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSoftware/100-cubes-640x360-10      	    3283	    369303 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSoftware/100-cubes-640x360-10      	    3256	    370735 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/HyperparameterSI/golet/backend/plugins/scene3d	7.431s

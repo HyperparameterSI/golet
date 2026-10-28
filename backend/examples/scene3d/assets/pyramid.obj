@@ -1,0 +1,14 @@
+# Author: HyperparameterSI
+# Triangulated, right-handed model for the Scene3D loader example.
+o Pyramid
+v -0.7 0 -0.7
+v 0.7 0 -0.7
+v 0.7 0 0.7
+v -0.7 0 0.7
+v 0 1 0
+f 1 2 3
+f 1 3 4
+f 1 5 2
+f 2 5 3
+f 3 5 4
+f 4 5 1

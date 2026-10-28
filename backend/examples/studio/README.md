@@ -21,12 +21,31 @@ pnpm build:app:mac:universal  # 双架构，输出 build/darwin-universal/
 - 数据与导航：虚拟列表、表格、树、Outline、网格、Tabs、Sidebar、Breadcrumbs、Router、拖放和选择。
 - 反馈：对话框、弹层、菜单、Tooltip、Toast、折叠面板和手风琴。
 - 高级内容：文本缓冲区、富文本、Markdown、代码编辑器、Diff、图表、绘图、SVG、动画和国际化。
-- 插件：玻璃效果、全部 29 种 Loading 指示器、真实终端和 Golet Browser。
+- 插件：Scene3D 三维视口、边框光束、玻璃效果、全部 29 种 Loading 指示器、真实终端和 Golet Browser。
 - Web：shadcn Button / Input / Card 与 Go IPC；原生窗口中的系统 WebView。
 
 可按名称、API 名称和分类搜索演示分组。选择卡片后点击“打开原生演示”。再次打开同一分组会聚焦原窗口。关闭后再次打开重置表单状态。
 
 在“原生主题实验室”切换 Liquid Glass 或 Maia，并选择跟随系统、浅色或深色外观。设置在当前 Studio 会话中共享：已打开的原生演示窗口同步更新，之后打开的窗口继承选择。控件、导航和 Gallery 卡片统一使用主题材质，文字、图表和颜色样本保留可读性及语义颜色。系统 WebView 的网页内容与独立 Browser 界面由各自的样式控制。
+
+## Scene3D
+
+在「插件 → Scene3D · 三维视口」点击「打开原生演示」，或搜索 `Scene3D`、`LoadOBJ`。
+窗口包含两个页签，全部由 Go 原生 UI 与 Forma 构建：
+
+- **效果演示**：立方体、通过 OBJ 解析的金字塔、100 个共享网格实例、深度遮挡。
+  支持播放/暂停、摄像机环绕/重置、方向光强度、无光照材质、480/720/960 像素上限。
+  左键拖动环绕/俯仰，Shift＋左键或中键拖动平移，滚轮或触控板捏合缩放；
+  点击视口后也可用左右方向键。重置视角恢复原始位置和观察中心。
+  底部实时显示实例、绘制三角形、剔除数和 CPU 缓冲容量。
+- **使用示例**：可复制的完整 Go 应用、OBJ 加载片段与内置模型、动画回调、缓存更新和 OrbitControls 接入说明。
+
+窗口跟随 Studio 原生主题实验室的 Maia / Liquid Glass 与明暗设置，3D 背景同步调整。
+玻璃材质作用于 UI；3D 模型仍使用 Scene3D 的纯色材质。减少动态效果、暂停以及
+切换至使用页时不会持续请求 3D 动画帧。再次点击目录会聚焦已有演示窗口。
+
+当前为 **CPU 软件光栅器**，不是原生 GPU 三维引擎。统计不包含 UI/GPU 纹理，不等于
+FPS 或其他引擎的性能比较。接口、限制和独立运行方式见 [Scene3D 说明](../../plugins/scene3d/README.md)。
 
 ## Browser
 

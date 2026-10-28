@@ -24,14 +24,15 @@ func (Greeter) Greet(name string) string {
 
 // SystemInfo describes the machine the app runs on.
 type SystemInfo struct {
-	OS        string `json:"os"`
-	Arch      string `json:"arch"`
-	GoVersion string `json:"goVersion"`
+	OS               string `json:"os"`
+	Arch             string `json:"arch"`
+	GoVersion        string `json:"goVersion"`
+	FrameworkVersion string `json:"frameworkVersion"`
 }
 
 // Info returns information about the system.
 func (Greeter) Info() SystemInfo {
-	return SystemInfo{OS: runtime.GOOS, Arch: runtime.GOARCH, GoVersion: runtime.Version()}
+	return SystemInfo{OS: runtime.GOOS, Arch: runtime.GOARCH, GoVersion: runtime.Version(), FrameworkVersion: golet.Version}
 }
 
 func main() {

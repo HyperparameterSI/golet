@@ -13,6 +13,7 @@ type Demo struct {
 
 var demos = []Demo{
 	{"Forma", "Forma · Maia", "原生控件", "65 个官方目录项的纯 Go 原生演示与移植对照。", []string{"Button", "Input", "Dialog", "Select", "Tabs"}, "backend/examples/studio/forma.go"},
+	{"Scene3D", "Scene3D · 三维视口", "插件", "纯 Go 软件渲染：摄像机、深度遮挡、共享网格、OBJ 模型与 Forma 交互，附可复制使用示例。", []string{"scene3d.View", "Camera", "Mesh", "LoadOBJ", "Material", "Animate", "Revision"}, "backend/examples/studio/scene3d.go"},
 	{"BorderBeam", "边框光束", "插件", "流动色彩、呼吸光效与主题边缘辉光，纯 Go 原生绘制。", []string{"borderbeam.Box", "Medium", "Small", "Line", "PulseInner", "PulseOutside", "Paused"}, "backend/examples/studio/borderbeam.go"},
 	{"Themes", "原生主题实验室", "原生控件", "切换 Maia 中性与 Liquid Glass，体验明暗外观、背景材质与真实控件交互。", []string{"FormaTheme", "glass.Theme", "Light", "Dark", "Material", "Button", "TextInput", "Select", "Tabs"}, "backend/examples/internal/gallerydemo/themes.go"},
 	{"Overview", "基础与布局", "原生控件", "响应式布局、状态更新和主题。", []string{"Row", "Column", "Box", "Grid", "Spacer", "Text", "Button", "Badge", "Avatar", "Progress", "Spinner"}, "backend/examples/internal/gallerydemo/demo.go"},

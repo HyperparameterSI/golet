@@ -87,7 +87,9 @@ export function App() {
             <strong className="text-xl tracking-tight">
               golet<span className="text-brand-mark">.</span>
             </strong>
-            <p className="text-xs text-muted-foreground">STUDIO / 0.1.0</p>
+            <p className="text-xs text-muted-foreground">
+              STUDIO / {info?.frameworkVersion ?? "…"}
+            </p>
           </div>
         </div>
         <p className="mt-12 mb-4 text-[10px] tracking-[.24em] text-muted-foreground">

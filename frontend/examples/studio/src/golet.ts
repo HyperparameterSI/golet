@@ -55,6 +55,7 @@ export interface SystemInfo {
   os: string;
   arch: string;
   goVersion: string;
+  frameworkVersion: string;
 }
 
 /** Tab identifies one open page within the browser window. */
