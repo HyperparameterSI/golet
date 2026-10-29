@@ -326,6 +326,7 @@ var (
 	starIcon    = icon(`<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>`)
 	checkIcon   = icon(`<path d="M20 6 9 17l-5-5"/>`)
 	chevronIcon = icon(`<path d="m6 9 6 6 6-6"/>`)
+	dotsIcon    = icon(`<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>`)
 	loaderIcon  = icon(`<path d="M21 12a9 9 0 1 1-6.2-8.6"/>`)
 	// A picture in its own colors: gradients, a clip path, and a dot in
 	// currentColor.
@@ -1817,7 +1818,7 @@ func (g *gallery) motion(c *ui.Context) {
 func (g *gallery) overlays(c *ui.Context) {
 	t := c.Theme()
 	card(c, "Overlays", func() {
-		ui.Row(c).Gap(10).Children(func() {
+		ui.Row(c).Gap(10).Wrap().Children(func() {
 			if ui.PrimaryButton(c, "Open dialog").Clicked() {
 				g.dialog = true
 			}
@@ -1838,9 +1839,8 @@ func (g *gallery) overlays(c *ui.Context) {
 				}
 			})
 			// A menu drawn in the window, with the theme's look, rather than
-			// the system's.
-			card := ui.Row(c).Padding(6, 12).Radius(t.Radius).Border(1, t.Border).Focusable().Label("Card")
-			card.PopoverMenu(func(m *ui.Menu) {
+			// the system's: on a right-click, and below the card's ⋯ button.
+			cardMenu := func(m *ui.Menu) {
 				if m.Item("Duplicate").Shortcut(ui.Cmd, ui.KeyD).Chosen() {
 					g.cardDid = "Duplicated"
 				}
@@ -1858,13 +1858,21 @@ func (g *gallery) overlays(c *ui.Context) {
 				if m.Item("Delete").Disabled(g.cardPinned).Chosen() {
 					g.cardDid = "Deleted"
 				}
-			})
+			}
+			ui.PopoverMenuButton(c, "Actions", cardMenu)
+			card := ui.Row(c).Gap(4).AlignItems(ui.Center).Padding(2, 2, 2, 12).Radius(t.Radius).Border(1, t.Border).Focusable().Label("Card")
+			card.PopoverMenu(cardMenu)
 			card.Children(func() {
 				label := "Right-click me"
 				if g.cardDid != "" {
 					label = g.cardDid
 				}
 				ui.Text(c, label)
+				more := ui.ButtonBase(c).Label("More").Padding(4).Radius(t.Radius).Children(func() { ui.Icon(c, dotsIcon) })
+				if more.Hovered() {
+					more.Background(t.SurfaceHover)
+				}
+				more.PopoverMenuButton(cardMenu)
 			})
 			ui.Button(c, "Hover me").Tooltip("Tooltips show after the pointer rests a moment.")
 			if ui.Button(c, "Alert").Clicked() {

@@ -26,7 +26,7 @@ var demos = []Demo{
 	{"Styling", "样式与布局", "原生控件", "网格、边框、渐变、阴影和文字装饰。", []string{"Grid", "Border", "Gradient", "Shadow", "Flex", "Scroll"}, "backend/examples/internal/gallerydemo/demo.go"},
 	{"Drawing", "绘图与图像", "原生控件", "自定义绘制、路径、SVG、位图与视频播放。", []string{"Canvas", "Painter", "SVG", "Image", "Video", "VideoPlayer"}, "backend/examples/internal/gallerydemo/demo.go"},
 	{"Glass", "玻璃效果", "插件", "可调参数的玻璃折射与材质。", []string{"glass.Effect", "Refraction"}, "backend/examples/internal/gallerydemo/demo.go"},
-	{"Overlays", "弹层与反馈", "原生控件", "弹窗、菜单、提示和原生对话框。", []string{"Modal", "AlertDialog", "Popover", "Tooltip", "MenuButton", "ContextMenu", "Toast", "Dialog"}, "backend/examples/internal/gallerydemo/demo.go"},
+	{"Overlays", "弹层与反馈", "原生控件", "弹窗、菜单、提示和原生对话框。", []string{"Modal", "AlertDialog", "Popover", "Tooltip", "MenuButton", "PopoverMenu", "PopoverMenuButton", "ContextMenu", "Toast", "Dialog"}, "backend/examples/internal/gallerydemo/demo.go"},
 	{"Motion", "动画与手势", "原生控件", "转场、弹簧、拖动与动画状态。", []string{"Transition", "Spring", "Animation", "Gesture"}, "backend/examples/internal/gallerydemo/demo.go"},
 	{"Languages", "导航与国际化", "原生控件", "路由历史、语言选择与从右到左布局。", []string{"Router", "Sidebar", "SidebarSection", "SidebarItem", "BackButton", "ForwardButton", "i18n", "RTL"}, "backend/examples/internal/gallerydemo/languages.go"},
 	{"Advanced", "缓冲区与分栏", "原生控件", "共享文本缓冲区、Outline、颜色选择器及不同分栏方式。", []string{"TextInputBuffer", "TextAreaBuffer", "Outline", "ColorPicker", "Divider", "ScrollHorizontal", "Split", "SplitPercent", "SplitVertical", "SplitVerticalPercent"}, "backend/examples/studio/native.go"},

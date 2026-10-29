@@ -1,6 +1,6 @@
 {
   "name": "@golet-plugins/fetch",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "A fetch that makes HTTP requests from Go, for Golet desktop apps",
   "keywords": [
     "golet",
@@ -33,9 +33,9 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "golet-runtime": "^0.1.13"
+    "golet-runtime": "^0.1.14"
   },
   "devDependencies": {
-    "golet-runtime": "^0.1.13"
+    "golet-runtime": "^0.1.14"
   }
 }
