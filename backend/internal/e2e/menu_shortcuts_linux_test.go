@@ -98,7 +98,7 @@ func TestWebViewEditShortcutLinux(t *testing.T) {
 	}
 	pressKeys("Control_L", "Shift_L", "y")
 	eventually(t, "Ctrl+Shift+Y to select the page's text", func() bool {
-		n, _ := golet.EvalAs[int](v.Page(), "document.getElementById('t').selectionEnd - document.getElementById('t').selectionStart")
-		return n == 4
+		selected, _ := golet.EvalAs[bool](v.Page(), "(() => { const t = document.getElementById('t'); return t.value.length > 0 && t.selectionStart === 0 && t.selectionEnd === t.value.length; })()")
+		return selected
 	})
 }
