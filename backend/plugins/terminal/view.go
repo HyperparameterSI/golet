@@ -197,14 +197,10 @@ type view struct {
 	pointer   [2]float32
 	// barHeld tells that the primary button drags the scroll bar, held
 	// barGrab DIPs below the thumb's top; overBar that the pointer is over
-	// the bar, as of its last move, and barHover as of the last build.
-	// barLit is whether the last paint showed the bar hovered or held,
-	// barBack how many rows the viewport was above the bottom, and barSeen
-	// when either last changed, from which the bar fades out.
-	barHeld, overBar, barHover, barLit bool
+	// the bar, as of its last move, and barHover as of the last build;
+	// inView that the pointer was over the terminal, which shows the bar.
+	barHeld, overBar, barHover, inView bool
 	barGrab                            float32
-	barBack                            int64
-	barSeen                            time.Time
 	// hover is the link Command is held over, which a click opens and
 	// which shows underlined, hoverLink what it opens and hoverPath
 	// whether that is a file path (HoveredLink); linkPress: the primary
@@ -299,7 +295,8 @@ func (v *view) build(c *ui.Context, e ui.Element) {
 			v.hoverLink, v.hoverPath, v.hover = v.linkUnder(c.Modifiers(), v.pointer[0], v.pointer[1])
 		}
 		v.pointerAt = v.pointerShape(t.term, c.Modifiers())
-		v.barHover = e.Hovered() && v.overScrollbar(v.pointer[0], v.pointer[1])
+		v.inView = e.Hovered()
+		v.barHover = v.inView && v.overScrollbar(v.pointer[0], v.pointer[1])
 		if v.barHover || v.barHeld {
 			v.pointerAt = ui.CursorDefault // the bar's, not the text's
 		}
@@ -1182,7 +1179,7 @@ func (v *view) scrollbarEvent(ev ui.InputEvent) bool {
 	case v.barHeld:
 		v.dragScrollbar(ev.Y)
 	case v.overBar && ev.Kind == ui.InputPointerDown && ev.Button == 0:
-		y, h := thumb(v.t.term.Scrollbar(), v.size[1])
+		y, h := bar(v.t.term.Scrollbar(), ui.Rect{H: v.size[1]}).Thumb()
 		v.barGrab = h / 2
 		if ev.Y >= y && ev.Y < y+h {
 			v.barGrab = ev.Y - y
@@ -1203,13 +1200,7 @@ func (v *view) dragScrollbar(y float32) {
 	if sb.Total <= sb.Len {
 		return
 	}
-	_, h := thumb(sb, v.size[1])
-	travel := v.size[1] - h
-	if travel <= 0 {
-		return
-	}
-	f := max(0, min((y-v.barGrab)/travel, 1))
-	to := int(math.Round(float64(f) * float64(sb.Total-sb.Len)))
+	to := int(math.Round(float64(bar(sb, ui.Rect{H: v.size[1]}).OffsetAt(y - v.barGrab))))
 	if d := to - int(sb.Offset); d != 0 {
 		term.ScrollBy(d)
 		v.services.Invalidate()

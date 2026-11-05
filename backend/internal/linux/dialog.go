@@ -7,6 +7,7 @@ package linux
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/HyperparameterSI/golet/backend/internal/platform"
@@ -139,7 +140,10 @@ func (d dialogs) ShowMessageBox(parent platform.Window, o *platform.MessageBoxOp
 		gtkWindowSetTitle(dlg, cs(o.Title))
 	}
 	for i, label := range o.Buttons {
-		gtkDialogAddButton(dlg, cs(label), int32(i))
+		btn := gtkDialogAddButton(dlg, cs(label), int32(i))
+		if slices.Contains(o.DestructiveIDs, i) {
+			gtkStyleContextAddClass(gtkWidgetGetStyleContext(btn), cs("destructive-action"))
+		}
 	}
 	gtkDialogSetDefaultResponse(dlg, int32(o.DefaultID))
 	var check ptr

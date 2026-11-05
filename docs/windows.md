@@ -78,8 +78,11 @@ win := golet.NewWindow(golet.WindowOptions{URL: "/", Hidden: true, BackgroundCol
 win.OnReadyToShow(win.Show)
 ```
 
-Windows of native UI need neither: they have no page to load, and draw
-their first frame as they show.
+Windows of native UI need neither: they have no page to load, and show
+with their first frame (on Windows, the window stays out of sight until
+it drew it). One created `Hidden` is ready to show once it drew its first
+frame, which it draws while hidden, so `OnReadyToShow(win.Show)` shows it
+as it does a page's.
 
 ## Remember where windows were
 
@@ -346,9 +349,10 @@ the icon, on the side `Placement` names, and floats over the windows of
 other apps. Below the macOS menu bar, `PlacementBottom` centers it under
 the icon (with `Popover`, the arrow of the system's popover points at
 it); on Windows, the same placement flips above an icon of a taskbar at
-the bottom of the screen. A press on the icon does not dismiss a
-focusable flyout, so the icon's click can toggle it. Keep the app running
-as the flyout, its only window, closes:
+the bottom of the screen. On macOS, which shows a menu bar item on each
+display, it goes under the copy of the icon the user clicked. A press on
+the icon does not dismiss a focusable flyout, so the icon's click can
+toggle it. Keep the app running as the flyout, its only window, closes:
 
 ```go
 golet.App.OnWindowAllClosed(func() {})

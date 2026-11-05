@@ -20,6 +20,11 @@ func activateMenu(w *golet.Window, path ...string) (err error) {
 	return err
 }
 
+func menuItemEnabled(w *golet.Window, path ...string) (enabled bool, err error) {
+	golet.RunOnMain(func() { enabled, err = win.TestMenuItemEnabled(w.NativeHandle(), path...) })
+	return enabled, err
+}
+
 // Keyboard, dialog and popup automation are not wired on Windows.
 func pressShortcut(string, bool) (bool, bool) { return false, false }
 
@@ -73,6 +78,13 @@ func pinch(w *golet.Window, x, y, scale float64) (got float64, ok bool) {
 
 func drag(w *golet.Window, points [][2]float64) (ok bool) {
 	golet.RunOnMain(func() { ok = win.TestDragSurface(w.NativeHandle(), points) })
+	return ok
+}
+
+// wheel turns the mouse's wheel a notch down at (x, y), with the message
+// Windows sends.
+func wheel(w *golet.Window, x, y float64) (ok bool) {
+	golet.RunOnMain(func() { ok = win.TestWheelSurface(w.NativeHandle(), x, y) })
 	return ok
 }
 
@@ -323,6 +335,11 @@ func popupMenus() (menus [][]string, supported bool) {
 func choosePopupItem(label string) (ok bool) {
 	golet.RunOnMain(func() { ok = win.TestChoosePopupItem(label) })
 	return ok
+}
+
+func popupItemEnabled(label string) (enabled, ok bool) {
+	golet.RunOnMain(func() { enabled, ok = win.TestPopupItemEnabled(label) })
+	return enabled, ok
 }
 
 // Input methods keep the keys typed while they compose from the content

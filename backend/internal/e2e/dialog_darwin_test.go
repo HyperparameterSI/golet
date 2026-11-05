@@ -6,11 +6,13 @@ package e2e
 
 import (
 	"path/filepath"
+	"slices"
 	"sync/atomic"
 	"testing"
 
 	"github.com/HyperparameterSI/golet/backend"
 	"github.com/HyperparameterSI/golet/backend/internal/darwin"
+	"github.com/HyperparameterSI/golet/backend/internal/wait"
 	"github.com/HyperparameterSI/golet/backend/ui"
 )
 
@@ -90,6 +92,66 @@ func TestDialogFromClick(t *testing.T) {
 			n := frames.Load()
 			win.Invalidate()
 			eventually(t, "a frame after the dialog", func() bool { return frames.Load() > n })
+		})
+	}
+}
+
+func TestMessageButtonRoles(t *testing.T) {
+	type key struct {
+		code  uint16
+		chars string
+		cmd   bool
+	}
+	ret, esc, cmdPeriod := key{36, "\r", false}, key{53, "\x1b", false}, key{47, ".", true}
+	cancelIsDefault := golet.MessageOptions{Buttons: []string{"Continue Editing", "Discard"}, DestructiveButtons: []int{1}}
+	// The first button must not be destructive: AppKit may suppress Return
+	// for it even when it is the default.
+	noDefault := golet.MessageOptions{Buttons: []string{"Continue", "Cancel"}, DefaultButton: -1}
+	cases := []struct {
+		name        string
+		opts        golet.MessageOptions
+		keys        []key
+		destructive []bool
+		want        int
+	}{
+		{"Return on a default that cancels", cancelIsDefault, []key{ret}, []bool{false, true}, 0},
+		{"Escape on a default that cancels", cancelIsDefault, []key{esc}, []bool{false, true}, 0},
+		{"Return and Cmd+. without a default", noDefault, []key{ret, cmdPeriod}, []bool{false, false}, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var w *golet.Window
+			golet.RunOnMain(func() {
+				w = golet.NewWindow(golet.WindowOptions{Title: "Message keys", Width: 300, Height: 200, Content: ui.View(func(*ui.Context) {})})
+			})
+			t.Cleanup(w.Destroy)
+			eventually(t, "the window to show", w.IsVisible)
+			answered := make(chan golet.MessageResult, 1)
+			go func() {
+				opts := tc.opts
+				opts.Parent, opts.Message = w, "Message keys"
+				res, err := golet.Dialog.Message(opts)
+				if err != nil {
+					t.Error(err)
+				}
+				answered <- res
+			}()
+			handle := w.NativeHandle()
+			var destructive []bool
+			eventually(t, "the sheet", func() bool {
+				var ok bool
+				golet.RunOnMain(func() { destructive, ok = darwin.TestSheetDestructive(handle) })
+				return ok && len(destructive) == len(tc.destructive)
+			})
+			if !slices.Equal(destructive, tc.destructive) {
+				t.Errorf("destructive buttons %v, want %v", destructive, tc.destructive)
+			}
+			for _, k := range tc.keys {
+				golet.RunOnMain(func() { darwin.TestSheetKey(handle, k.code, k.chars, k.cmd) })
+			}
+			if res := wait.For(t, "the message's answer", answered); res.Button != tc.want {
+				t.Errorf("the keys answered button %d, want %d", res.Button, tc.want)
+			}
 		})
 	}
 }

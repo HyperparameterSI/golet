@@ -2,8 +2,8 @@
 
 `golet build` turns a project into apps people install: an app bundle and a
 disk image on macOS, an executable and an installer on Windows, an
-executable, a desktop entry, an archive with its install script and a Debian
-package on Linux.
+executable, a desktop entry, an archive with its install script, a Debian
+package and a PKGBUILD for Arch Linux on Linux.
 
 ```sh
 bun run build        # golet build, in a project with a web frontend
@@ -46,10 +46,11 @@ when cross-compiling, set `CC` to a suitable cross compiler.
 |---|---|
 | macOS | `My App.app`, signed, and `my-app-0.1.0-arm64.dmg` (`my-app-0.1.0.dmg` for `darwin/universal`), with [updates](updates.md) also `install.sh` |
 | Windows | `My App.exe`, the files of the app, and the installer `my-app-setup-0.1.0-amd64.exe`, with [updates](updates.md) also [`install.ps1`](#install-scripts-for-macos-and-windows) |
-| Linux | `my-app`, `my-app.desktop`, `my-app.png`, `my-app.xml` for the file types the app defines, the files of the app, their archive `my-app-0.1.0-linux-amd64.tar.gz` with [`install.sh`](#the-install-script), and the Debian package `my-app_0.1.0_amd64.deb` |
+| Linux | `my-app`, `my-app.desktop`, `my-app.png`, `my-app.xml` for the file types the app defines, the files of the app, their archive `my-app-0.1.0-linux-amd64.tar.gz` with [`install.sh`](#the-install-script), the Debian package `my-app_0.1.0_amd64.deb`, and a [`PKGBUILD`](#arch-linux) with the icons it installs, `my-app-256x256.png` and `my-app-512x512.png` |
 
 Other flags: `-debug` keeps development features such as the inspector,
-`-skip-dmg` and `-skip-notarize` skip those steps, `-sign` overrides the
+`-skip-dmg`, `-skip-notarize` and `-skip-installer` (the Windows
+installer) skip those steps, `-sign` overrides the
 signing identity of macOS, and `-o` the output directory. See
 [the CLI](cli.md#golet-build).
 
@@ -434,6 +435,13 @@ its SHA-256 and kept in `%LOCALAPPDATA%\golet`. On macOS and
 Linux, install NSIS to make Windows installers (`brew install makensis`,
 `apt install nsis`); without it, `golet build` skips the installer.
 
+`golet build -skip-installer` makes no installer, and neither looks for
+NSIS nor downloads it: the build has the app's files to ship as you
+choose, and with [updates](updates.md) the update archive and manifest,
+which apps installed before keep updating from. It writes no `install.ps1`
+either, which runs the installer, so the one-line install needs a release
+that has both.
+
 ### Installer hooks
 
 `windows.installerInclude` adds steps of the app's own to the installer:
@@ -543,9 +551,9 @@ the app.
 `categories` places it in application menus (`Utility` by default).
 The app opens from the applications menu. `command` also gives it a
 command, `/usr/bin/my-app` from the package and `~/.local/bin/my-app` from
-[`install.sh`](#the-install-script); without it, neither adds a command,
-which leaves the name to a command-line tool of the same name, such as
-the app's own.
+[`install.sh`](#the-install-script), or several, as `["my-app", "ma"]`,
+which adds a short name; without it, neither adds a command, which leaves
+the name to a command-line tool of the same name, such as the app's own.
 
 Keep the slug of a released app. Its Linux files are named after it, and
 an update replaces the files of the same names: one to a version with
@@ -555,18 +563,49 @@ new slug is another package, installed next to the old one. Choose the
 slug before the first release, as `cloud-music` for `云音乐`, whose own
 would be `yun-yin-le`.
 
+### Arch Linux
+
+Next to the archive, every Linux build also gets a `PKGBUILD`, from which
+`makepkg` packages the archive for Arch Linux, checked against its
+SHA-256, and installs it with pacman:
+
+```sh
+cd build/linux-amd64
+makepkg -si
+```
+
+The package installs what the Debian package does: the app in
+`/opt/my-app`, its commands in `/usr/bin`, its desktop entry, icons, URL
+schemes and file types, which pacman's hooks register. The icons are
+the files `my-app-256x256.png` and `my-app-512x512.png` next to it, as
+the archive holds the original. Its fields come from the configuration:
+
+| Field | From |
+|---|---|
+| `pkgname` | the slug |
+| `pkgver` | the version without its hyphen, which a pkgver cannot hold: `1.2.0beta.1` of `1.2.0-beta.1`, which pacman sorts before `1.2.0` as it should (it would sort `1.2.0_beta.1` after it), `1.2.0pre1` of `1.2.0-1`, and `1.2.0_build.5` of `1.2.0+build.5` |
+| `pkgdesc` | `linux.comment`, else the name |
+| `arch` | `x86_64` of amd64, `aarch64` of arm64 |
+| `url` | `homepage` in package.json, else the repository of `updates.github` |
+| `license` | `license` in package.json, else `LicenseRef-custom` |
+| `depends` | `gtk3` and, unless `linux.webview` is `false`, `webkit2gtk-4.1`, then the Arch Linux packages of `linux.depends` that Golet knows, as `libnotify` of `libnotify4`; the build warns about a Debian package it knows no Arch Linux package for, and leaves it out |
+
+`-upload` leaves the PKGBUILD out: it packages the archive next to it, and
+every architecture has its own. Copy it, with the icons, next to the
+archive downloaded from the release to package the release.
+
 ### The install script
 
 Every Linux build also gets the app as an archive,
 `my-app-1.2.0-linux-amd64.tar.gz`, and `install.sh`, which installs it for
 the user without root: the app in `~/.local/my-app.app`, where it can
 [update itself](updates.md), its desktop entry, icon, URL schemes and file
-types, and with `linux.command` that command in `~/.local/bin`, unless
-another program is there. With
-[updates](updates.md) configured, it downloads the latest version, which
-the update manifest of the machine names, and checks its size and its
-Ed25519 signature against `updates.publicKey`, as the app's updater does,
-before installing it, so one line installs the app:
+types, and with `linux.command` its commands in `~/.local/bin`, each
+unless another program is there; it says to run the app by the first it
+links. With [updates](updates.md) configured, it downloads the latest
+version, which the update manifest of the machine names, and checks its
+size and its Ed25519 signature against `updates.publicKey`, as the app's
+updater does, before installing it, so one line installs the app:
 
 ```sh
 curl -fsSL https://github.com/me/my-app/releases/latest/download/install.sh | sh
@@ -592,7 +631,10 @@ sh install.sh my-app-1.2.0-linux-amd64.tar.gz
 sh install.sh --uninstall   # keeps the settings and data of the app
 ```
 
-Running it again installs the version it finds over the installed one.
+Running it again installs the version it finds over the installed one; a
+link of a name the app no longer has, other than its slug, stays, as one
+the user made would, until `--uninstall` removes every link to the app in
+`~/.local/bin`.
 The app needs WebKitGTK, which `install.sh` does not install: when the
 system's library cache has none, it says so after installing, with the
 command that installs it on Debian, Ubuntu, Fedora, Arch and openSUSE,
@@ -674,10 +716,14 @@ its source language first, which the system falls back to:
   one of the user's display language, or else the source language; an
   app written in Chinese alone (`"i18n": { "source": "zh-Hans" }`) has
   an installer in Chinese only, but for Golet's own few texts in it, the
-  desktop shortcut's check box and the messages about the running app,
-  which are in English. NSIS 3 has files of some 60 languages,
-  and a language it has none of stops the build, saying which it has.
-  The file properties have a table of strings per language.
+  messages about the running app, which are in English. The finish
+  page's check box that creates a desktop shortcut is Golet's string
+  `golet.desktopShortcut`, in English and
+  [Golet's own languages](i18n.md#golets-own-strings); an app translates
+  it to its other languages, or changes it, in its catalogs. NSIS 3
+  has files of some 60 languages, and a language it has none of stops
+  the build, saying which it has. The file properties have a table of
+  strings per language.
 
 The app's name and description in a language are its catalog's
 `golet.appName` and `golet.appDescription`; the configuration's `name` and
@@ -706,8 +752,8 @@ property list in XML.
 `urlSchemes` and `fileAssociations` in the configuration (see
 [deep links](app.md#deep-links) and [file associations](app.md#file-associations))
 are registered by each package: in the macOS app's `Info.plist`, by the
-Windows installer, and by the Linux desktop entry, install script and
-Debian package.
+Windows installer, and by the Linux desktop entry, install script,
+Debian package and PKGBUILD.
 
 ## Publishing
 

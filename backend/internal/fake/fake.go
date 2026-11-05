@@ -141,6 +141,9 @@ type Backend struct {
 	// NotificationError, when set, is what showing a notification fails
 	// with.
 	NotificationError error
+	// OnNotification, when set, handles delivery on the main thread, allowing
+	// tests to model an authorization answer that arrives asynchronously.
+	OnNotification func(*platform.Notification, func(error))
 	// NoWebView makes WebViewAvailable report no system webview, as a
 	// machine without one does.
 	NoWebView bool
@@ -434,6 +437,10 @@ func (b *Backend) NotificationsSupported() bool { return true }
 func (b *Backend) WebViewAvailable() bool { return !b.NoWebView }
 
 func (b *Backend) ShowNotification(n *platform.Notification, done func(error)) {
+	if b.OnNotification != nil {
+		b.OnNotification(n, done)
+		return
+	}
 	b.mu.Lock()
 	if err := b.NotificationError; err != nil {
 		b.mu.Unlock()

@@ -35,6 +35,11 @@ func activateMenu(w *golet.Window, path ...string) (err error) {
 	return err
 }
 
+func menuItemEnabled(_ *golet.Window, path ...string) (enabled bool, err error) {
+	golet.RunOnMain(func() { enabled, err = darwin.TestMenuItemEnabled(path...) })
+	return enabled, err
+}
+
 func pressShortcut(key string, shift bool) (handled bool, supported bool) {
 	golet.RunOnMain(func() { handled = darwin.TestPerformKeyEquivalent(key, shift) })
 	return handled, true
@@ -103,6 +108,10 @@ func drag(w *golet.Window, points [][2]float64) bool {
 	golet.RunOnMain(func() { darwin.TestDrag(w.NativeHandle(), points) })
 	return true
 }
+
+// The wheel over a web view is covered by internal/darwin's
+// TestEmbeddedWebViewScrollReachesSurface, with AppKit's events.
+func wheel(*golet.Window, float64, float64) bool { return false }
 
 func webViewAttached(w *golet.Window) (attached bool, supported bool) {
 	golet.RunOnMain(func() { attached = darwin.TestWebViewAttached(w.NativeHandle()) })
@@ -316,6 +325,7 @@ func screenColor(*golet.Window, float64, float64) (uint8, uint8, uint8, bool) { 
 func rightClick(*golet.Window, float64, float64) bool { return false }
 func popupMenus() ([][]string, bool)                  { return nil, false }
 func choosePopupItem(string) bool                     { return false }
+func popupItemEnabled(string) (bool, bool)            { return false, false }
 
 // pressEscape presses Escape in the key window, as the keyboard does.
 func pressEscape(*golet.Window) bool {

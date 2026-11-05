@@ -323,6 +323,18 @@ func webViewMethods() []objc.MethodDef {
 		sendSuper(self, "GoletWebView", cmd, uintptr(ev))
 	}
 	return []objc.MethodDef{
+		// The first click in a window that is not key is the page's, as it
+		// is native UI's (GoletSurfaceView): WKWebView answers no, which
+		// spends the click on making the window key.
+		method("acceptsFirstMouse:", func(self id, _ objc.SEL, ev id) bool { return true }),
+		method("scrollWheel:", func(self id, cmd objc.SEL, ev id) {
+			w := theBackend.byWebView[self]
+			if w == nil || w.host == nil || w.host.surface == nil || w.opts == nil || !w.opts.ScrollToContainer {
+				sendSuper(self, "GoletWebView", cmd, uintptr(ev))
+				return
+			}
+			scrollWheel(w.host.surface, ev)
+		}),
 		method("rightMouseDown:", press(1)),
 		method("otherMouseDown:", press(2)),
 		method("mouseMoved:", moved),

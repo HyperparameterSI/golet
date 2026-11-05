@@ -5,6 +5,7 @@
 package e2e
 
 import (
+	"sync/atomic"
 	"testing"
 
 	"github.com/HyperparameterSI/golet/backend"
@@ -49,4 +50,55 @@ func TestNativeMenuShortcutsLinux(t *testing.T) {
 	if _, _, _, ty := counts(); ty != 0 {
 		t.Errorf("Ctrl+, reached the content %d times", ty)
 	}
+}
+
+// An edit role's item, made insensitive when its menu opened with nothing
+// of the native UI to act on, takes its shortcut again in a page of the
+// window: GTK drops the shortcut of an insensitive item.
+func TestWebViewEditShortcutLinux(t *testing.T) {
+	prev := golet.App.Menu()
+	defer golet.App.SetMenu(prev)
+	golet.App.SetMenu(golet.NewMenu([]*golet.MenuItem{{Label: "Edit", Submenu: []*golet.MenuItem{
+		{Role: golet.RoleSelectAll, Accelerator: "Ctrl+Shift+Y"},
+	}}}))
+	var view *golet.WebView
+	var frames atomic.Int32
+	w := newWindow(t, golet.WindowOptions{Width: 400, Height: 300, Content: ui.View(func(c *ui.Context) {
+		frames.Add(1)
+		ui.Column(c).Fill().AlignItems(ui.Stretch).Children(func() {
+			ui.Text(c, "native")
+			if view != nil {
+				ui.WebView(c, view).Grow(1)
+			}
+		})
+	})})
+	eventually(t, "a frame", func() bool { return frames.Load() > 0 })
+	v, err := w.NewWebView(golet.WebViewOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Update(func() { view = v })
+	v.Page().LoadHTML(`<textarea id=t>Golet</textarea><script>window.ready = true</script>`, "")
+	waitForPage(t, v.Page(), "window.ready")
+	if !click(w, 20, 8) {
+		t.Skip("click automation unavailable")
+	}
+	if on, err := menuItemEnabled(w, "Edit", "Select All"); err != nil || on {
+		t.Fatalf("nothing focused: Edit > Select All enabled = %v (%v), want false", on, err)
+	}
+	if !pressKeys("Tab") {
+		t.Skip("no X server to press keys with")
+	}
+	eventually(t, "Tab into the page", func() bool {
+		id, _ := golet.EvalAs[string](v.Page(), "document.hasFocus() && document.activeElement ? document.activeElement.id : ''")
+		return id == "t"
+	})
+	if _, err := v.Page().Eval("document.getElementById('t').setSelectionRange(0, 0)"); err != nil {
+		t.Fatal(err)
+	}
+	pressKeys("Control_L", "Shift_L", "y")
+	eventually(t, "Ctrl+Shift+Y to select the page's text", func() bool {
+		n, _ := golet.EvalAs[int](v.Page(), "document.getElementById('t').selectionEnd - document.getElementById('t').selectionStart")
+		return n == 4
+	})
 }

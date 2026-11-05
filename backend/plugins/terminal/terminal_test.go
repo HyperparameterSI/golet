@@ -236,10 +236,10 @@ func TestScrollback(t *testing.T) {
 	}
 }
 
-// TestScrollbarDrag: the scroll bar shows as the viewport moves, and over
-// its strip, where the pointer is the arrow rather than the I-beam, and
-// fades out a while after. It drags the scrollback along: by the thumb, or
-// from where the track is pressed.
+// TestScrollbarDrag: the scroll bar shows while the pointer is over the
+// terminal, as the code editor's does, and goes as it leaves; over its
+// strip the pointer is the arrow rather than the I-beam. It drags the
+// scrollback along: by the thumb, or from where the track is pressed.
 func TestScrollbarDrag(t *testing.T) {
 	loadLib(t)
 	term, err := New(Options{Conn: newPipe()})
@@ -267,10 +267,13 @@ func TestScrollbarDrag(t *testing.T) {
 		return img.RGBAAt(395*s, y*s) != img.RGBAAt(380*s, y*s)
 	}
 	bottom := offset()
+	if shows(188) {
+		t.Error("the bar shows, the pointer away")
+	}
 	tt.Move(100, 100)
 	tt.Frame()
-	if shows(188) {
-		t.Error("the bar shows at the bottom, the pointer elsewhere")
+	if !shows(188) {
+		t.Error("the bar doesn't show with the pointer over the terminal")
 	}
 	// Over the strip, at the bottom: the bar, and the arrow.
 	tt.Move(395, 100)
@@ -304,22 +307,20 @@ func TestScrollbarDrag(t *testing.T) {
 	if c := tt.Cursor(); c != ui.CursorText {
 		t.Errorf("over the text, the pointer is %v, want the I-beam", c)
 	}
-	// It stays a while, and fades out though the viewport is up.
-	tt.Advance(500 * time.Millisecond)
-	tt.Frame()
 	if !shows(12) {
-		t.Error("the bar went at once")
+		t.Error("the bar went with the pointer still over the terminal")
 	}
-	tt.Advance(2 * time.Second)
+	// The pointer away, it goes though the viewport is up, and comes back
+	// with it.
+	tt.Move(100, -50)
 	tt.Frame()
 	if shows(12) {
-		t.Error("the bar didn't fade out")
+		t.Error("the bar stayed with the pointer away")
 	}
-	// A wheel shows it again.
 	tt.Wheel(100, 100, 0, 40)
 	tt.Frame()
 	if !shows(15) {
-		t.Error("scrolling didn't show the bar")
+		t.Error("the bar didn't show with the pointer back")
 	}
 	// A press low on the track brings the thumb there.
 	tt.Press(395, 190)

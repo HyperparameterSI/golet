@@ -17,6 +17,11 @@ func activateMenu(w *golet.Window, path ...string) (err error) {
 	return err
 }
 
+func menuItemEnabled(w *golet.Window, path ...string) (enabled bool, err error) {
+	golet.RunOnMain(func() { enabled, err = linux.TestMenuItemEnabled(w.NativeHandle(), path...) })
+	return enabled, err
+}
+
 // Key presses and dialogs need an input device under Xvfb; not covered.
 func pressShortcut(string, bool) (bool, bool) { return false, false }
 
@@ -75,6 +80,11 @@ func pinch(w *golet.Window, x, y, scale float64) (got float64, ok bool) {
 
 func drag(w *golet.Window, points [][2]float64) bool {
 	return fake(func() bool { return linux.TestDragSurface(w.NativeHandle(), points) })
+}
+
+// wheel turns the mouse's wheel a notch down at (x, y), through XTEST.
+func wheel(w *golet.Window, x, y float64) bool {
+	return fake(func() bool { return linux.TestWheelSurface(w.NativeHandle(), x, y) })
 }
 
 func webViewAttached(*golet.Window) (bool, bool) { return false, false }
@@ -307,6 +317,11 @@ func popupMenus() (menus [][]string, supported bool) {
 func choosePopupItem(label string) (ok bool) {
 	golet.RunOnMain(func() { ok = linux.TestChoosePopupItem(label) })
 	return ok
+}
+
+func popupItemEnabled(label string) (enabled, ok bool) {
+	golet.RunOnMain(func() { enabled, ok = linux.TestPopupItemEnabled(label) })
+	return enabled, ok
 }
 
 // Only macOS has key-value observing.

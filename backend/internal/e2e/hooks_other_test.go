@@ -14,6 +14,8 @@ import (
 // Platforms without a backend run no GUI tests.
 func activateMenu(*golet.Window, ...string) error { return errors.New("unsupported") }
 
+func menuItemEnabled(*golet.Window, ...string) (bool, error) { return false, errors.ErrUnsupported }
+
 func pressShortcut(string, bool) (bool, bool) { return false, false }
 
 func endSheet(*golet.Window) (bool, bool) { return false, false }
@@ -33,6 +35,8 @@ func drag(*golet.Window, [][2]float64) bool { return false }
 func sideButton(*golet.Window, bool) bool { return false }
 
 func pinch(*golet.Window, float64, float64, float64) (float64, bool) { return 0, false }
+
+func wheel(*golet.Window, float64, float64) bool { return false }
 
 func webViewAttached(*golet.Window) (bool, bool) { return false, false }
 
@@ -135,6 +139,7 @@ func observe(*golet.Window) (func(), bool) { return nil, false }
 func rightClick(*golet.Window, float64, float64) bool { return false }
 func popupMenus() ([][]string, bool)                  { return nil, false }
 func choosePopupItem(string) bool                     { return false }
+func popupItemEnabled(string) (bool, bool)            { return false, false }
 
 // Input methods keep the keys typed while they compose from the content
 // themselves here (GTK's filtering, IMM32's VK_PROCESSKEY), which a

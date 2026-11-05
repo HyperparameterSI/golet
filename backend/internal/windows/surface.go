@@ -160,6 +160,13 @@ type surface struct {
 	// window's own pixels with GDI (PresentPixels), rather than presented
 	// by a GPU renderer's swap chain.
 	pixels bool
+	// drawn tells that the content's first frame reached the surface
+	// (FirstFrame), and cloaked that DWM keeps the window out of sight
+	// until a frame shows in it (cloak). hiddenFrame tells that the first
+	// frame of a window hidden, which no WM_PAINT asks for, is posted
+	// (drawHidden).
+	drawn, cloaked, hiddenFrame bool
+
 	// bg is the content's background (SetBackground), and bgBrush a brush
 	// of it while it is opaque, which fills what the window shows beyond
 	// the surface as it grows (fillUncovered), and the window's own pixels
@@ -200,6 +207,7 @@ func newSurface(w *window) *surface {
 		return nil
 	}
 	w.b.surfaces[s.hwnd] = s
+	s.cloak()
 	// Input methods only come to text inputs.
 	procImmAssociateContextEx.Call(s.hwnd, 0, 0)
 	s.acceptFileDrops()
@@ -253,7 +261,88 @@ func (s *surface) Size() (float64, float64, float64) {
 	return s.toDIP(r.Right - r.Left), s.toDIP(r.Bottom - r.Top), float64(s.dpi()) / 96
 }
 
-func (s *surface) RequestFrame() { procInvalidateRectW.Call(s.hwnd, 0, 0) }
+func (s *surface) RequestFrame() {
+	procInvalidateRectW.Call(s.hwnd, 0, 0)
+	if !s.drawn && !s.hiddenFrame && !s.w.IsVisible() {
+		s.hiddenFrame = true
+		s.w.b.post(s.drawHidden)
+	}
+}
+
+// The window of native UI is cloaked, which keeps it out of sight though
+// it is visible to Windows, from its creation until a frame of its content
+// shows in it: shown before, it would show what it holds until then,
+// white, for as long as the GPU renderer takes to start and the first
+// frame to draw (#905). Windows sends a cloaked window WM_PAINT as any
+// visible one, whose frame then shows it (reveal). A window made hidden
+// gets no WM_PAINT: its first frame draws all the same (drawHidden), which
+// makes it ready to show (OnReadyToShow) and shows as the window does,
+// from the swap chain. Should no frame show in a window shown, it shows
+// once timerUncloak fires, uncloakAfter later, which needs the main thread
+// to be idle meanwhile: drawing a frame never lets it fire.
+const (
+	dwmwaCloak   = 13 // DWMWA_CLOAK
+	timerUncloak = 3  // the surface's timer that shows a window still cloaked
+)
+
+var uncloakAfter = time.Second
+
+// cloak keeps the window out of sight until uncloak.
+func (s *surface) cloak() {
+	on := int32(1)
+	hr, _, _ := procDwmSetWindowAttribute.Call(s.w.hwnd, dwmwaCloak, uintptr(unsafe.Pointer(&on)), unsafe.Sizeof(on))
+	s.cloaked = hr == 0
+}
+
+// uncloak shows the window, as Windows shows it.
+func (s *surface) uncloak() {
+	if !s.cloaked {
+		return
+	}
+	s.cloaked = false
+	procKillTimer.Call(s.hwnd, timerUncloak)
+	off := int32(0)
+	procDwmSetWindowAttribute.Call(s.w.hwnd, dwmwaCloak, uintptr(unsafe.Pointer(&off)), unsafe.Sizeof(off))
+}
+
+// showing tells that Windows is about to show the window: while it is
+// cloaked, the timer that shows it should no frame show in it starts.
+func (s *surface) showing() {
+	if s.cloaked {
+		procSetTimer.Call(s.hwnd, timerUncloak, uintptr(uncloakAfter/time.Millisecond), 0)
+	}
+}
+
+// reveal shows the window, cloaked until a frame of the content showed in
+// it, after the WM_PAINT that drew one, or, for a window that drew its
+// first frame while hidden, the first since it is visible. Should DWM show
+// the window a refresh before the frame presented, it shows the window's
+// own pixels under the surface, which hold the content's background
+// (fillUnder): drawn nowhere while the window was hidden, they are drawn
+// now. It does not wait for DWM (DwmFlush), which may wait on the main
+// thread until something else on the screen changes.
+func (s *surface) reveal() {
+	s.fillUnder()
+	procGdiFlush.Call()
+	s.uncloak()
+}
+
+// FirstFrame tells that the content's first frame reached the surface
+// (platform.FirstFrameSurface).
+func (s *surface) FirstFrame() { s.drawn = true }
+
+var _ platform.FirstFrameSurface = (*surface)(nil)
+
+// drawHidden draws the content's first frame in a window hidden, which no
+// WM_PAINT asks for: the window is then ready to show, and shows the frame
+// from the swap chain as it shows. A window shown since gets WM_PAINT.
+func (s *surface) drawHidden() {
+	s.hiddenFrame = false
+	if s.drawn || s.w.closed || s.w.b.surfaces[s.hwnd] != s || s.w.IsVisible() {
+		return
+	}
+	s.send(platform.SurfaceEvent{Kind: platform.SurfaceFrame})
+}
 
 // FramesAtOnce marks that RequestFrame paints at once, not at the display's
 // next refresh (platform.ImmediateFrameSurface).
@@ -580,6 +669,10 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
 			return 0, true // the web view under the pointer takes it
 		}
 	case wmTimer:
+		if wp == timerUncloak {
+			s.uncloak()
+			return 0, true
+		}
 		if wp == timerWebView {
 			procKillTimer.Call(hwnd, timerWebView)
 			for _, v := range s.w.webViews {
@@ -601,6 +694,9 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
 		s.send(platform.SurfaceEvent{Kind: platform.SurfaceFrame, Paced: !s.now})
 		s.paintDC = 0
 		procEndPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps)))
+		if s.cloaked && s.drawn {
+			s.reveal()
+		}
 		return 0, true
 	case wmEraseBkgnd:
 		return 1, true
@@ -708,7 +804,7 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
 		procScreenToClient.Call(hwnd, uintptr(unsafe.Pointer(&pt)))
 		delta := float64(int16(hiword(wp)))
 		precise := int(delta)%120 != 0
-		if m == wmMouseWheel && precise && loword(wp)&0x0008 != 0 { // MK_CONTROL
+		if pinching(m, wp) {
 			// A touchpad's pinch, which Windows sends as scrolling with
 			// Ctrl held, as it does Ctrl and two fingers: three notches'
 			// worth zoom twice as large.
@@ -1002,6 +1098,11 @@ func (s *surface) menuShortcut(vk uintptr, roles bool) bool {
 	e := w.b.menus.entries[cmd]
 	if e == nil || (e.role != "") != roles {
 		return false
+	}
+	if roles {
+		// The items of edit roles are grayed as the content was when their
+		// menu last opened, not as it is now.
+		w.enableEditItems(e.menu)
 	}
 	if st, _, _ := procGetMenuState.Call(e.menu, uintptr(cmd), mfByCommand); uint32(st) != 0xFFFFFFFF && st&mfGrayed != 0 {
 		return false

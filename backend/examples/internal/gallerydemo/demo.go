@@ -132,6 +132,9 @@ type gallery struct {
 	// The meeting's day and time, and the tint of its text.
 	meeting time.Time
 	tint    ui.Color
+	// A task's due date, chosen in a calendar that pops over its chip.
+	due     time.Time
+	dueOpen bool
 	// The indicators' values: the rating, the battery, the quality and
 	// the range of prices.
 	stars               int
@@ -687,6 +690,7 @@ func (g *gallery) sparkline(c *ui.Context) ui.Element {
 }
 
 func (g *gallery) controls(c *ui.Context) {
+	g.precisionCard(c)
 	t := c.Theme()
 	card(c, "Choices", func() {
 		ui.Checkbox(c, &g.agree, "I agree to the terms")
@@ -801,6 +805,19 @@ func (g *gallery) controls(c *ui.Context) {
 				ui.Form(c, func() {
 					ui.Field(c, "Time", func() { ui.TimeInput(c, &g.meeting).Label("Meeting") })
 					ui.Field(c, "Tint", func() { ui.ColorWell(c, &g.tint) })
+					ui.Field(c, "Due", func() {
+						chip := ui.Button(c, g.due.Format("Jan 2"))
+						if chip.Clicked() {
+							g.dueOpen = !g.dueOpen
+						}
+						// Browse pages through the months without choosing,
+						// so the popover closes only on a day picked.
+						ui.Popover(c, chip, &g.dueOpen, func() {
+							if ui.Calendar(c, &g.due).Browse().Changed() {
+								g.dueOpen = false
+							}
+						})
+					})
 				})
 				ui.Text(c, g.meeting.Format("Monday, January 2 at 15:04")).TextColor(g.tint)
 			})
@@ -1238,6 +1255,7 @@ func (g *gallery) chatCard(c *ui.Context) {
 }
 
 func (g *gallery) styling(c *ui.Context) {
+	g.themePreviewCard(c)
 	t := c.Theme()
 	ui.Text(c, "Grids, borders of each side, gradients, stripes, text decorations, and motion along easings.").TextColor(t.TextMuted)
 	ui.Grid(c).Columns(2).Gap(16).Children(func() {
@@ -1274,6 +1292,8 @@ func (g *gallery) styling(c *ui.Context) {
 			bar("sRGB").Gradient(blue, yellow, 90)
 			bar("Oklab").LinearGradient(ui.LinearGradient{From: blue, To: yellow, Angle: 90, Oklab: true})
 			bar("Stops at 40% and 60%").LinearGradient(ui.LinearGradient{From: blue, To: yellow, Angle: 90, Start: 0.4, End: 0.6})
+			bar("Radial, from the right").RadialGradient(ui.RadialGradient{Center: ui.Point{X: 0.9, Y: 0.5}, Oklab: true,
+				Stops: []ui.GradientStop{{Color: yellow, At: 0}, {Color: blue, At: 1}}})
 			ui.Row(c).Height(30).Radius(6).Background(t.Surface).Stripes(t.Border, 4, 6, 45).Center().Children(func() {
 				ui.Text(c, "Stripes: unavailable").FontSize(12).TextColor(t.TextMuted)
 			})
@@ -1905,7 +1925,7 @@ func (g *gallery) overlays(c *ui.Context) {
 
 // Open opens the shared native gallery at the requested page on the UI thread.
 func Open(page string) *golet.Window {
-	g := &gallery{sharedTheme: true, router: ui.NewRouter(pagePath(page)), items: []motionItem{{1, "Item 1"}, {2, "Item 2"}, {3, "Item 3"}}, nextItem: 3, size: "Medium", fruit: "Apple", cardZoom: "Medium", plan: "Pro", volume: 35, picked: -1, starred: map[int]bool{}, split: 160, copies: 1, tree: map[string]bool{"ui": true}, birthday: time.Date(1815, 12, 10, 0, 0, 0, 0, time.UTC), now: time.Now(), font: "Helvetica", tags: []string{"go", "native"}, sections: [3]bool{true}, sectionsOpen: [2]bool{true, true}, stars: 4, battery: 35, quality: 75, priceLow: 100, priceHigh: 350, meeting: time.Date(2026, 10, 15, 9, 30, 0, 0, time.Local), tint: ui.Hex("#2563eb"), lens: [2]float32{110, 190}, glassEdge: 1, notes: 12, notifyMail: true, pathDepth: 4, chart: newCharts()}
+	g := &gallery{sharedTheme: true, router: ui.NewRouter(pagePath(page)), items: []motionItem{{1, "Item 1"}, {2, "Item 2"}, {3, "Item 3"}}, nextItem: 3, size: "Medium", fruit: "Apple", cardZoom: "Medium", plan: "Pro", volume: 35, picked: -1, starred: map[int]bool{}, split: 160, copies: 1, tree: map[string]bool{"ui": true}, birthday: time.Date(1815, 12, 10, 0, 0, 0, 0, time.UTC), now: time.Now(), font: "Helvetica", tags: []string{"go", "native"}, sections: [3]bool{true}, sectionsOpen: [2]bool{true, true}, stars: 4, battery: 35, quality: 75, priceLow: 100, priceHigh: 350, meeting: time.Date(2026, 10, 15, 9, 30, 0, 0, time.Local), due: time.Date(2026, 10, 29, 0, 0, 0, 0, time.Local), tint: ui.Hex("#2563eb"), lens: [2]float32{110, 190}, glassEdge: 1, notes: 12, notifyMail: true, pathDepth: 4, chart: newCharts()}
 	// The languages of the Languages page's menu.
 	if pageOf(pagePath(page)) == "" {
 		g.router = ui.NewRouter("/overview")

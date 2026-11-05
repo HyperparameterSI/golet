@@ -19,6 +19,7 @@ import (
 	"image/draw"
 	"image/png"
 	"io"
+	"maps"
 	"math"
 	"net/http"
 	"os"
@@ -2901,6 +2902,24 @@ func TestClick(t *testing.T) {
 	}
 }
 
+// TestFirstClick clicks a page once in a window that is not key: the click
+// makes it key and reaches the page, as it does native UI.
+func TestFirstClick(t *testing.T) {
+	w := newWindow(t, golet.WindowOptions{Width: 400, Height: 300})
+	w.Page().LoadHTML(`<body style="margin:0"><button id="b" style="width:200px;height:100px" onclick="window.clicked=(window.clicked||0)+1">x</button></body>`, "")
+	waitFor(t, w, "document.getElementById('b')")
+	other := newWindow(t, golet.WindowOptions{Width: 200, Height: 150, X: 600, Y: 400})
+	other.Focus()
+	eventually(t, "the other window focused", other.IsFocused)
+	if w.IsFocused() {
+		t.Skip("the page's window stayed key")
+	}
+	if !appClick(w, 50, 50) {
+		t.Skip("click automation not available on this platform")
+	}
+	waitFor(t, w, "window.clicked === 1")
+}
+
 // deviceScale returns the device pixels per DIP of the display w shows on.
 func deviceScale(w *golet.Window) float64 {
 	b := w.Bounds()
@@ -2950,6 +2969,99 @@ func TestContentWindowTextSelection(t *testing.T) {
 			return copied == "First paragraph.\nSecond paragraph."
 		})
 	}
+}
+
+// TestContentWindowEditMenuEnabled checks that menus enable the items of the
+// edit roles as the focus of native UI can act on them, and keep the state
+// the app gave its other items.
+func TestContentWindowEditMenuEnabled(t *testing.T) {
+	var frames atomic.Int32
+	value := "hello"
+	view := func(c *ui.Context) {
+		frames.Add(1)
+		ui.Column(c).Fill().Padding(20).Gap(20).Children(func() {
+			ui.TextInput(c, &value).Label("field")
+			ui.Box(c).Size(200, 40).Focusable().Label("list").OnShortcut(ui.Cmd, ui.KeyC, func() {})
+		})
+	}
+	minimize := &golet.MenuItem{Role: golet.RoleMinimize, Disabled: true}
+	w := newWindow(t, golet.WindowOptions{Title: "Edit menu", Width: 400, Height: 200, Content: ui.View(view)})
+	golet.App.SetMenu(golet.NewMenu([]*golet.MenuItem{{Label: "Edit", Submenu: []*golet.MenuItem{
+		{Role: golet.RoleUndo},
+		{Role: golet.RoleCut, Disabled: true},
+		{Role: golet.RoleCopy},
+		{Role: golet.RolePaste},
+		{Role: golet.RoleSelectAll},
+		{Label: "Insert Date", Disabled: true},
+		{Label: "Insert Time"},
+		minimize,
+	}}}))
+	defer golet.App.SetMenu(nil)
+	clipboard := golet.Clipboard.ReadText()
+	defer golet.Clipboard.WriteText(clipboard)
+	w.Focus()
+	eventually(t, "a frame", func() bool { return frames.Load() > 0 })
+	if _, err := menuItemEnabled(w, "Edit", "Copy"); errors.Is(err, errors.ErrUnsupported) {
+		t.Skip("menu validation automation not available on this platform")
+	}
+	expect := func(where string, want map[string]bool) {
+		t.Helper()
+		for _, label := range slices.Sorted(maps.Keys(want)) {
+			enabled, err := menuItemEnabled(w, "Edit", label)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if enabled != want[label] {
+				t.Errorf("%s: Edit > %s enabled = %v, want %v", where, label, enabled, want[label])
+			}
+		}
+	}
+
+	expect("nothing focused", map[string]bool{"Copy": false, "Paste": false, "Select All": false, "Insert Date": false, "Insert Time": true, "Minimize": false})
+	minimize.SetEnabled(true)
+	expect("Minimize enabled", map[string]bool{"Minimize": true})
+	minimize.SetEnabled(false)
+	expect("Minimize disabled again", map[string]bool{"Minimize": false})
+	if !click(w, 300, 36) {
+		t.Skip("click automation not available on this platform")
+	}
+	expect("the text input focused", map[string]bool{"Undo": false, "Copy": false, "Paste": true, "Select All": true})
+	if err := activateMenu(w, "Edit", "Select All"); err != nil {
+		t.Fatal(err)
+	}
+	expect("its text selected", map[string]bool{"Copy": true, "Cut": false})
+	golet.Clipboard.WriteText("bye")
+	if err := activateMenu(w, "Edit", "Paste"); err != nil {
+		t.Fatal(err)
+	}
+	expect("a paste done", map[string]bool{"Undo": true})
+	if !click(w, 100, 92) {
+		t.Fatal("the click on the list missed")
+	}
+	expect("the list focused", map[string]bool{"Copy": runtime.GOOS == "darwin", "Paste": false, "Insert Time": true})
+
+	if _, supported := popupMenus(); !supported {
+		return
+	}
+	done := make(chan struct{})
+	go func() {
+		golet.NewMenu([]*golet.MenuItem{{Role: golet.RoleCopy}, {Label: "Other"}}).PopupAt(w, 100, 92)
+		close(done)
+	}()
+	t.Cleanup(func() { choosePopupItem("Other") })
+	var copyOn, otherOn, shown bool
+	eventually(t, "the popup", func() bool {
+		copyOn, shown = popupItemEnabled("Copy")
+		otherOn, _ = popupItemEnabled("Other")
+		return shown
+	})
+	if copyOn || !otherOn {
+		t.Errorf("the list focused: the popup's Copy enabled = %v and Other %v, want false and true", copyOn, otherOn)
+	}
+	if !choosePopupItem("Other") {
+		t.Fatal("the popup has no item Other")
+	}
+	wait.For(t, "the popup to close", done)
 }
 
 // TestContentWindowInputMethod checks that input methods see the text
@@ -3152,6 +3264,49 @@ func TestContentWindowAccessibility(t *testing.T) {
 	})
 	if accessPerform(w, "Settings", "press", "") {
 		t.Error("a text could be pressed")
+	}
+}
+
+// TestContentWindowIgnoreInput shows a row with a button ignoring input,
+// transparent, over it: assistive technology finds the button and presses
+// it through the platform's bridge, and a click on it is the row's (#926).
+func TestContentWindowIgnoreInput(t *testing.T) {
+	var frames atomic.Int32
+	rowClicks, deletes := 0, 0
+	view := func(c *ui.Context) {
+		frames.Add(1)
+		row := ui.Row(c).Width(300).Height(40).Label("Session")
+		if row.Clicked() {
+			rowClicks++
+		}
+		row.Children(func() {
+			if ui.Button(c, "Delete").Width(100).Height(40).Opacity(0).IgnoreInput(true).Clicked() {
+				deletes++
+			}
+		})
+	}
+	get := func() (r, d int) {
+		golet.RunOnMain(func() { r, d = rowClicks, deletes })
+		return r, d
+	}
+	w := newWindow(t, golet.WindowOptions{Title: "Ignore input", Width: 400, Height: 200, Content: ui.View(view)})
+	eventually(t, "a frame", func() bool { return frames.Load() > 0 })
+	if _, ok := accessibility(w); !ok {
+		t.Skip("accessibility automation not available on this platform")
+	}
+	eventually(t, "the button in the tree", func() bool {
+		nodes, _ := accessibility(w)
+		return slices.ContainsFunc(nodes, func(n accessNode) bool { return n.role == roleButton && n.label == "Delete" })
+	})
+	if !accessPerform(w, "Delete", "press", "") {
+		t.Fatal("cannot press the button ignoring input")
+	}
+	eventually(t, "the press", func() bool { r, d := get(); return d == 1 && r == 0 })
+	if click(w, 50, 20) {
+		eventually(t, "the click on the row", func() bool { r, _ := get(); return r == 1 })
+		if _, d := get(); d != 1 {
+			t.Errorf("the click went to the button ignoring input: %d deletes", d)
+		}
 	}
 }
 

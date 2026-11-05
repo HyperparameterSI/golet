@@ -13,7 +13,7 @@ Golet 基于 [MyGo](https://github.com/egoist/mygo) 的完整实现迁移，保�
 - **实验性 3D 视口**：[Scene3D](backend/plugins/scene3d/README.md) 提供纯 Go 软件渲染、摄像机、网格、深度测试、基础灯光、OBJ 加载和 Forma 同窗口演示；原生 GPU 三维管线尚未实现。运行 `go run ./backend/examples/scene3d`。
 - **诊断日志**：核心生命周期、窗口、IPC 和协议错误支持结构化处理器，详细日志按需开启；见[日志接入说明](docs/logging.md)。
 
-已同步 MyGo v0.7.3 及截至 2026-10-29 的后续更新（`85fd4bba`），新增原生菜单按钮、iframe 预加载和终端滚动配置，并修复各平台窗口与输入交互；详见[最新同步记录](docs/upstream-2026-10-29.md)及[此前的渲染、会话与工具链更新](docs/upstream-2026-10-28.md)。
+已同步 MyGo **v0.7.4**（`9bd34e1e`），包含窗口首帧防闪烁、空闲调度优化、局部主题、精确小数输入、径向渐变、统一滚动条和分发工具增强；详见[同步内容与验证记录](docs/upstream-v0.7.4.md)。
 
 ## 从零构建一个跨平台项目
 

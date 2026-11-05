@@ -212,6 +212,65 @@ func TestCodeEditorScrollbar(t *testing.T) {
 	ct.want("|" + strings.Repeat("x", 200))
 }
 
+// TestCodeEditorAutoscroll checks that a selection dragged past the
+// text's right or left edge scrolls the editor that way.
+func TestCodeEditorAutoscroll(t *testing.T) {
+	ct := newEditorTest(t, "", "|"+strings.Repeat("x", 200))
+	ct.tt.Press(300, 5)
+	ct.tt.Move(650, 5)
+	ct.tt.Advance(time.Second)
+	right := ct.st.ed.scrollX
+	if right <= 0 {
+		t.Fatal("dragging past the right edge did not scroll")
+	}
+	if sel := ct.st.Selections()[0]; sel.Head <= sel.Anchor {
+		t.Fatalf("selection %+v, want it to grow to the right", sel)
+	}
+	ct.tt.Move(5, 5)
+	ct.tt.Advance(time.Second)
+	ct.tt.Release(5, 5)
+	if ct.st.ed.scrollX >= right {
+		t.Fatal("dragging over the gutter did not scroll back")
+	}
+}
+
+// TestCodeEditorScrollbarOnHover checks that the scroll bar's thumb
+// shows while the pointer is over the editor, as a scroll container's
+// does, and not otherwise, and over no track.
+func TestCodeEditorScrollbarOnHover(t *testing.T) {
+	ct := newEditorTest(t, "go", "|package main\n\nfunc main() {}\n")
+	thumb := func() bool {
+		img := ct.tt.Image()
+		s := img.Bounds().Dx() / 600
+		x, y := (600-scrollbarWidth/2)*s, 5*s
+		return img.RGBAAt(x, y) != img.RGBAAt(x-scrollbarWidth*s, y)
+	}
+	ct.tt.Frame()
+	if thumb() {
+		t.Fatal("the thumb shows with the pointer away")
+	}
+	ct.tt.Move(300, 200)
+	ct.tt.Frame()
+	if !thumb() {
+		t.Fatal("the thumb doesn't show with the pointer over the editor")
+	}
+	ct.tt.Move(-10, -10)
+	ct.tt.Frame()
+	if thumb() {
+		t.Fatal("the thumb stayed as the pointer left")
+	}
+	// Over the bar, the thumb and no track: below the thumb, the bar is
+	// the editor's background.
+	x := float32(600 - scrollbarWidth/2)
+	ct.tt.Move(x, 5)
+	ct.tt.Frame()
+	img := ct.tt.Image()
+	s := img.Bounds().Dx() / 600
+	if img.RGBAAt(int(x)*s, 390*s) != img.RGBAAt((int(x)-scrollbarWidth)*s, 390*s) {
+		t.Error("the bar shows a track under its thumb")
+	}
+}
+
 func TestCodeEditorMultiCursor(t *testing.T) {
 	ct := newEditorTest(t, "go", "foo := 1\nbar := foo\nfoo++")
 	ct.st.Select(0, 0)

@@ -476,7 +476,9 @@ features GTK 4 lacks become X11-only code beside it.
   or `CO_E_SERVER_EXEC_FAILURE`. When the webview never comes, the calls
   that report a result (Eval, CapturePage, PrintToPDF) get the reason, as
   later ones do: the window closed, or WebView2 could not create it.
-  User data lives in `%LOCALAPPDATA%\<name>\WebView2`.
+  User data lives in `%LOCALAPPDATA%\<name>\WebView2`. The direct path applies
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` and `WEBVIEW2_USER_DATA_FOLDER` as
+  the loader does; it does not read the channel variables or policy keys.
 - **Custom schemes** load from `http://<scheme>.localhost/`, and their
   other hosts from `http://<host>.<scheme>.localhost/` (`internal/schemehost`:
   hosts of DNS labels, lower-cased, without a port), which WebView2
@@ -512,8 +514,14 @@ features GTK 4 lacks become X11-only code beside it.
   bar keeps one pixel of its top, under the window's border, without which
   the maximize button opens no snap layouts while the window is not
   maximized. Windows 10, which has no snap layouts, keeps none: over a
-  window that keeps any of its top it draws its whole title bar. The build
-  comes from `RtlGetVersion`, which no manifest changes.
+  window that keeps any of its top it draws its whole title bar. A
+  resizable frameless window on Windows 10 takes the visible pixel of its
+  borders into its client area too, where the content covers the line DWM
+  draws there, white whatever the content (#916), and its frame is not
+  extended for the shadow, which its invisible borders cast: extended, it
+  shows as a white line along the top. Other windows without a caption
+  extend it by a pixel, without which a window with no borders has no
+  shadow. The build comes from `RtlGetVersion`, which no manifest changes.
 - The top edge of a window without a caption (`topedge.go`), which
   `WM_NCCALCSIZE` gives to the client area, where the webview's or the
   surface's window answers `HTCLIENT`, is a child window above them: a
@@ -549,7 +557,11 @@ features GTK 4 lacks become X11-only code beside it.
   window for trays), each into a bitmap with its highlight's rounded
   corners antialiased, then copied, and excluded from the DC after, which
   keeps Windows from drawing the submenus' arrows over the chevrons;
-  `WM_INITMENUPOPUP` gives the menu the background of the items. The items
+  `WM_INITMENUPOPUP` gives the menu the background of the items. Windows
+  widens every owner-drawn item past the width it asks for, by as much as
+  it doesn't tell (not `SM_CXMENUCHECK`, #922): items ask for all they need
+  until one draws, whose width less the widest asked for in its menu is
+  that widening at the DPI, and for that much less after. The items
   keep their strings, which mnemonics, screen readers and the tests read.
   A menu with owner-drawn items loses Windows 11's frame, its window square
   under its class's drop shadow (`CS_DROPSHADOW`) along two sides: while
@@ -1760,7 +1772,15 @@ backend, which:
   else through `WindowHandler.MenuItemClicked` for a window's menu, or
   `AppHandler.MenuItemClicked` for menus without one; the core toggles
   checkbox/radio state, performs window and view roles and calls `Click`
-  with the menu's window, even while a submenu has focus instead.
+  with the menu's window, even while a submenu has focus instead,
+- enables the edit roles' items of native UI as the content answers a
+  `SurfaceCommandEnabled` (package ui's `commandEnabled`, which follows
+  `editEvent`): on macOS the menus holding them validate their items
+  (`autoenablesItems`), the surface answering `validateMenuItem:` and the
+  menu target keeping the app's state, which a disabled role's item
+  targets; Windows and Linux ask as a menu opens (`WM_INITMENUPOPUP`, a
+  submenu's `map`, a popup before it shows), and again before a role's
+  shortcut runs.
 
 Item icons (`MenuItem.Icon`, made by `NewMenuIcon`) travel as a
 `*platform.MenuIcon`, which the core shares between the icons of the same
@@ -2142,7 +2162,10 @@ either.
   `EnumDisplaySettingsW`); asks for a frame (`RequestFrame`: a
   paused `CADisplayLink`, whose ticks draw frames that follow each other
   themselves while a frame after a pause draws at once, in the same pass
-  of the run loop, from the backend's queue (`drawSoon`), and a resize's
+  of the run loop, from the backend's queue (`drawSoon`), as does the
+  first frame of a window out of sight, which the link does not tick
+  for (`platform.FirstFrameSurface`): a window made hidden draws it
+  while hidden, which makes it ready to show, and a resize's
   when AppKit displays the view, before macOS 14 an `NSTimer` at the
   display's rate, `gtk_widget_queue_draw` or a tick callback of GTK's
   frame clock,
@@ -2198,6 +2221,11 @@ either.
   with UI Automation's events.
   What assistive technology does comes back as `AccessAction` events,
   which the engine performs as the pointer or the keyboard would.
+  An element ignoring input (`IgnoreInput`: a field of the node, as
+  the flags are all taken, and of its state, which the elements inside
+  it inherit at commit) adds no hits nor stop of Tab and drops the focus,
+  but stays in the tree, its presses counted as any other's; it offers no
+  focus, nor the increments that go through the keys.
   `AccessTree.Announcements` are texts to read out once
   (`Context.Announce`, toasts, routers): `AXAnnouncementRequested` posted
   on the application with a medium priority on macOS, AtkObject's
@@ -2273,8 +2301,9 @@ either.
   focus colors appear together; holding the pointer asks for no further
   build passes. The engine lays it out with flexbox (`layout.go`) or
   as a grid (`grid.go`, CSS grid's placement and track sizing for fixed,
-  fractional and content-sized tracks), laying out again only what changed
-  since the last frame (see below); commits the boxes to the elements'
+  fractional and content-sized tracks, with the items' percentages of
+  their grid areas, as auto while the tracks are sized), laying out again
+  only what changed since the last frame (see below); commits the boxes to the elements'
   states with the hit list in paint order, the focus order and the labels;
   paints a `scene.Scene`; and presents it. Input between frames goes to the
   states of the last frame's elements. An element's identity hashes its
@@ -2603,6 +2632,21 @@ either.
   `TPM_LAYOUTRTL | TPM_RIGHTALIGN`,
   `gtk_widget_set_direction` and a north-east anchor, the web's `dir`).
   Accessibility needs nothing more: bounds are window coordinates.
+- **Themes of a subtree** (`Themed`, `ui/context.go`). An element given a
+  theme (`node.themed`) builds its children with it, as `Toolbar` flips
+  `c.buttons` for its controls: `Children` sets `c.theme` and restores
+  it, or the window's (`c.window`, the root's, which `SetTheme` sets) when
+  the scope began at the window's theme and `SetTheme` was called inside.
+  Its own text style holds the theme's color, size and family, as the
+  root's does the window's, so that text inside resolves through the
+  ancestors unchanged. What reads the theme after building finds it
+  there too: `Painter.Theme` is that of the innermost themed element
+  painting (`Painter.theme`, which canvases inherit), and the commit
+  keeps a scroll container's bar width in its state (`barWidth`) for the
+  input that hits its bars. Overlays opened in a scope are children of
+  the overlay layer, above the root: `Overlay` gives those built while
+  `c.theme` is not the window's that theme as their own. A copy leaving
+  with an exit transition copies its theme.
 - **Preferences.** `platform.Theme.Preferences` reads the settings of the
   desktop that controls follow: on macOS, `controlAccentColor` and
   `NSWorkspace`'s accessibility display options, with their notifications;
@@ -3159,7 +3203,9 @@ either.
     it, so WebKit focuses the page's first (last) element; as Tab leaves
     the page WebKit selects the next key view, which `GoletWindow` turns
     into `WebViewTabOut`. The page's node lists the WKWebView, whose
-    `accessibilityParent` is that node; the clip view lists none.
+    `accessibilityParent` is that node; the clip view lists none. With
+    `ScrollToContainer`, `GoletWebView`'s `scrollWheel:` gives the event to
+    the surface's conversion (`scrollWheel`) instead of WebKit.
   - Linux: the first web view puts the surface's area in a `GtkOverlay`,
     over a `GtkLayout` holding the WebKitWebViews (which, unlike a
     `GtkFixed`, asks for no size), as an overlay, which GTK realizes again
@@ -3176,7 +3222,10 @@ either.
     the view's handler turns into `WebViewTabOut`. The page's node lists
     the view's accessible, an `AtkSocket` the web process's tree is
     embedded in; the overlay is a subclass whose accessible lists the
-    surface's alone.
+    surface's alone. With `ScrollToContainer`, a handler of the view's
+    `scroll-event`, which runs before WebKit's class handler, converts the
+    event as the area's does (`scrollEvent`, moved by the view's
+    allocation), sends it to the content and stops the signal.
   - Windows: WebView2 in visual hosting, a composition controller
     (`ICoreWebView2Environment3`) whose visual is in a DirectComposition
     target of the surface's window that is not topmost (a window has one
@@ -3196,12 +3245,17 @@ either.
     `TabInto` is `MoveFocus` (next or previous), and `MoveFocusRequested`
     becomes `WebViewTabOut`. The surface's drop target sends drags over a
     page to its composition controller (`ICoreWebView2CompositionController3`'s
-    `DragEnter` and the others). For UI Automation the root also answers
-    `IRawElementProviderHwndOverride`: for the window WebView2 shows a page
-    with, it returns the page's node, which answers with WebView2's
-    provider of the page (`get_AutomationProvider`), as WinUI 3 does. That
-    provider has no children: the page's elements are under a top-level
-    window of WebView2's (`Chrome_WidgetWin_1`), which
+    `DragEnter` and the others). With `ScrollToContainer`, `forwardMouse`
+    keeps the wheel over that web view (`WM_MOUSEWHEEL`, `WM_MOUSEHWHEEL`)
+    for the surface, which scrolls the content as over its own elements;
+    a touchpad's pinch, the wheel by less than a notch with Ctrl held,
+    still goes to the page, as pinches do on the other platforms. For UI
+    Automation the root also answers `IRawElementProviderHwndOverride`:
+    for the window WebView2 shows a page with, it returns the page's node,
+    which answers with WebView2's provider of the page
+    (`get_AutomationProvider`), as WinUI 3 does. That provider has no
+    children: the page's elements are under a top-level window of
+    WebView2's (`Chrome_WidgetWin_1`), which
     `GetAutomationProviderForWindow` does not map to it, so UI Automation
     finds them there (seen with a runtime of October 2026).
 - **Context menus** (`ui/menu.go`) open in two frames. A right-click or the
@@ -3237,8 +3291,8 @@ either.
 - **Scenes** are flat lists of operations in device pixels: rounded
   rectangles with borders of a width per side, solid or dashed, filled
   with a color, a linear gradient mixed in sRGB or Oklab, a gradient of
-  stops, linear or conic (`Scene.Stops`, which ops point into, at most 32
-  each), or stripes, the border painted with the op's gradient where it
+  stops, linear, conic or radial (`Scene.Stops`, which ops point into, at
+  most 32 each), or stripes, the border painted with the op's gradient where it
   says so (`BorderPaint`);
   shadows (blurred rounded rectangles, cut by the box casting them, as
   CSS's box-shadow is, or inner ones, inside the box where the hole they
@@ -3690,7 +3744,20 @@ either.
     refresh, and around the surface the window's own pixels where the
     surface was, which the swap chain covered: the window paints them with
     the background too, under the surface, at each size (`fillUnder`),
-    unless its frames are drawn in memory onto them. Resizing the buffers takes DWM longer
+    unless its frames are drawn in memory onto them. Until a frame of its
+    content shows in it, the window is cloaked (`DWMWA_CLOAK`, from the
+    surface's creation): shown, it would show white while the renderer
+    starts and the first frame draws, a few hundred milliseconds (#905).
+    Windows sends it `WM_PAINT` all the same, and uncloaks it after the
+    one whose frame reached the surface (`platform.FirstFrameSurface`),
+    or a second after it was shown without one (a timer, which only an
+    idle main thread lets fire); a refresh of DWM between the present and
+    its frame showing shows the background under the surface
+    (`fillUnder`). A window made hidden gets no `WM_PAINT`: its first frame is
+    drawn while it is hidden (`drawHidden`), which makes it ready to
+    show, and it uncloaks after its first `WM_PAINT` once shown; a
+    present that DXGI reports occluded leaves the next frame to draw
+    whole. Resizing the buffers takes DWM longer
     than a frame for a window about as large as a 4K screen, so while
     the window changes size the swap chain has three buffers a quarter
     larger than the window, until a frame a second after the last change,
@@ -3921,7 +3988,15 @@ either.
   of 15 MB for half of a 4K display, in 0.01 ms instead of 1. A draw GTK
   asks for by itself, as a resize does, draws a frame in the `draw`
   signal, and repaints in the next frame what it changed outside GTK's
-  clip.
+  clip. GTK neither paints a window that does not show nor runs its
+  frame clock: until its first frame reached the surface
+  (`platform.FirstFrameSurface`), `RequestFrame` of a window made hidden
+  also adds an idle callback, which realizes the window, giving the area
+  the size it will show at, and draws that frame in memory, showing it
+  nowhere (`drawHidden`), which makes the window ready to show. A
+  GtkGLArea has no context until it shows: the frame is followed by
+  `SurfaceRenew`, so that the first in its `render` signal makes the GPU
+  renderer, which the hidden one could not.
 
   On Windows, `RequestFrame` invalidates the surface's window, whose
   `WM_PAINT` comes as soon as the message queue is empty, and frames drawn
@@ -4206,18 +4281,33 @@ renderer's (`gputest.Compare`).
   syntax. Linux
   gets a Debian package written in pure Go (`deb.go`), whose maintainer
   is `linux.maintainer`, else the `author` of package.json, else the name
-  of the app: the app in `/opt/<name>`, a `/usr/bin` link named
-  `linux.command` when there is one, the desktop entry (categories,
+  of the app: the app in `/opt/<name>`, a `/usr/bin` link for each name
+  of `linux.command`, the desktop entry (categories,
   comment, URL schemes; `Exec` is the app's path) and hicolor icons,
-  depending on GTK 3 and WebKitGTK 4.1. Packages hold the same files as
+  depending on GTK 3 and WebKitGTK 4.1. It also gets a `PKGBUILD`
+  (`pkgbuild.go`), from which `makepkg -si` packages the archive for
+  Arch Linux (`source` is its file name, with its SHA-256): its
+  `package()` installs what the Debian package holds, with the same
+  modes, the desktop entry written in it with `printf` as `deb.go`
+  renders it, and the hicolor icons, which the build resizes as for the
+  Debian package and writes next to it as more sources
+  (`<name>-256x256.png`, `<name>-512x512.png`); pacman's hooks register
+  them, the MIME package and the desktop entry, as the triggers of
+  Debian do. `pkgver` is the version without the hyphen of a
+  pre-release (`1.2.0beta.1`; vercmp sorts `1.2.0_beta.1` after
+  `1.2.0`, as a remainder starting with a separator wins), `depends`
+  maps the Debian dependencies through `archPackages`, warning about
+  those it lacks, and `options` keeps the executable unstripped. Every
+  value is quoted for the shell, and `-upload` leaves it out (`uploads`
+  takes only known kinds). Packages hold the same files as
   the update archive; apps installed by a package manager do not update
   themselves (`Updater.Enabled` checks that the app can write where it is
   installed). Every Linux build also gets `install.sh`
   (`installscript.go`), a POSIX sh script, the same for every
   architecture, that installs the archive for the user in
   `~/.local/<name>.app` (which updates can replace), links
-  `~/.local/bin/<linux.command>` when there is one and no other program
-  is there (and removes a `~/.local/bin/<name>` link of its own, which
+  `~/.local/bin/<command>` for each name of `linux.command` that no other
+  program has (and removes a `~/.local/bin/<name>` link of its own, which
   earlier scripts made), and registers the app's `<name>.desktop`, with
   absolute `Exec` and `Icon` paths, and `<name>.xml`, the shared-mime-info
   package of the types it defines, under `$XDG_DATA_HOME`. It then warns
