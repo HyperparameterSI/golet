@@ -31,6 +31,8 @@ const (
 
 type PromptInputOptions struct {
 	Placeholder   string
+	InputRef      *ui.Handle
+	HideAttach    bool // Hide the optional attachment toolbar button.
 	Disabled      bool
 	Status        PromptStatus
 	Error         string
@@ -111,7 +113,7 @@ func PromptInput(c *ui.Context, s *PromptInputState, options ...PromptInputOptio
 				}
 			})
 		}
-		ui.TextAreaBase(c, &s.Text).FillWidth().MinWidth(0).Height(56).Padding(2).FontSize(fontSize(c, 14)).TextColor(c.Theme().Text).Placeholder(o.Placeholder).Label("Prompt text").Disabled(o.Disabled || busy).FocusRing(false).OnTextKey(func(k ui.TextKey) bool {
+		input := ui.TextAreaBase(c, &s.Text).FillWidth().MinWidth(0).Height(56).Padding(2).FontSize(fontSize(c, 14)).TextColor(c.Theme().Text).Placeholder(o.Placeholder).Label("Prompt text").Disabled(o.Disabled || busy).FocusRing(false).OnTextKey(func(k ui.TextKey) bool {
 			if k.Key == ui.KeyEnter && k.Mods == 0 {
 				// TextKey.Text includes the last edit even before the binding updates.
 				s.Text = k.Text()
@@ -121,9 +123,14 @@ func PromptInput(c *ui.Context, s *PromptInputState, options ...PromptInputOptio
 			}
 			return false
 		})
+		if o.InputRef != nil {
+			input.Ref(o.InputRef)
+		}
 		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-			if modelCircle(c, "Attach files", modelControlIcons().add, false).Disabled(o.Disabled || busy || o.OnAttach == nil).Clicked() && o.OnAttach != nil {
-				o.OnAttach()
+			if !o.HideAttach {
+				if modelCircle(c, "Attach files", modelControlIcons().add, false).Disabled(o.Disabled || busy || o.OnAttach == nil).Clicked() && o.OnAttach != nil {
+					o.OnAttach()
+				}
 			}
 			if o.Tools != nil {
 				o.Tools()
