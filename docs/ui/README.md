@@ -10,11 +10,11 @@ Direct3D 11 on Windows and OpenGL on Linux.
 package main
 
 import (
-	"fmt"
-	"log"
+    "fmt"
+    "log"
 
-	"github.com/HyperparameterSI/golet/backend"
-	"github.com/HyperparameterSI/golet/backend/ui"
+    "github.com/HyperparameterSI/golet/backend"
+    "github.com/HyperparameterSI/golet/backend/ui"
 )
 
 // counter is the app's state.
@@ -22,27 +22,27 @@ type counter struct{ n int }
 
 // view builds the window's interface from the state, for every frame.
 func (app *counter) view(c *ui.Context) {
-	ui.Column(c).Fill().Center().Gap(12).Children(func() {
-		ui.Text(c, fmt.Sprint(app.n)).FontSize(40).Bold()
-		if ui.PrimaryButton(c, "Increment").Clicked() {
-			app.n++
-		}
-	})
+    ui.Column(c).Fill().Center().Gap(12).Children(func() {
+        ui.Text(c, fmt.Sprint(app.n)).FontSize(40).Bold()
+        if ui.PrimaryButton(c, "Increment").Clicked() {
+            app.n++
+        }
+    })
 }
 
 func main() {
-	app := &counter{}
-	golet.App.WhenReady(func() {
-		golet.NewWindow(golet.WindowOptions{
-			Title:   "Counter",
-			Width:   320,
-			Height:  240,
-			Content: ui.View(app.view),
-		})
-	})
-	if err := golet.App.Run(); err != nil {
-		log.Fatal(err)
-	}
+    app := &counter{}
+    golet.App.WhenReady(func() {
+        golet.NewWindow(golet.WindowOptions{
+            Title:   "Counter",
+            Width:   320,
+            Height:  240,
+            Content: ui.View(app.view),
+        })
+    })
+    if err := golet.App.Run(); err != nil {
+        log.Fatal(err)
+    }
 }
 ```
 
@@ -74,8 +74,8 @@ UI as they read other apps (see [Accessibility](accessibility.md)).
   and fonts.
 - [Styling and themes](styling.md): backgrounds, borders, shadows and
   gradients, and the theme that follows the desktop.
-- [Input](input.md): the pointer, the keyboard focus, shortcuts, input
-  methods, dropped files, and widgets that take every key.
+- [Input](input.md): the pointer, the keyboard focus, shortcuts, the keys
+  held, input methods, dropped files, and widgets that take every key.
 - [Drag and drop](drag-and-drop.md): values dragged within the window, and
   rows reordered by dragging.
 - [Pages and navigation](navigation.md): a router of pages with a history,
@@ -93,8 +93,8 @@ UI as they read other apps (see [Accessibility](accessibility.md)).
   and values that ease to their targets.
 - [Shaders](shaders.md): pixels computed on the GPU by shaders written in
   Go's syntax, with values and images the app passes them.
-- [Transitions](transitions.md): elements that move, resize and recolor
-  smoothly as the layout changes, and come and go.
+- [Transitions](transitions.md): elements that move, resize, recolor and
+  shade smoothly as the layout changes, and come and go.
 - [Motion](motion.md): springs that keep their velocity, curves, delays,
   values thrown by the pointer, keyframes, timelines that play several
   tweens on one playhead, and knowing when they are done.
@@ -122,7 +122,9 @@ UI as they read other apps (see [Accessibility](accessibility.md)).
 - [Menu button](menu-button.md): a button opening a menu below it, the
   system's or one Golet draws in the window with the theme's look.
 - [Context menu](context-menu.md): a menu of the system's for any element,
-  on a right click, or one Golet draws in the window with the theme's look.
+  on a right click, or one Golet draws in the window with the theme's look;
+  [every menu of a window](context-menu.md#every-menu-of-a-window) drawn so,
+  text inputs' and tables' too.
 - [Toggle](toggle.md): a button that stays pressed, and toggles joined in a
   group.
 - [Segmented control](segmented.md): segments choosing one of a few views.

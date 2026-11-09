@@ -93,7 +93,9 @@ func webViewAttached(*golet.Window) (bool, bool) { return false, false }
 func collectionBehavior(*golet.Window) (uint, bool)               { return 0, false }
 func deactivateApp() bool                                         { return false }
 func material(*golet.Window) (string, int, float64, bool, bool)   { return "", 0, 0, false, false }
+func materialState(*golet.Window) (int, bool)                     { return 0, false }
 func roundedBacking(*golet.Window) (bool, float64, float64, bool) { return false, 0, 0, false }
+func windowBacking(*golet.Window) (bool, float64, bool)           { return false, 0, false }
 func appActive() (bool, bool)                                     { return false, false }
 
 // WebKitGTK docks the inspector inside the web view.
@@ -227,6 +229,8 @@ func failWebViews(int) bool { return false }
 // A Control-click is a secondary click on macOS only.
 func controlClick(*golet.Window, float64, float64) bool { return false }
 
+func secondaryClickAsPrimary(*golet.Window, float64, float64) bool { return false }
+
 // composeOver does what an input method that edits typed text does through
 // GTK: it deletes the text around the caret it composes over, then
 // composes or commits.
@@ -332,6 +336,8 @@ func observe(*golet.Window) (func(), bool) { return nil, false }
 // composition the test makes up does not show.
 func pressKey(*golet.Window, uint16, string) bool { return false }
 
+func pressKeyComposing(*golet.Window, uint16, string, string, string) bool { return false }
+
 // X routes a drag to the window under the pointer, which
 // dropFiles, dropping on the content's, skips.
 func dragFiles(*golet.Window, float64, float64, []string) (bool, bool) { return false, false }
@@ -421,3 +427,27 @@ func dismissPageMenu() { golet.RunOnMain(linux.TestDismissPageMenu) }
 
 // Only Windows' tests start a process that takes the foreground.
 func takeForeground(*golet.Window) {}
+
+// pressLetter presses the key of an uppercase letter, with Ctrl held when
+// cmd is set, like a keyboard.
+func pressLetter(_ *golet.Window, letter byte, cmd bool) bool {
+	key := string(rune(letter - 'A' + 'a'))
+	if cmd {
+		return pressKeys("Control_L", key)
+	}
+	return pressKeys(key)
+}
+
+func glassTint(*golet.Window) (red, green, blue, alpha float64, ok bool) { return 0, 0, 0, 0, false }
+
+func nativeGlassSupported() bool { return false }
+
+func nativeGlass(*golet.Window) (class string, frame [4]float64, style int, ok bool) {
+	return "", frame, 0, false
+}
+
+func nativeGlassTint(*golet.Window) (red, green, blue, alpha float64) { return 0, 0, 0, 0 }
+
+func activateApp() {}
+
+func hitView(*golet.Window, float64, float64) string { return "" }

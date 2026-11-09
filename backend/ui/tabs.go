@@ -34,7 +34,7 @@ func coreTabs(c *context, selected *int, labels ...string) *node {
 			}
 			tab.DrawOver(func(p *Painter, r Rect) {
 				if tab.FocusVisible() {
-					p.FocusRing(r, tab.radius)
+					p.focusRingOf(tab, r, tab.radius)
 				}
 			})
 			tab.Children(func() { coreText(c, label).SingleLine() })

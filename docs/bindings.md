@@ -16,39 +16,39 @@ Pass a value to `golet.Bind` before `App.Run`:
 ```go
 // Notes stores the user's notes.
 type Notes struct {
-	mu    sync.Mutex
-	items []Note
+    mu    sync.Mutex
+    items []Note
 }
 
 // Note is a note.
 type Note struct {
-	ID    int64  `json:"id"`
-	Title string `json:"title"`
-	Body  string `json:"body,omitempty"`
+    ID    int64  `json:"id"`
+    Title string `json:"title"`
+    Body  string `json:"body,omitempty"`
 }
 
 // Add creates a note and returns it.
 func (n *Notes) Add(title string) (Note, error) {
-	if title == "" {
-		return Note{}, errors.New("a note needs a title")
-	}
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	note := Note{ID: int64(len(n.items) + 1), Title: title}
-	n.items = append(n.items, note)
-	return note, nil
+    if title == "" {
+        return Note{}, errors.New("a note needs a title")
+    }
+    n.mu.Lock()
+    defer n.mu.Unlock()
+    note := Note{ID: int64(len(n.items) + 1), Title: title}
+    n.items = append(n.items, note)
+    return note, nil
 }
 
 // List returns all notes.
 func (n *Notes) List() []Note {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	return slices.Clone(n.items)
+    n.mu.Lock()
+    defer n.mu.Unlock()
+    return slices.Clone(n.items)
 }
 
 func main() {
-	golet.Bind(&Notes{})
-	// ...
+    golet.Bind(&Notes{})
+    // ...
 }
 ```
 
@@ -84,15 +84,15 @@ which tells apart the pages of the web views of a window of native UI
 // Export asks where to save the notes and writes them there. It returns the
 // chosen path, or "" when the user canceled.
 func (n *Notes) Export(ctx context.Context) (string, error) {
-	path, err := golet.Dialog.Save(golet.SaveDialogOptions{
-		Parent:      golet.CallerWindow(ctx), // a sheet of that window on macOS
-		DefaultPath: "notes.json",
-	})
-	if err != nil || path == "" {
-		return "", err
-	}
-	// ...
-	return path, nil
+    path, err := golet.Dialog.Save(golet.SaveDialogOptions{
+        Parent:      golet.CallerWindow(ctx), // a sheet of that window on macOS
+        DefaultPath: "notes.json",
+    })
+    if err != nil || path == "" {
+        return "", err
+    }
+    // ...
+    return path, nil
 }
 ```
 
@@ -137,6 +137,9 @@ export const Notes = {
 Methods become lower camel case (`GetUserByID` → `getUserByID`, `URLFor` →
 `urlFor`), parameters keep their Go names, and Go doc comments become
 TSDoc. The client imports `golet-runtime`, which the frontend depends on.
+Generation fails if two methods of the same service, or two events, map
+to the same client property name. The error names both declarations so
+you can rename one without silently hiding the other.
 
 To generate the client, golet generate builds the app and runs it with
 `GOLET_GENERATE` set: `App.Run` then writes the client and returns without
@@ -173,6 +176,11 @@ leaves a field out. JavaScript numbers are exact up to 2⁵³, so encode
 larger IDs as strings with the `string` option, `json:"id,string"`, which
 makes them `string` in TypeScript.
 
+An embedded `map[string]T` or `jsontext.Value` (`json:",embed"`) adds
+top-level members instead of a nested field. Its generated object allows
+additional keys with `[key: string]: unknown`, while declared fields keep
+their types.
+
 Named string types with constants become unions:
 
 ```go
@@ -180,8 +188,8 @@ Named string types with constants become unions:
 type Filter string
 
 const (
-	FilterAll  Filter = "all"
-	FilterDone Filter = "done"
+    FilterAll  Filter = "all"
+    FilterDone Filter = "done"
 )
 ```
 
@@ -219,8 +227,8 @@ var Progress = golet.NewEvent[ExportProgress]("progress")
 
 // ExportProgress is how far an export got.
 type ExportProgress struct {
-	Done  int `json:"done"`
-	Total int `json:"total"`
+    Done  int `json:"done"`
+    Total int `json:"total"`
 }
 ```
 
@@ -238,11 +246,11 @@ feed a window:
 
 ```go
 go func() {
-	for t := range time.Tick(time.Second) {
-		if Tick.Emit(win, t) != nil {
-			return // the window was closed
-		}
-	}
+    for t := range time.Tick(time.Second) {
+        if Tick.Emit(win, t) != nil {
+            return // the window was closed
+        }
+    }
 }()
 ```
 
@@ -273,21 +281,21 @@ response that arrives in parts:
 ```go
 // Tail runs a command and sends the lines it prints.
 func (Shell) Tail(ctx context.Context, command string, lines *golet.Channel[string]) error {
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	scanner := bufio.NewScanner(out)
-	for scanner.Scan() {
-		if err := lines.Send(scanner.Text()); err != nil {
-			return err // the page stopped listening
-		}
-	}
-	return cmd.Wait()
+    cmd := exec.CommandContext(ctx, "sh", "-c", command)
+    out, err := cmd.StdoutPipe()
+    if err != nil {
+        return err
+    }
+    if err := cmd.Start(); err != nil {
+        return err
+    }
+    scanner := bufio.NewScanner(out)
+    for scanner.Scan() {
+        if err := lines.Send(scanner.Text()); err != nil {
+            return err // the page stopped listening
+        }
+    }
+    return cmd.Wait()
 }
 ```
 
@@ -358,8 +366,8 @@ their origin:
 
 ```go
 golet.NewWindow(golet.WindowOptions{
-	URL:  "https://app.example.com",
-	Page: golet.PageOptions{TrustedOrigins: []string{"https://app.example.com"}},
+    URL:  "https://app.example.com",
+    Page: golet.PageOptions{TrustedOrigins: []string{"https://app.example.com"}},
 })
 ```
 

@@ -5,7 +5,7 @@ takes the options of the standard `fetch` and returns a standard
 `Response`, but the request leaves from the Go side of the app, so:
 
 - it is not subject to CORS: any server answers, and every response header
-  is readable but `Set-Cookie`, which a `Response` cannot hold;
+  is readable but `Set-Cookie` and `Set-Cookie2`, which the plugin filters;
 - it may set any header, including those the webview forbids, such as
   `Origin`, `Cookie`, `Referer` and `User-Agent`;
 - its body streams to the page as Go reads it, and aborting it cancels the
@@ -17,13 +17,13 @@ Use the plugin in Go:
 
 ```go
 import (
-	"github.com/HyperparameterSI/golet/backend"
-	"github.com/HyperparameterSI/golet/backend/plugins/fetch"
+    "github.com/HyperparameterSI/golet/backend"
+    "github.com/HyperparameterSI/golet/backend/plugins/fetch"
 )
 
 func main() {
-	golet.Use(fetch.Plugin)
-	// ...
+    golet.Use(fetch.Plugin)
+    // ...
 }
 ```
 
@@ -146,10 +146,10 @@ request any URL. `fetch.New` takes options instead:
 jar, _ := cookiejar.New(nil)
 
 golet.Use(fetch.New(fetch.Options{
-	Client: &http.Client{Jar: jar, Timeout: time.Minute},
-	Allow: func(r *http.Request) bool {
-		return r.URL.Hostname() == "api.example.com"
-	},
+    Client: &http.Client{Jar: jar, Timeout: time.Minute},
+    Allow: func(r *http.Request) bool {
+        return r.URL.Hostname() == "api.example.com"
+    },
 }))
 ```
 

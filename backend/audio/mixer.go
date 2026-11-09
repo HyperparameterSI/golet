@@ -70,6 +70,7 @@ type voice struct {
 	nextEnd uint64
 
 	volume, pan, speed float64
+	pitch              bool // preserves pitch at its speed: stretched by st
 	loop               bool
 	loopStart, loopEnd int64 // frames, loopEnd 0 for the end
 
@@ -83,6 +84,10 @@ type voice struct {
 	in    []float32 // frames read from the source and not yet used
 	inPos int
 	inLen int
+
+	// Time-stretches the source once its player preserved pitch, which
+	// counts where hist is in the source: nil for every other voice.
+	st *stretcher
 
 	// The gains applied, a 2×2 matrix from the source's channels to the
 	// output's (ll, rl, lr, rr), ramping to target.
@@ -111,6 +116,9 @@ func (v *voice) reset(f int64) {
 	v.phase = 3
 	v.end = -1
 	v.inPos, v.inLen = 0, 0
+	if v.st != nil {
+		v.st.reset(f, v.pitch)
+	}
 	// What it mixed before is not where it is any more, even while heard.
 	v.marks = v.marks[:0]
 }
@@ -120,7 +128,31 @@ func (v *voice) ended() bool { return v.end >= 0 && v.idx >= v.end }
 
 // at returns the source frame the voice mixes next, counted on past its
 // loop's end.
-func (v *voice) at() float64 { return float64(v.idx) + v.phase }
+func (v *voice) at() float64 {
+	if st := v.st; st != nil {
+		return st.tags[1] + v.phase*(st.tags[2]-st.tags[1])
+	}
+	return float64(v.idx) + v.phase
+}
+
+// stretch gives the voice a stretcher, which goes on from the frames it
+// holds, as its player starts to preserve pitch.
+func (v *voice) stretch() {
+	ch := 2
+	if v.mono {
+		ch = 1
+	}
+	st := newStretcher(int(v.rate), ch)
+	// The frame coming in next is at idx+3, and the second of hist at idx.
+	st.reset(v.idx+3, true)
+	for k := range st.tags {
+		st.tags[k] = float64(v.idx - 1 + int64(k))
+	}
+	st.n = copy(st.buf, v.in[v.inPos:v.inLen]) / ch
+	st.rd += int64(st.n)
+	v.inPos = v.inLen
+	v.st = st
+}
 
 // mark notes that the output mixes frame out with the voice where it is,
 // and forgets the marks before the frame heard.
@@ -195,12 +227,21 @@ func (v *voice) next() bool {
 		if v.end >= 0 {
 			// Past the end, silence.
 			v.shift(0, 0)
+			if v.st != nil {
+				v.st.push(v.st.next)
+			}
 			return true
 		}
-		if v.in == nil {
-			v.in = make([]float32, 256*ch)
+		var n int
+		var ended bool
+		if v.st != nil {
+			n, ended = v.readStretched()
+		} else {
+			if v.in == nil {
+				v.in = make([]float32, 256*ch)
+			}
+			n, ended = v.src.read(v.in)
 		}
-		n, ended := v.src.read(v.in)
 		v.inPos, v.inLen = 0, n*ch
 		if n == 0 {
 			if !ended {
@@ -209,6 +250,9 @@ func (v *voice) next() bool {
 			// The frame coming in would be at idx+3.
 			v.end = v.idx + 3
 			v.shift(0, 0)
+			if v.st != nil {
+				v.st.push(v.st.next)
+			}
 			return true
 		}
 	}
@@ -216,6 +260,9 @@ func (v *voice) next() bool {
 	r := l
 	if !v.mono {
 		r = v.in[v.inPos+1]
+	}
+	if st := v.st; st != nil {
+		st.push(st.tag0 + float64(v.inPos/ch)*st.tagStep)
 	}
 	v.inPos += ch
 	v.shift(l, r)
@@ -284,6 +331,10 @@ func (v *voice) mix(out []float32, master float64, at, heard int64) bool {
 func (v *voice) play(out []float32, master float64) (int, bool) {
 	v.retarget(v.gains(master))
 	step := v.rate / sampleRate * v.speed
+	if v.st != nil && v.st.on {
+		// Stretched to the speed already.
+		step = v.rate / sampleRate
+	}
 	for i := 0; i < len(out); i += 2 {
 		for v.phase >= 1 {
 			if !v.next() {

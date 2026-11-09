@@ -21,6 +21,15 @@ GOLET_AUTOMATION=/tmp/app.sock ./app
 echo '{"id": 1, "method": "windows"}' | socat - UNIX-CONNECT:/tmp/app.sock
 ```
 
+Agents drive it with `golet-automation`, a command line client with
+compact snapshots, short refs and diffs once the UI settled, whose guide
+it prints:
+
+```sh
+go install github.com/HyperparameterSI/golet/backend/plugins/automation/cmd/golet-automation
+golet-automation skills
+```
+
 It listens only when `GOLET_AUTOMATION` is set, and builds without the
 inspector (`-tags golet_noinspector`, the release builds of `golet build`)
 leave it out. See [the documentation](../../docs/plugins/automation.md).

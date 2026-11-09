@@ -10,7 +10,7 @@ The view says where things are; the animation finds the way:
 card := ui.Box(c).Size(120, 80).Radius(12).Background(t.Accent)
 target := float32(0)
 if app.open {
-	target = 200
+    target = 200
 }
 card.Translate(card.AnimateTo("x", target, ui.Snappy), 0)
 ```
@@ -64,6 +64,17 @@ hue:
 row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
 ```
 
+Colors mix in sRGB, unless the `Animation` has `Oklab`: then in Oklab, as a
+gradient's `Oklab` mixes, whose way between two saturated colors keeps
+their lightness and saturation rather than going through a dull, darker
+middle (yellow to blue through blues, not gray). It mixes the colors of
+a [transition](transitions.md#what-moves) with it too, and those of a
+`ContentTransition`'s morph, and `Color.MixOklab` mixes two colors so:
+
+```go
+badge.Background(badge.AnimateColor("bg", level, ui.Animation{Spring: ui.SpringOptions{Duration: 300 * time.Millisecond}, Oklab: true}))
+```
+
 ## Poses that only paint
 
 The values above are read by the view, so every frame that moves runs it.
@@ -76,15 +87,41 @@ large view smooth:
 ```go
 lift := ui.Pose{}
 if card.Hovered() {
-	lift = ui.Pose{Y: -4, Scale: 1.02}
+    lift = ui.Pose{Y: -4, Scale: 1.02}
 }
 card.AnimatePose(lift, ui.Snappy)
 ```
 
-A `Pose` moves by `X` and `Y`, scales by `Scale` (0 keeps the size),
-turns by `Rotate` degrees, and fades by `Fade`, from 0, opaque, to 1, gone.
+A `Pose` moves by `X` and `Y`, and by `XPercent` and `YPercent` percent of
+the element's own width and height (as [`TranslatePercent`](transforms.md)
+moves it, following its size as it changes), scales by `Scale` (0 keeps
+the size), turns by `Rotate` degrees, and fades by `Fade`, from 0, opaque,
+to 1, gone.
 The pointer, carets and overlays follow the element as it moves, and
 `Transitioning()` reports whether its pose was moving.
+
+A pose starts where the element is first posed: an element that the
+frame before did not pose, as one built for the first time, shows at its
+pose at once, and moves only when a later frame poses it elsewhere. To
+come in from a pose, as a flyout's panel rising and fading in as it
+shows, pose the element there in one build, ask for another frame with
+`c.Invalidate()`, and pose it at its place in the next:
+
+```go
+panel := ui.Column(c)
+entered := ui.Local(panel, "entered", func() bool { return false })
+p := ui.Pose{}
+if !*entered {
+    p, *entered = ui.Pose{Y: 8, Fade: 1}, true
+    c.Invalidate()
+}
+panel.AnimatePose(p, ui.Snappy)
+```
+
+Without the second build, the element stays where its first pose put
+it. An element appearing in a parent that the frame before showed comes
+in with the `Enter` of its [transition](transitions.md#coming-and-going)
+too, as a row added to a list.
 
 Poses nest: each acts after those of the elements around it, so an
 element inside another adds its own motion, along its own curve. In the
@@ -102,10 +139,10 @@ changes. Delays growing with the index stagger a list:
 
 ```go
 for i, it := range app.items {
-	row := ui.Row(c.Key(it.ID))
-	a := ui.Snappy
-	a.Delay = time.Duration(i) * 30 * time.Millisecond
-	row.Opacity(row.AnimateTo("shown", 1, a))
+    row := ui.Row(c.Key(it.ID))
+    a := ui.Snappy
+    a.Delay = time.Duration(i) * 30 * time.Millisecond
+    row.Opacity(row.AnimateTo("shown", 1, a))
 }
 ```
 
@@ -118,9 +155,9 @@ pointer's velocity carries it to where it comes to rest, with a spring:
 ```go
 card := ui.Box(c).Size(90, 60).Radius(10).Background(t.Accent)
 card.Draggable(&app.card, ui.DraggableOptions{
-	Axis:   ui.Horizontal,
-	Bounds: &ui.Rect{W: 200},
-	Snap:   ui.Nearest(ui.Point{}, ui.Point{X: 200}),
+    Axis:   ui.Horizontal,
+    Bounds: &ui.Rect{W: 200},
+    Snap:   ui.Nearest(ui.Point{}, ui.Point{X: 200}),
 })
 ```
 
@@ -156,7 +193,7 @@ it does:
 ```go
 lift := ui.Pose{}
 if card.Dragging() {
-	lift = ui.Pose{Scale: 1.05}
+    lift = ui.Pose{Scale: 1.05}
 }
 card.AnimatePose(lift, ui.Snappy)
 ```
@@ -166,20 +203,20 @@ removing a row swiped away:
 
 ```go
 for i := range app.rows {
-	r := &app.rows[i]
-	row := ui.Row(c).Key(r.ID)
-	row.Draggable(&r.swipe, ui.DraggableOptions{
-		Axis: ui.Horizontal,
-		Snap: func(p ui.Point) ui.Point {
-			if p.X < -160 {
-				return ui.Point{X: -400} // away to the left
-			}
-			return ui.Point{}
-		},
-	})
-	if r.swipe.X == -400 && !row.Transitioning() {
-		app.remove(r.ID)
-	}
+    r := &app.rows[i]
+    row := ui.Row(c).Key(r.ID)
+    row.Draggable(&r.swipe, ui.DraggableOptions{
+        Axis: ui.Horizontal,
+        Snap: func(p ui.Point) ui.Point {
+            if p.X < -160 {
+                return ui.Point{X: -400} // away to the left
+            }
+            return ui.Point{}
+        },
+    })
+    if r.swipe.X == -400 && !row.Transitioning() {
+        app.remove(r.ID)
+    }
 }
 ```
 
@@ -191,9 +228,9 @@ the element moves in, as `AnimateTo` does; call it after `Draggable`:
 ```go
 backdrop := ui.Box(c).Absolute().Fill().Background(ui.RGBA(0, 0, 0, 0.4))
 sheet := ui.Column(c).Draggable(&app.sheet, ui.DraggableOptions{
-	Axis:   ui.Vertical,
-	Bounds: &ui.Rect{H: 400},
-	Snap:   ui.Nearest(ui.Point{}, ui.Point{Y: 400}),
+    Axis:   ui.Vertical,
+    Bounds: &ui.Rect{H: 400},
+    Snap:   ui.Nearest(ui.Point{}, ui.Point{Y: 400}),
 })
 backdrop.Opacity(1 - sheet.DragOffset().Y/400)
 ```
@@ -214,19 +251,23 @@ spring that takes over when the pointer lets go starts at that speed.
 dial := ui.Box(c).Size(80, 80)
 var turn float32
 if dx, _, ok := dial.Dragged(); ok {
-	app.turn += dx
-	turn = dial.Jump("turn", app.turn)
+    app.turn += dx
+    turn = dial.Jump("turn", app.turn)
 } else {
-	a := ui.Snappy
-	if vx, _, ok := dial.DragEnded(); ok {
-		// Where the throw would carry it decides the notch it lands on.
-		app.turn = float32(math.Round(float64(ui.Project(app.turn, vx)/45))) * 45
-		a.Spring.Velocity = vx
-	}
-	turn = dial.AnimateTo("turn", app.turn, a)
+    a := ui.Snappy
+    if vx, _, ok := dial.DragEnded(); ok {
+        // Where the throw would carry it decides the notch it lands on.
+        app.turn = float32(math.Round(float64(ui.Project(app.turn, vx)/45))) * 45
+        a.Spring.Velocity = vx
+    }
+    turn = dial.AnimateTo("turn", app.turn, a)
 }
 dial.Transform(ui.Rotation(turn))
 ```
+
+The last moves of a drag come while `Dragged` still reports the press, and
+`DragEnded` in the build after: the dial turns as far as the pointer went
+before it springs to a notch.
 
 `DragVelocity` is the pointer's velocity while it presses, in DIPs per
 second along the element's axes, zero once it rests a moment. `Velocity(key)`
@@ -241,8 +282,8 @@ far:
 
 ```go
 if _, dy, ok := sheet.Dragged(); ok {
-	app.y += dy
-	y = sheet.Jump("y", ui.Rubberband(app.y, 0, 400, 600))
+    app.y += dy
+    y = sheet.Jump("y", ui.Rubberband(app.y, 0, 400, 600))
 }
 ```
 
@@ -255,7 +296,7 @@ view to go on, as removing what faded out:
 ```go
 toast.Opacity(toast.AnimateTo("fade", 0, ui.Animation{Duration: 200 * time.Millisecond}))
 if toast.Arrived("fade") {
-	app.dismiss(toast)
+    app.dismiss(toast)
 }
 ```
 
@@ -278,10 +319,10 @@ it arrives at, and holds the last:
 ```go
 tile := ui.Box(c).Key("tile").Size(80, 50)
 x := tile.Keyframes("x", []ui.Keyframe{
-	{Value: 0},
-	{At: 200 * time.Millisecond, Value: 100, Ease: ui.EaseOut},
-	{At: 700 * time.Millisecond, Value: 40},
-	{At: time.Second, Value: 0, Ease: ui.EaseInOut},
+    {Value: 0},
+    {At: 200 * time.Millisecond, Value: 100, Ease: ui.EaseOut},
+    {At: 700 * time.Millisecond, Value: 40},
+    {At: time.Second, Value: 0, Ease: ui.EaseInOut},
 }, ui.KeyframeOptions{Run: app.shakes})
 tile.Translate(x, 0)
 ```
@@ -312,7 +353,7 @@ card := ui.Column(c)
 tl := card.Timeline("intro", ui.TimelineOptions{Run: app.opened})
 x := tl.Tween(ui.Tween{From: -200, To: 0, Duration: 400 * time.Millisecond})
 fade := tl.Tween(ui.Tween{From: 0, To: 1, Duration: 300 * time.Millisecond},
-	ui.AfterPrevious(-150*time.Millisecond))
+    ui.AfterPrevious(-150*time.Millisecond))
 card.Translate(x, 0).Opacity(fade)
 ```
 
@@ -340,11 +381,11 @@ from it staggers them by index:
 tl := list.Timeline("rows", ui.TimelineOptions{Run: app.shown})
 tl.Label("rows", ui.AtTime(300*time.Millisecond))
 for i := range app.rows {
-	app.rows[i] = tl.Tween(ui.Tween{From: 0, To: 1, Duration: 200 * time.Millisecond},
-		ui.AtLabel("rows", time.Duration(i)*40*time.Millisecond))
+    app.rows[i] = tl.Tween(ui.Tween{From: 0, To: 1, Duration: 200 * time.Millisecond},
+        ui.AtLabel("rows", time.Duration(i)*40*time.Millisecond))
 }
 for i, shown := range app.rows {
-	rows[i].Opacity(shown).Translate(0, (1-shown)*12)
+    rows[i].Opacity(shown).Translate(0, (1-shown)*12)
 }
 ```
 
@@ -366,7 +407,7 @@ timeline again shows in the frame it was clicked in:
 ```go
 o := ui.TimelineOptions{Run: app.run, Paused: app.paused, Reverse: app.reverse}
 if app.scrubbing {
-	o.Progress = &app.scrub
+    o.Progress = &app.scrub
 }
 tl := card.Timeline("intro", o)
 ```
@@ -392,9 +433,11 @@ element. An element asks for each of its timelines once per build, and the
 While the desktop asks for less motion, a timeline that would play is at
 once where it would come to rest, every tween at its `To`, or at its `From`
 when it plays back to its start, as values, poses and `Keyframes` are, and
-it asks for no frame. What the view does with the playhead itself still
-works, as a drag still moves a `Draggable` element: `Seek` and `Progress`
-put it where a scrubber asks, and `Paused` holds it there.
+it asks for no frame, unless its `NonMotion` says it only fades (see
+[Less motion](#less-motion-and-frames)). What the view does with the
+playhead itself still works, as a drag still moves a `Draggable` element:
+`Seek` and `Progress` put it where a scrubber asks, and `Paused` holds it
+there.
 `DisableAnimations` does not change a timeline, which plays on its own as
 `Keyframes` do; `Seek` jumps it. A timeline draws frames only while it
 plays, timed by `c.Now()`.
@@ -410,15 +453,52 @@ container scrolled, for effects that follow the scrolling:
 card := ui.Box(c).Key(it.ID).Height(120)
 shown := float32(0)
 if card.InView() {
-	shown = 1
+    shown = 1
 }
 card.Opacity(card.AnimateTo("shown", shown, ui.Smooth))
 
 header.Opacity(1 - min(app.scroll.Y/80, 1)) // fades as the page scrolls
 ```
 
-`ScrollState.ScrollTo(x, y, animation)` scrolls a container smoothly (see
-[Scrolling](scroll.md)).
+`InViewMargin(margin...)` grows the window and the scroll containers around
+the element by `margin` DIPs before it looks, as IntersectionObserver's
+`rootMargin` and `scrollMargin` do (Motion's `margin`): CSS style as
+`Padding`, all sides, vertical and horizontal, or top, right, bottom and
+left. A thumbnail starts loading 300 DIPs before it scrolls in, so that it
+never shows blank:
+
+```go
+thumb := ui.Image(c, placeholder).Key(it.ID).Size(160, 120)
+if thumb.InViewMargin(300) {
+    app.load(it.ID) // once; the next frames show the picture
+}
+```
+
+A negative margin shrinks them instead, to count an element in view only
+once it is that far inside. Other clips around it (`Clip`, `ClipInset`)
+clip it as they do, without the margin. `InViewMargin()`, with no margin,
+is `InView()`. A `List` or `GridView` builds only the rows near its edges,
+two beyond each, so in one the margin reaches no further than the rows it
+builds.
+
+`InViewAmount(amount, margin...)` waits for that share of the element's
+area, from 0 to 1, to show, as IntersectionObserver's `threshold` and
+Motion's `amount` do: an impression counts once half of a card shows,
+not as it peeks in at the bottom of a list, and an animation starts at a
+fifth of it. `1` waits for all of it, `0` is `InViewMargin`; the margin
+grows the window and the scroll containers as `InViewMargin`'s does. Its
+area is that of its box as transforms move it:
+
+```go
+card := ui.Column(c).Key(ad.ID)
+if card.InViewAmount(0.5) {
+    app.counted(ad.ID)
+}
+```
+
+`ScrollState.ScrollTo(x, y, animation)` scrolls a container smoothly, and
+`ScrollIntoView` with an `Animation` in its options the containers around
+an element (see [Scrolling](scroll.md)).
 
 ## Content that changes
 
@@ -431,8 +511,20 @@ down, as SwiftUI's numericText:
 
 ```go
 ui.Text(c, strconv.Itoa(app.count)).FontSize(32).Bold().
-	ContentTransition(ui.ContentTransition{Numeric: true, Down: app.decreased})
+    ContentTransition(ui.ContentTransition{Numeric: true, Down: app.decreased})
 ui.Icon(c, playOrPause).ContentTransition(ui.ContentTransition{})
+```
+
+`Morph` moves the characters the old and the new text share from where
+they were to where they are, those of the old text alone fading out and
+those of the new fading in, as Keynote's Magic Move by characters: words
+reflowing, a title rewritten, letters rearranged. Rich text morphs too,
+its characters going to the colors of their spans. A text flying with a
+[`Match`](transitions.md#text-that-morphs) morphs from the text of the
+element of its `Match`.
+
+```go
+ui.Text(c, app.title).ContentTransition(ui.ContentTransition{Morph: true})
 ```
 
 Content transitions run in frames that only paint. While the desktop asks
@@ -453,6 +545,20 @@ last value. What changes without moving still changes smoothly: colors
 (`AnimateColor`), a pose's `Fade`, content fading across, and
 [transitions](transitions.md)' colors and fades. `Loop` goes on, as the
 system's spinners do.
+
+What a value moves is the view's to say. One that moves nothing, as an
+opacity, a blur or a crossfade the view drives itself, says so with
+`NonMotion` on its `Animation`, `KeyframeOptions` or `TimelineOptions`,
+and then animates with less motion too, as an element's own fades do:
+
+```go
+op := e.AnimateTo("fade", target, ui.Animation{Duration: 200 * time.Millisecond, NonMotion: true})
+ui.Image(c, first).Opacity(1 - op)
+ui.Image(c, second).Opacity(op)
+```
+
+Leave it off for a position, a size, a scale or a scroll, and give what
+moves a timeline of its own beside its fades', which goes to rest at once.
 
 Animations draw frames only while something moves, at the display's rate,
 and none while the window is out of sight (below). Frames moving values
@@ -493,16 +599,16 @@ What this means for motion:
 ```go
 // counter eases from one value to the next over 400 ms, by the clock.
 type counter struct {
-	from, to float32
-	changed  time.Time
+    from, to float32
+    changed  time.Time
 }
 
 const ease = 400 * time.Millisecond
 
 // at returns the value shown at t.
 func (n counter) at(t time.Time) float32 {
-	p := min(float32(t.Sub(n.changed))/float32(ease), 1)
-	return n.from + (n.to-n.from)*ui.EaseOut(p)
+    p := min(float32(t.Sub(n.changed))/float32(ease), 1)
+    return n.from + (n.to-n.from)*ui.EaseOut(p)
 }
 
 // Where the count changes, outside the view:
@@ -513,7 +619,7 @@ win.Update(func() {})
 // In the view:
 value := app.count.at(c.Now())
 if c.Now().Sub(app.count.changed) < ease {
-	c.AnimationFrame()
+    c.AnimationFrame()
 }
 ```
 

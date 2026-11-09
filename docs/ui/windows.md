@@ -9,13 +9,18 @@ PNG of what it shows.
 
 ```go
 golet.NewWindow(golet.WindowOptions{
-	Title:    "Notes",
-	Width:    900,
-	Height:   600,
-	StateKey: "main",
-	Content:  ui.View(app.view),
+    Title:    "Notes",
+    Width:    900,
+    Height:   600,
+    StateKey: "main",
+    Content:  ui.View(app.view),
 })
 ```
+
+The view first runs once `NewWindow` returned, so it can use the window
+kept from it, as `app.win.Title()`: called on the main thread, `NewWindow`
+shows the window on the main loop's next turn (see
+[showing windows](../windows.md#show-windows-without-flashing)).
 
 ## Title bars
 
@@ -28,7 +33,7 @@ double-clicking them zooms or minimizes as a title bar would:
 ```go
 bar := c.TitleBar()
 ui.Row(c).Height(max(bar.Height, 32)).Padding(0, bar.Right+12, 0, bar.Left+12).DragWindow().Children(func() {
-	ui.Text(c, "Inbox").Bold()
+    ui.Text(c, "Inbox").Bold()
 })
 ```
 
@@ -71,6 +76,18 @@ move; a wheel's lines scroll as far as unzoomed. The window controls keep
 their size: `c.TitleBar()` is the room they take, zoomed, so that a title
 bar laid out clear of them stays clear.
 
+The window's own sizes are not zoomed: `WindowOptions.Width` and `Height`,
+`Window.SetContentSize` and `Window.ContentSize` are in the window's DIPs,
+`z` times the size the view sees, as a page's are at its zoom
+(`Page.SetZoomFactor`). A flyout of 320 × 400 zoomed by 1.5 lays its view
+out in about 213 × 267. To give the view a size in its own DIPs, multiply
+it by the zoom:
+
+```go
+z := c.Zoom()
+flyout.SetContentSize(int(math.Ceil(float64(320*z))), int(math.Ceil(float64(400*z))))
+```
+
 A transform's `Scale`, by contrast, scales what is drawn at the content's
 own size: its text is drawn as bitmaps of their untransformed size,
 sampled bilinearly ([Transforms](transforms.md#rendering)), right for
@@ -88,15 +105,15 @@ does:
 
 ```go
 if c.Vibrancy() {
-	c.Root().Background(ui.Transparent)
+    c.Root().Background(ui.Transparent)
 }
 ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
-	sidebar := ui.Column(c).Width(240)
-	if !c.Vibrancy() {
-		sidebar.Background(c.Theme().Surface)
-	}
-	sidebar.Children(func() { app.sidebar(c) }) // over the material
-	ui.Column(c).Grow(1).Background(c.Theme().Background).Children(func() { app.content(c) })
+    sidebar := ui.Column(c).Width(240)
+    if !c.Vibrancy() {
+        sidebar.Background(c.Theme().Surface)
+    }
+    sidebar.Children(func() { app.sidebar(c) }) // over the material
+    ui.Column(c).Grow(1).Background(c.Theme().Background).Children(func() { app.content(c) })
 })
 ```
 
@@ -115,17 +132,27 @@ a heads-up display or a floating toolbar:
 
 ```go
 hud := golet.NewWindow(golet.WindowOptions{
-	Frameless:    true,
-	Transparent:  true,
-	AlwaysOnTop:  true,
-	Vibrancy:     golet.VibrancyGlassClear, // Acrylic on Windows 11
-	CornerRadius: 18,
-	Width:        360,
-	Height:       64,
-	Content:      ui.View(view), // its root transparent where c.Vibrancy()
+    Frameless:    true,
+    Transparent:  true,
+    AlwaysOnTop:  true,
+    Vibrancy:     golet.VibrancyGlassClear, // Acrylic on Windows 11
+    CornerRadius: 18,
+    Width:        360,
+    Height:       64,
+    Content:      ui.View(view), // its root transparent where c.Vibrancy()
 })
 hud.SetActiveAppearance(true) // stays clear over the app in front (macOS)
 ```
+
+`VibrancyTint` colors that glass, by its alpha, as AppKit's
+`NSGlassEffectView` does:
+
+```go
+hud.SetVibrancyTint("light-dark(rgba(0, 122, 255, 0.2), rgba(255, 159, 10, 0.2))")
+```
+
+Other materials and platforms ignore it. `VibrancyTint` in
+`WindowOptions` sets it at creation.
 
 The [glass plugin](../plugins/glass.md) draws Liquid Glass too, on every
 platform, but with what the window itself draws: a toolbar over content
@@ -141,6 +168,68 @@ the window drawn as active, with a private AppKit call that a later macOS may
 drop, the window then drawn as any other: apps for the Mac App Store
 should leave it off.
 
+## Flyouts that fit their content
+
+A flyout with `FitContent` takes the size its native UI measures and
+follows it as it changes, within `MinWidth`, `MinHeight`, `MaxWidth`,
+`MaxHeight` and the work area: the root's content at its max-content
+width and its height at that width, as a tray panel whose list or error
+line comes and goes. A frame that measures another size resizes the
+flyout, and the next lays the content out at that size. A hidden flyout
+lays out content that changed while it was hidden as it shows, and shows
+at the size that content takes. See
+[Size a flyout to its content](../windows.md#size-a-flyout-to-its-content).
+
+## Active and inactive windows
+
+Native apps draw the window the user's input goes to apart from the
+others, so that users tell at a glance which window has it: macOS fades
+the material of an inactive window's sidebar to an opaque gray and the
+accent of its selections and controls to gray, Windows draws its Mica as
+a solid fill, GTK styles it `:backdrop`. A window is active while it, or
+one of its flyouts, has the keyboard (a menu or popover belongs to its
+window), and always while `SetActiveAppearance` keeps it so; panels and
+flyouts without a parent float over whatever app is in front and are
+always active.
+
+The built-in widgets follow on their own: selected rows, the icons of a
+sidebar, checked check boxes, radio buttons and switches, sliders,
+progress bars and the line of the selected tab fade from the accent to
+the theme's `InactiveAccent`, a gray, and primary buttons look as the
+others ([themes](styling.md#themes) keep the accent with
+`InactiveAccent: Accent`). A view draws its own with `c.WindowActive()`:
+
+```go
+dot := c.Theme().Accent
+if !c.WindowActive() {
+    dot = c.Theme().TextMuted
+}
+```
+
+A frame that reads it is drawn again as it changes; one that does not
+draws nothing more. `Tester.SetWindowActive` switches it in tests,
+leaving the keyboard focus to `SetFocused`. The window's material follows
+the system (macOS fades it in a window other than a panel or a flyout,
+Windows its Mica); `examples/vibrancy` shows both together.
+
+## Hidden windows
+
+`c.WindowHidden()` reports whether nothing of the window shows on
+screen, as the web's `document.hidden`: a view showing a clock, a price
+or a playback position stops its work while it is hidden, and refreshes
+as it shows again. The frame that asks builds once more as the window
+hides, though no frame draws while it is hidden, and again as it shows:
+
+```go
+app.ticker.SetPaused(c.WindowHidden()) // a ticker of your own
+```
+
+Frames for what moves, animations and drawings that move, wait anyway
+while it is hidden. macOS tells it as the window is minimized, hidden,
+on another space or covered by other windows; browsers as the tab or
+the window is out of sight; Linux (on X11) and Windows as it is
+minimized. `Tester.SetWindowHidden` hides and shows it in tests.
+
 ## Closing
 
 A view can close its own window, from a button's click or its callback.
@@ -148,13 +237,15 @@ The window goes at once, by `Destroy` or by a `Close` no `OnClose`
 listener prevents, and the rest of the view builds as it would, with a
 `Context` that still has the theme and the window's size. The frame ends
 there: nothing more is laid out or painted, and no other callback runs.
+The closed window keeps nothing of what it showed, the view and what it
+reaches included, though the app keeps the `*golet.Window`.
 Open the window that takes over first, since an app [quits](../app.md)
 when its last window closes:
 
 ```go
 if ui.Button(c, "Done").Clicked() {
-	app.showMain()
-	win.Close()
+    app.showMain()
+    win.Close()
 }
 ```
 

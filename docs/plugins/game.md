@@ -30,30 +30,30 @@ element:
 import "github.com/HyperparameterSI/golet/backend/plugins/game"
 
 type farm struct {
-	x, y   float32 // the player, in the world
-	px, py float32 // where they were a step before
+    x, y   float32 // the player, in the world
+    px, py float32 // where they were a step before
 }
 
 func (f *farm) Update(in *game.Input) {
-	f.px, f.py = f.x, f.y
-	if in.Down(ui.KeyD) {
-		f.x += 2
-	}
-	if in.Pressed(ui.KeySpace) {
-		f.jump()
-	}
+    f.px, f.py = f.x, f.y
+    if in.Down(ui.KeyD) {
+        f.x += 2
+    }
+    if in.Pressed(ui.KeySpace) {
+        f.jump()
+    }
 }
 
 func (f *farm) Draw(p *ui.Painter, r ui.Rect, alpha float64) {
-	// Between the last two steps, as far as the frame is into the next.
-	x := f.px + (f.x-f.px)*float32(alpha)
-	y := f.py + (f.y-f.py)*float32(alpha)
-	p.ImageRegion(sheet, hero, ui.Rect{X: r.X + x, Y: r.Y + y, W: 48, H: 48}, ui.ImageOptions{})
+    // Between the last two steps, as far as the frame is into the next.
+    x := f.px + (f.x-f.px)*float32(alpha)
+    y := f.py + (f.y-f.py)*float32(alpha)
+    p.ImageRegion(sheet, hero, ui.Rect{X: r.X + x, Y: r.Y + y, W: 48, H: 48}, ui.ImageOptions{})
 }
 
 golet.NewWindow(golet.WindowOptions{
-	Title:   "Farm",
-	Content: ui.View(func(c *ui.Context) { game.View(c, f).Fill() }),
+    Title:   "Farm",
+    Content: ui.View(func(c *ui.Context) { game.View(c, f).Fill() }),
 })
 ```
 
@@ -83,7 +83,9 @@ Keys are by position: `KeyW` is the key in W's place on any layout, as
 WASD wants. The view takes the keyboard focus as it appears and when
 clicked, leaves keys with ⌘, Ctrl or Alt to the menus' shortcuts, and lets
 go of everything held when the window loses the keyboard, whose releases
-never come.
+never come. Outside the view, as for a cheat sheet of the game's keys,
+[`c.KeyDown`](../ui/input.md#keys-held) tells the keys held in the window
+whichever element has the focus.
 
 ### Testing
 
@@ -102,9 +104,9 @@ it, clipped to the view:
 ```go
 cam := game.Camera{X: player.x, Y: player.y, Zoom: 3}
 cam.Draw(p, r, func() {
-	for _, t := range tiles {
-		p.ImageRegion(sheet, t.src, t.box, ui.ImageOptions{}) // culled where the camera does not look
-	}
+    for _, t := range tiles {
+        p.ImageRegion(sheet, t.src, t.box, ui.ImageOptions{}) // culled where the camera does not look
+    }
 })
 wx, wy := cam.ToWorld(r, px, py) // the pointer, in the world
 ```
@@ -133,12 +135,12 @@ world := ui.NewCanvas(480, 270)
 world.Bitmap().Pixelated()
 
 func (f *farm) Draw(p *ui.Painter, r ui.Rect, alpha float64) {
-	world.Draw(p, func(cp *ui.Painter) {
-		cam := game.Camera{X: f.x, Y: f.y}
-		cam.Draw(cp, ui.Rect{W: 480, H: 270}, f.drawWorld)
-	})
-	dst, _ := game.IntegerFit(p, 480, 270, r)
-	p.Image(world.Bitmap(), dst, ui.FillBox)
+    world.Draw(p, func(cp *ui.Painter) {
+        cam := game.Camera{X: f.x, Y: f.y}
+        cam.Draw(cp, ui.Rect{W: 480, H: 270}, f.drawWorld)
+    })
+    dst, _ := game.IntegerFit(p, 480, 270, r)
+    p.Image(world.Bitmap(), dst, ui.FillBox)
 }
 ```
 
@@ -156,17 +158,17 @@ import "github.com/HyperparameterSI/golet/backend/plugins/game/gamepad"
 var last gamepad.State
 
 func update() {
-	pads := gamepad.Pads()
-	if len(pads) == 0 {
-		return
-	}
-	s := pads[0].State()
-	x, y := s.LeftStick() // -1 to 1, right and down, with a dead zone
-	player.move(x, y)
-	if s.JustPressed(last, gamepad.South) {
-		player.jump()
-	}
-	last = s
+    pads := gamepad.Pads()
+    if len(pads) == 0 {
+        return
+    }
+    s := pads[0].State()
+    x, y := s.LeftStick() // -1 to 1, right and down, with a dead zone
+    player.move(x, y)
+    if s.JustPressed(last, gamepad.South) {
+        player.jump()
+    }
+    last = s
 }
 ```
 

@@ -7,22 +7,22 @@ a `*bool` is true; clicking outside it or pressing Escape sets it to false.
 
 ```go
 if ui.Button(c, "Rename…").Clicked() {
-	app.renaming = true
+    app.renaming = true
 }
 ui.Modal(c, &app.renaming, func() {
-	ui.Text(c, "Rename").Bold()
-	if ui.TextInput(c, &app.name).AutoFocus().Submitted() {
-		app.renaming = false
-	}
-	ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-		if ui.Button(c, "Cancel").Clicked() {
-			app.renaming = false
-		}
-		if ui.PrimaryButton(c, "Rename").Clicked() {
-			app.rename()
-			app.renaming = false
-		}
-	})
+    ui.Text(c, "Rename").Bold()
+    if ui.TextInput(c, &app.name).AutoFocus().Submitted() {
+        app.renaming = false
+    }
+    ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+        if ui.Button(c, "Cancel").Clicked() {
+            app.renaming = false
+        }
+        if ui.PrimaryButton(c, "Rename").Clicked() {
+            app.rename()
+            app.renaming = false
+        }
+    })
 })
 ```
 
@@ -43,12 +43,19 @@ true then:
 
 ```go
 if ui.Modal(c, &app.editing, app.editor).Dismissed() && app.unsaved {
-	app.editing = true
+    app.editing = true
 }
 ```
 
 To ask about something important, with buttons and no closing by a click
 outside, use an [alert dialog](alert-dialog.md).
+
+## Beyond the window
+
+A dialog draws in its window, cut to its edges: one a flyout asks for, as
+a tray's flyout, is no wider than the flyout. Open a window modal to the
+flyout instead, which shows over it and closes with it (see
+[a dialog over a flyout](../windows.md#a-dialog-over-a-flyout)).
 
 ## Without a look
 
@@ -58,9 +65,9 @@ builds the panel's content:
 
 ```go
 ui.DialogBase(c, &app.open, func(backdrop, panel ui.Element) {
-	backdrop.Background(ui.RGBA(0, 0, 0, 0.5))
-	panel.Width(360).Padding(24).Radius(16).Background(t.Background)
-	ui.Text(c, "Welcome").FontSize(20).Bold()
+    backdrop.Background(ui.RGBA(0, 0, 0, 0.5))
+    panel.Width(360).Padding(24).Radius(16).Background(t.Background)
+    ui.Text(c, "Welcome").FontSize(20).Bold()
 })
 ```
 

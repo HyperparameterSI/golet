@@ -15,27 +15,27 @@ window, as a sheet on macOS.
 ```go
 // Pick files.
 paths, err := golet.Dialog.Open(golet.OpenDialogOptions{
-	Parent:   win,
-	Title:    "Import",
-	Filters:  []golet.FileFilter{{Name: "Images", Extensions: []string{"png", "jpg"}}},
-	Multiple: true,
+    Parent:   win,
+    Title:    "Import",
+    Filters:  []golet.FileFilter{{Name: "Images", Extensions: []string{"png", "jpg"}}},
+    Multiple: true,
 }) // nil when canceled
 
 // Choose where to save.
 path, err := golet.Dialog.Save(golet.SaveDialogOptions{
-	Parent:      win,
-	DefaultPath: "notes.json",
+    Parent:      win,
+    DefaultPath: "notes.json",
 }) // "" when canceled
 
 // Ask a question.
 res, err := golet.Dialog.Message(golet.MessageOptions{
-	Parent:             win,
-	Type:               golet.MessageWarning,
-	Message:            "Delete 3 notes?",
-	Detail:             "You cannot undo this.",
-	Buttons:            []string{"Cancel", "Delete"},
-	DestructiveButtons: []int{1},
-	CheckboxLabel:      "Don't ask again",
+    Parent:             win,
+    Type:               golet.MessageWarning,
+    Message:            "Delete 3 notes?",
+    Detail:             "You cannot undo this.",
+    Buttons:            []string{"Cancel", "Delete"},
+    DestructiveButtons: []int{1},
+    CheckboxLabel:      "Don't ask again",
 })
 if res.Button == 1 { /* Delete */ }
 
@@ -45,6 +45,21 @@ golet.Dialog.Error("Import failed", err.Error())
 
 `OpenDialogOptions` also pick directories (`Directory`), show hidden files
 and, on macOS, a message and a New Folder button.
+
+A filter takes files by type too, as HTML's `accept`: `MIMETypes` such as
+`"application/pdf"`, or all of a kind, `"image/*"`, which the system's
+picker matches as it knows them, rather than a list of every extension:
+
+```go
+golet.FileFilter{Name: "Pictures", MIMETypes: []string{"image/*"}}
+```
+
+macOS 11 and later take them as types of files (`UTType`), the kinds
+`image/*`, `audio/*`, `video/*`, `text/*` and `font/*` as theirs
+(`public.image` and the others), which is all earlier versions take; GTK
+matches them, wildcards too; Windows filters by the extensions its
+registry gives the type, or every type of the kind and every file its
+`PerceivedType` says is of it.
 
 In message dialogs Enter activates `DefaultButton` and Escape
 `CancelButton`, also when they are one button, as Cancel above. On macOS
@@ -58,12 +73,12 @@ that delete or can't be undone.
 
 ```go
 n := golet.NewNotification(golet.NotificationOptions{
-	Title: "Export finished",
-	Body:  "notes.json was saved to Documents.",
+    Title: "Export finished",
+    Body:  "notes.json was saved to Documents.",
 })
 n.OnClick(func() { mainWindow().Focus() })
 if err := n.Show(); err != nil {
-	log.Println(err)
+    log.Println(err)
 }
 ```
 
@@ -85,8 +100,8 @@ those of earlier runs too, as the app comes to the front:
 
 ```go
 n.OnClick(func() {
-	mainWindow().Focus()
-	n.Close()
+    mainWindow().Focus()
+    n.Close()
 })
 
 // What the user has seen in the app does not wait in Notification Center.
@@ -107,15 +122,35 @@ conversation (macOS):
 ```go
 // IDs are "<conversation>/<message>".
 golet.App.OnNotificationClick(func(id string) {
-	conversation, _, _ := strings.Cut(id, "/")
-	openConversation(conversation)
+    conversation, _, _ := strings.Cut(id, "/")
+    openConversation(conversation)
 })
 
 golet.NewNotification(golet.NotificationOptions{
-	ID:    "ada/" + msg.ID,
-	Group: "ada",
-	Title: "Ada",
-	Body:  msg.Text,
+    ID:    "ada/" + msg.ID,
+    Group: "ada",
+    Title: "Ada",
+    Body:  msg.Text,
+}).Show()
+```
+
+`Image` shows an image with the notification, the bytes of a PNG or JPEG,
+such as the cover of the track that started playing. macOS attaches it,
+as a thumbnail that grows as the notification expands; Linux gives the
+desktop's notification service its pixels, scaled down to fit 256 pixels;
+Windows shows it as the balloon's large icon, in place of the app's. An
+image the system cannot decode leaves the notification without one.
+`NewNotification` copies it, so the app can reuse its buffer; Golet does
+not fetch remote images:
+
+```go
+// One notification for what plays, replaced as the track changes.
+golet.NewNotification(golet.NotificationOptions{
+    ID:     "now-playing",
+    Title:  track.Title,
+    Body:   track.Artist + " — " + track.Album,
+    Image:  track.Cover,
+    Silent: true,
 }).Show()
 ```
 
@@ -126,11 +161,11 @@ avatar with the app's small icon on macOS 12 and later:
 
 ```go
 golet.NewNotification(golet.NotificationOptions{
-	ID: "message:7", Group: "conversation:3",
-	Title: "Ada", Subtitle: "Lunch", Body: "See you at noon",
-	Sender: &golet.NotificationSender{
-		ID: "user:ada", Name: "Ada", Avatar: avatarPNG,
-	},
+    ID: "message:7", Group: "conversation:3",
+    Title: "Ada", Subtitle: "Lunch", Body: "See you at noon",
+    Sender: &golet.NotificationSender{
+        ID: "user:ada", Name: "Ada", Avatar: avatarPNG,
+    },
 }).Show()
 ```
 
@@ -222,21 +257,30 @@ content type from the icon theme, and for a desktop entry (`.desktop`), the
 icon of its application, or where the theme has none, that of desktop
 entries.
 
+`TypeIcon` returns the icon of a file type, by its extension, with or
+without the dot, without a file of that type on disk: the icon of an
+attachment not yet downloaded, say. It is drawn as `FileIcon` draws its
+icon, and fails in browsers.
+
+```go
+png, err := golet.Shell.TypeIcon("pdf", 64)
+```
+
 `InstalledApps` lists the applications installed on the computer, sorted
 by name, as a launcher shows them, and `LaunchApp` starts one, or brings
 it to the front:
 
 ```go
 go func() {
-	apps, err := golet.Shell.InstalledApps() // reads the disk: off the main thread
-	if err != nil {
-		return
-	}
-	for _, app := range apps {
-		fmt.Println(app.Name, app.ID)
-	}
-	icon, _ := golet.Shell.FileIcon(apps[0].Path, 64)
-	_ = golet.Shell.LaunchApp(apps[0])
+    apps, err := golet.Shell.InstalledApps() // reads the disk: off the main thread
+    if err != nil {
+        return
+    }
+    for _, app := range apps {
+        fmt.Println(app.Name, app.ID)
+    }
+    icon, _ := golet.Shell.FileIcon(apps[0].Path, 64)
+    _ = golet.Shell.LaunchApp(apps[0])
 }()
 ```
 
@@ -272,6 +316,14 @@ golet.Screen.OnDisplaysChanged(func() { /* rearrange windows */ })
 ```
 
 `WorkArea` leaves out the menu bar, the Dock and taskbars.
+
+On Windows, displays can have different scales. Each display's
+coordinates start at its top-left corner in pixels divided by the
+smallest scale of the displays, and go on in its own scale, so that
+displays never overlap: one with a larger scale than another's leaves a
+gap after it. Where every display has the same scale, coordinates are
+the pixels divided by that scale. A window's bounds are in the scale of
+the display it is the most on.
 `DisplayMatching(rect)` returns the display a rectangle overlaps most, the
 one a window is on.
 
@@ -364,22 +416,22 @@ those controls, send the app commands:
 
 ```go
 golet.NowPlaying.Set(golet.NowPlayingInfo{
-	Title: "Spring", Artist: "Vivaldi", Album: "The Four Seasons",
-	Artwork:  cover, // PNG or JPEG
-	Duration: 3*time.Minute + 20*time.Second,
-	Commands: golet.MediaPlay | golet.MediaPause | golet.MediaNext | golet.MediaPrevious | golet.MediaSeek,
+    Title: "Spring", Artist: "Vivaldi", Album: "The Four Seasons",
+    Artwork:  cover, // PNG or JPEG
+    Duration: 3*time.Minute + 20*time.Second,
+    Commands: golet.MediaPlay | golet.MediaPause | golet.MediaNext | golet.MediaPrevious | golet.MediaSeek,
 })
 golet.NowPlaying.OnCommand(func(cmd golet.MediaCommand, pos time.Duration) {
-	switch cmd {
-	case golet.MediaPause:
-		player.Pause()
-		golet.NowPlaying.SetPlayback(golet.PlaybackPaused, pos) // where playback is
-	case golet.MediaSeek:
-		player.Seek(pos)
-		golet.NowPlaying.SetPlayback(golet.PlaybackPlaying, pos)
-	case golet.MediaNext:
-		playNext() // and Set the next track's info
-	}
+    switch cmd {
+    case golet.MediaPause:
+        player.Pause()
+        golet.NowPlaying.SetPlayback(golet.PlaybackPaused, pos) // where playback is
+    case golet.MediaSeek:
+        player.Seek(pos)
+        golet.NowPlaying.SetPlayback(golet.PlaybackPlaying, pos)
+    case golet.MediaNext:
+        playNext() // and Set the next track's info
+    }
 })
 golet.NowPlaying.Clear() // the app no longer shows in the controls
 ```
@@ -410,11 +462,11 @@ where an app should hold off on large downloads:
 ```go
 status := golet.Network.Status()
 if status.Online && !status.Metered {
-	syncNow()
+    syncNow()
 }
 
 golet.Network.OnChanged(func(s golet.NetworkStatus) {
-	log.Printf("online: %v, metered: %v", s.Online, s.Metered)
+    log.Printf("online: %v, metered: %v", s.Online, s.Metered)
 })
 ```
 
@@ -445,7 +497,7 @@ receives it:
 var Connectivity = golet.NewEvent[golet.NetworkStatus]("connectivity")
 
 func init() {
-	golet.Network.OnChanged(func(s golet.NetworkStatus) { Connectivity.Broadcast(s) })
+    golet.Network.OnChanged(func(s golet.NetworkStatus) { Connectivity.Broadcast(s) })
 }
 ```
 
@@ -503,12 +555,12 @@ and the Credential Manager on Windows.
 
 ```go
 if err := golet.Secrets.Set("github-token", []byte(token)); err != nil {
-	log.Println(err)
+    log.Println(err)
 }
 
 token, err := golet.Secrets.Get("github-token")
 if errors.Is(err, golet.ErrSecretNotFound) {
-	// Ask the user to sign in.
+    // Ask the user to sign in.
 }
 
 golet.Secrets.Delete("github-token") // on sign out; nil when there is none
@@ -553,9 +605,9 @@ desktops. An app can then fall back, e.g. ask for the secret each time:
 token, err := golet.Secrets.Get("github-token")
 switch {
 case errors.Is(err, errors.ErrUnsupported):
-	// No credential store: ask the user, keep it in memory.
+    // No credential store: ask the user, keep it in memory.
 case errors.Is(err, golet.ErrSecretNotFound):
-	// Ask the user to sign in.
+    // Ask the user to sign in.
 }
 ```
 
@@ -568,25 +620,25 @@ goroutine of its own:
 
 ```go
 w, err := golet.WatchFiles(ctx, dir, golet.FileWatchOptions{
-	Recursive: true,
-	Ignore: func(p string, isDir bool) bool {
-		return isDir && (path.Base(p) == "node_modules" || path.Base(p) == ".git")
-	},
+    Recursive: true,
+    Ignore: func(p string, isDir bool) bool {
+        return isDir && (path.Base(p) == "node_modules" || path.Base(p) == ".git")
+    },
 })
 if err != nil {
-	return err
+    return err
 }
 go func() {
-	defer w.Close()
-	for {
-		events, err := w.Next(ctx)
-		if err != nil {
-			return // io.EOF once closed, or once dir went away
-		}
-		for _, e := range events {
-			log.Println(e.Op, e.Path)
-		}
-	}
+    defer w.Close()
+    for {
+        events, err := w.Next(ctx)
+        if err != nil {
+            return // io.EOF once closed, or once dir went away
+        }
+        for _, e := range events {
+            log.Println(e.Op, e.Path)
+        }
+    }
 }()
 ```
 
@@ -639,11 +691,11 @@ any change:
 
 ```go
 w, err := golet.WatchFiles(ctx, dir, golet.FileWatchOptions{
-	Recursive: true,
-	HintsOnly: true, // only "something under this directory changed"
-	Ignore: func(p string, isDir bool) bool {
-		return isDir && path.Base(p) == "node_modules"
-	},
+    Recursive: true,
+    HintsOnly: true, // only "something under this directory changed"
+    Ignore: func(p string, isDir bool) bool {
+        return isDir && path.Base(p) == "node_modules"
+    },
 })
 ```
 
@@ -664,8 +716,8 @@ bring it to the front:
 
 ```go
 err := golet.GlobalShortcut.Register("CmdOrCtrl+Shift+Space", func() {
-	win.Show()
-	win.Focus()
+    win.Show()
+    win.Focus()
 })
 ```
 

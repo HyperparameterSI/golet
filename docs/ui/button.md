@@ -9,12 +9,12 @@ keyboard focus:
 
 ```go
 ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-	if ui.Button(c, "Cancel").Clicked() {
-		app.editing = false
-	}
-	if ui.PrimaryButton(c, "Save").Clicked() {
-		app.save()
-	}
+    if ui.Button(c, "Cancel").Clicked() {
+        app.editing = false
+    }
+    if ui.PrimaryButton(c, "Save").Clicked() {
+        app.save()
+    }
 })
 ```
 
@@ -26,8 +26,8 @@ empty label:
 
 ```go
 ui.PrimaryButton(c, "").Children(func() {
-	ui.Icon(c, save)
-	ui.Text(c, "Save").SingleLine()
+    ui.Icon(c, save)
+    ui.Text(c, "Save").SingleLine()
 })
 ```
 
@@ -36,20 +36,24 @@ assistive technology, and a `Tooltip`:
 
 ```go
 if ui.Button(c, "").Label("Delete").Tooltip("Delete").Children(func() { ui.Icon(c, trash) }).Clicked() {
-	app.delete()
+    app.delete()
 }
 ```
 
 ## States
 
 `Disabled(true)` grays a button out: it takes neither clicks nor the focus.
+`AccessDisabled(true)` only tells screen readers it is unavailable, while
+it keeps the focus and its look, for one they must still reach, as a
+submit button while the form is not valid: see
+[accessibility](accessibility.md#unavailable-still-reachable).
 In a [toolbar](toolbar.md), buttons take no face of their own until
 hovered. A default button that Enter presses wherever the focus is takes
 the key with a [shortcut](input.md#shortcuts):
 
 ```go
 if ui.PrimaryButton(c, "Sign in").Clicked() || c.Shortcut(0, ui.KeyEnter) {
-	app.signIn()
+    app.signIn()
 }
 ```
 

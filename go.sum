@@ -1,3 +1,5 @@
+github.com/HyperparameterSI/dsh-go v0.0.0-20260911155656-c1023d186802 h1:/tBnoKJgLI2Cj1kctJZAx0UfRHPmRWh8Jkcl9ZxNDyM=
+github.com/HyperparameterSI/dsh-go v0.0.0-20260911155656-c1023d186802/go.mod h1:LjtHqo5kFWOIjzfsXb949Ol9Ca/H9sFGMlG/W0VYRHE=
 github.com/ebitengine/purego v0.11.1 h1:2zpWRSQNVKN4eKsKO9eM1ILDgWfYMY9GwqRmK6XeQ/0=
 github.com/ebitengine/purego v0.11.1/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
 github.com/go-text/typesetting v0.3.5 h1:XZPUooClHY0Vf/rFyUyuPRNEkawARaFzLMQcXLSEyPk=

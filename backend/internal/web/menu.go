@@ -22,6 +22,7 @@ user-select:none;-webkit-user-select:none;cursor:default;outline:none}
 .golet-menu-item[data-checked]::before{content:"✓";position:absolute;left:7px;font-size:11px}
 .golet-menu-item>.label{flex:1}
 .golet-menu-item>.accel{opacity:.5}
+.golet-menu-item .subtitle{display:block;margin-bottom:3px;font-size:11px;opacity:.6}
 .golet-menu-item.on{background:#0a64d6;color:#fff}
 .golet-menu-item.on>.accel{opacity:.8}
 .golet-menu-item[aria-disabled=true]{opacity:.35}
@@ -174,6 +175,13 @@ func (p *popup) open(m *platform.Menu, x, y float64, level int, choose func(int)
 		label := doc.Call("createElement", "span")
 		label.Set("className", "label")
 		label.Set("textContent", strings.ReplaceAll(it.Label, "&", ""))
+		if it.Subtitle != "" {
+			row.Get("style").Set("height", "auto")
+			sub := doc.Call("createElement", "span")
+			sub.Set("className", "subtitle")
+			sub.Set("textContent", it.Subtitle)
+			label.Call("appendChild", sub)
+		}
 		row.Call("appendChild", label)
 		accel := doc.Call("createElement", "span")
 		accel.Set("className", "accel")

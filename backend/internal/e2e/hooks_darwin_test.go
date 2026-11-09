@@ -109,9 +109,16 @@ func drag(w *golet.Window, points [][2]float64) bool {
 	return true
 }
 
+// wheel turns the wheel at (x, y) of a window's content, through the
+// window's own hit testing.
 // The wheel over a web view is covered by internal/darwin's
 // TestEmbeddedWebViewScrollReachesSurface, with AppKit's events.
 func wheel(*golet.Window, float64, float64) bool { return false }
+
+func hitView(w *golet.Window, x, y float64) (class string) {
+	golet.RunOnMain(func() { class = darwin.TestHitView(w.NativeHandle(), x, y) })
+	return class
+}
 
 func webViewAttached(w *golet.Window) (attached bool, supported bool) {
 	golet.RunOnMain(func() { attached = darwin.TestWebViewAttached(w.NativeHandle()) })
@@ -138,9 +145,22 @@ func material(w *golet.Window) (class string, style int, radius float64, active 
 	return class, style, radius, active, true
 }
 
+// materialState returns the NSVisualEffectState of the window's material.
+func materialState(w *golet.Window) (state int, supported bool) {
+	golet.RunOnMain(func() { state = darwin.TestMaterialState(w.NativeHandle()) })
+	return state, true
+}
+
 func roundedBacking(w *golet.Window) (opaque bool, alpha, red float64, supported bool) {
 	golet.RunOnMain(func() { opaque, alpha, red = darwin.TestRoundedBacking(w.NativeHandle()) })
 	return opaque, alpha, red, true
+}
+
+// windowBacking reports whether the window is opaque, and the alpha of its
+// background color.
+func windowBacking(w *golet.Window) (opaque bool, alpha float64, supported bool) {
+	golet.RunOnMain(func() { opaque, alpha = darwin.TestWindowBacking(w.NativeHandle()) })
+	return opaque, alpha, true
 }
 
 func dockDevTools(w *golet.Window) (ok bool) {
@@ -248,6 +268,14 @@ func pressTab(w *golet.Window, back bool) (ok bool) {
 	return ok
 }
 
+// pressKeyComposing presses a key in a window of native UI with the test
+// standing in for the input method: it commits commit, unless empty, then
+// passes the key on as command (doCommandBySelector:), unless empty.
+func pressKeyComposing(w *golet.Window, code uint16, chars, commit, command string) (ok bool) {
+	golet.RunOnMain(func() { ok = darwin.TestKeyComposing(w.NativeHandle(), code, chars, commit, command) })
+	return ok
+}
+
 func compose(w *golet.Window, text string, caret int, commit bool) (ok bool) {
 	golet.RunOnMain(func() { ok = darwin.TestCompose(w.NativeHandle(), text, caret, commit) })
 	return ok
@@ -256,6 +284,11 @@ func compose(w *golet.Window, text string, caret int, commit bool) (ok bool) {
 func controlClick(w *golet.Window, x, y float64) bool {
 	golet.RunOnMain(func() { darwin.TestControlClick(w.NativeHandle(), x, y) })
 	return true
+}
+
+func secondaryClickAsPrimary(w *golet.Window, x, y float64) (ok bool) {
+	golet.RunOnMain(func() { ok = darwin.TestSecondaryClickAsPrimary(w.NativeHandle(), x, y) })
+	return ok
 }
 
 func composeOver(w *golet.Window, text string, caret int, commit bool, from, length int) (ok bool) {
@@ -407,3 +440,48 @@ func dismissPageMenu() { golet.RunOnMain(darwin.TestDismissPageMenu) }
 
 // Only Windows' tests start a process that takes the foreground.
 func takeForeground(*golet.Window) {}
+
+// pressLetter presses the key of an uppercase letter, with Command held
+// when cmd is set, as the keyboard does in a window of native UI: in the
+// content, or in the page of a web view that has the keyboard.
+func pressLetter(w *golet.Window, letter byte, cmd bool) (ok bool) {
+	code, known := map[byte]uint16{'J': 0x26, 'K': 0x28, 'L': 0x25}[letter]
+	if !known {
+		return false
+	}
+	chars := string(rune(letter - 'A' + 'a'))
+	golet.RunOnMain(func() {
+		if cmd {
+			ok = darwin.TestKeyCmd(w.NativeHandle(), code, chars)
+		} else {
+			ok = darwin.TestKey(w.NativeHandle(), code, chars)
+		}
+	})
+	return ok
+}
+
+func glassTint(w *golet.Window) (red, green, blue, alpha float64, ok bool) {
+	golet.RunOnMain(func() { red, green, blue, alpha = darwin.TestGlassTint(w.NativeHandle()) })
+	return red, green, blue, alpha, true
+}
+
+func nativeGlassSupported() (ok bool) {
+	golet.RunOnMain(func() { ok = darwin.TestNativeGlassSupported() })
+	return ok
+}
+
+func nativeGlass(w *golet.Window) (class string, frame [4]float64, style int, ok bool) {
+	golet.RunOnMain(func() { class, frame, style, ok = darwin.TestNativeGlass(w.NativeHandle()) })
+	return class, frame, style, ok
+}
+
+func nativeGlassTint(w *golet.Window) (red, green, blue, alpha float64) {
+	golet.RunOnMain(func() { red, green, blue, alpha = darwin.TestNativeGlassTint(w.NativeHandle()) })
+	return red, green, blue, alpha
+}
+
+func activateApp() { golet.RunOnMain(darwin.TestActivate) }
+
+// Only X servers keep a keyboard's state for the tests after a test: see
+// left_behind_linux_test.go.
+func keyboardState() (state string, restore func()) { return "", func() {} }

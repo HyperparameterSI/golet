@@ -8,6 +8,7 @@ import { type FitLimits, fitContent } from "./fit-content";
 import { createRuntime } from "./runtime";
 import { watchThemeColor } from "./theme-color";
 import type { BridgeConfig, ThemePreferences } from "./types";
+import { markWindowActive } from "./window-active";
 
 declare const __GOLET_CONFIG__: BridgeConfig;
 
@@ -55,6 +56,13 @@ let rootStyle: HTMLStyleElement | null = null;
       "--golet-accent": p.accent,
       "--golet-text-scale": String(p.textScale),
     }),
+  );
+
+  // A window that is not the one the user's input goes to marks its pages,
+  // for CSS to draw them as native apps draw such windows:
+  // `:root[data-golet-window-inactive] .sidebar { … }`.
+  runtime.on<boolean>("golet:window-active", (active) =>
+    markWindowActive(document.documentElement, active),
   );
 
   const notify = (t: "dom-ready" | "drag" | "dblclick" | "escape") => {

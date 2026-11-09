@@ -44,14 +44,14 @@ made it.
 ```go
 buf.Edit(editor.Edit{Start: 0, End: 0, Text: "// Generated.\n"})
 buf.Transact(func() { // one step of undo
-	buf.Edit(editor.Edit{Start: a, End: b, Text: name})
-	buf.Edit(editor.Edit{Start: c, End: d, Text: name})
+    buf.Edit(editor.Edit{Start: a, End: b, Text: name})
+    buf.Edit(editor.Edit{Start: c, End: d, Text: name})
 })
 if buf.Modified() {
-	_, err := buf.WriteTo(file)
-	if err == nil {
-		buf.MarkSaved()
-	}
+    _, err := buf.WriteTo(file)
+    if err == nil {
+        buf.MarkSaved()
+    }
 }
 ```
 
@@ -114,11 +114,11 @@ the name keymaps give it, as "selectNext".
 
 ```go
 app.code.Bindings = []editor.Binding{
-	{Mods: ui.Cmd, Key: ui.KeyP, Command: editor.NoCommand}, // the app's
-	{Mods: ui.Cmd | ui.Shift, Key: ui.KeyD, Command: editor.DuplicateSelection},
+    {Mods: ui.Cmd, Key: ui.KeyP, Command: editor.NoCommand}, // the app's
+    {Mods: ui.Cmd | ui.Shift, Key: ui.KeyD, Command: editor.DuplicateSelection},
 }
 if ui.Button(c, "Format").Clicked() {
-	app.code.Run(editor.SortLines)
+    app.code.Run(editor.SortLines)
 }
 ```
 
@@ -130,13 +130,17 @@ the find bar on a query and `FindMatches` counts its matches; `Fold`,
 imports, as an editor can on opening a file; `Focused` reports whether the editor has
 the keyboard focus, and `VisibleLines` the first and last lines the last
 frame showed, as a half page of Vim's moves by. `ScrollY` and
-`SetScrollY` read and set how far the lines are scrolled, in DIPs, and
-`LineTop` where a line starts, below the first: editors side by side
-scroll together with them, and an app draws what joins their lines, as
-the bands between the panes of a merge. The scroll bars' thumbs show
-while the pointer is over the editor, or drags one, as a scroll
-container's do; the marks of changes, matches and diagnostics on the
-vertical one show all the time.
+`SetScrollY` read and set how far the lines are scrolled, in DIPs,
+`ViewportHeight` how high the part of them in view is, and `LineTop`
+where a line starts, below the first, `LineTop` of the count of lines
+being the height of them all: editors side by side scroll together with
+them, an app draws what joins their lines, as the bands between the
+panes of a merge, and a minimap beside the editor shows where its view
+is. The scroll bars' thumbs show while the pointer is over the editor, or
+drags one, as a scroll container's do, or all the time with
+`KeepScrollbars`; the marks of changes, matches and diagnostics on the
+vertical one show all the time. `NoScrollbars` takes the bars and their
+marks away, and gives their room to the text.
 
 `OnInput` sees each input event before the editor does: keys, the text
 typed, edit commands and the pointer. Returning true takes the event, and
@@ -163,10 +167,10 @@ in the text still.
 app.code.CursorShape = editor.CursorBlock // normal mode
 app.code.NoInputMethod = true
 app.code.OnInput = func(ev ui.InputEvent) bool {
-	if ev.Kind == ui.InputText {
-		return app.vim.normalKeys(ev.Text) // j, k, dd, …
-	}
-	return false
+    if ev.Kind == ui.InputText {
+        return app.vim.normalKeys(ev.Text) // j, k, dd, …
+    }
+    return false
 }
 ```
 
@@ -199,6 +203,10 @@ app.code.OnInput = func(ev ui.InputEvent) bool {
 - `ReadOnly` lets the text be selected and copied, not edited.
 - `FitContent` makes the editor as high as its lines, rather than
   scrolling them, to show code in a scroll view or a list.
+- `KeepScrollbars` keeps the scroll bars' thumbs showing with the pointer
+  away, as a scroll container's `KeepScrollbars`; `NoScrollbars` takes
+  the bars away, with their room, the wheel and the keys still
+  scrolling.
 - `Font` and `LineHeight` set the text: the system's monospaced font of
   13 DIPs, 1.5 times as high, by default.
 - `NoAutoClose`, `NoFolding`, `NoActiveLine` and `NoScrollPastEnd` turn
@@ -236,16 +244,16 @@ before, a frame's time budget at a time.
 ```go
 // Lines starting with # are comments.
 lang := &editor.Language{
-	Name:        "Notes",
-	Extensions:  []string{".notes"},
-	LineComment: "#",
-	Tokenizer: editor.TokenizerFunc(func(line string, state uint64, tokens []editor.Token) ([]editor.Token, uint64) {
-		kind := editor.TokenText
-		if strings.HasPrefix(strings.TrimSpace(line), "#") {
-			kind = editor.TokenComment
-		}
-		return append(tokens, editor.Token{End: len(line), Kind: kind}), 0
-	}),
+    Name:        "Notes",
+    Extensions:  []string{".notes"},
+    LineComment: "#",
+    Tokenizer: editor.TokenizerFunc(func(line string, state uint64, tokens []editor.Token) ([]editor.Token, uint64) {
+        kind := editor.TokenText
+        if strings.HasPrefix(strings.TrimSpace(line), "#") {
+            kind = editor.TokenComment
+        }
+        return append(tokens, editor.Token{End: len(line), Kind: kind}), 0
+    }),
 }
 ```
 
@@ -258,19 +266,22 @@ A language can instead bring a highlighter of its own, as one of a parser
 such as tree-sitter: `Language.Highlighter` makes the `Highlighter` of each
 buffer of the language, and the editor uses it in place of the tokenizer.
 The tokenizer itself is one (`NewTokenHighlighter`), so a highlighter
-plugs in without the editor changing.
+plugs in without the editor changing. The text of a patch's side
+(`DiffState.SetPatch`) is its hunks' lines one after another: the
+tokenizer starts each hunk in state 0, while a highlighter of its own
+sees one text, and highlights it as it sees fit.
 
 ```go
 type Highlighter interface {
-	// Edit follows an edit of the text, old and new its text before and
-	// after, and changes what it replaced, in order.
-	Edit(old, new editor.Snapshot, changes []editor.Change)
-	// Highlight works toward the tokens of the lines up to last, for at
-	// most budget, and reports whether they are ready.
-	Highlight(last int, budget time.Duration) bool
-	// Tokens appends the tokens of line i to dst, and reports whether
-	// they are final rather than a guess made before Highlight is done.
-	Tokens(i int, text string, dst []editor.Token) ([]editor.Token, bool)
+    // Edit follows an edit of the text, old and new its text before and
+    // after, and changes what it replaced, in order.
+    Edit(old, new editor.Snapshot, changes []editor.Change)
+    // Highlight works toward the tokens of the lines up to last, for at
+    // most budget, and reports whether they are ready.
+    Highlight(last int, budget time.Duration) bool
+    // Tokens appends the tokens of line i to dst, and reports whether
+    // they are final rather than a guess made before Highlight is done.
+    Tokens(i int, text string, dst []editor.Token) ([]editor.Token, bool)
 }
 ```
 
@@ -306,15 +317,15 @@ app answers its requests, at once or later from another goroutine through
 
 ```go
 app.code.OnCompletion = func(r editor.CompletionRequest) {
-	go func() {
-		items := app.lsp.Complete(r.Offset) // a language server's
-		app.win.Update(func() { app.code.ShowCompletions(r.Offset-len(r.Prefix), items) })
-	}()
+    go func() {
+        items := app.lsp.Complete(r.Offset) // a language server's
+        app.win.Update(func() { app.code.ShowCompletions(r.Offset-len(r.Prefix), items) })
+    }()
 }
 app.code.OnHover = func(r editor.HoverRequest) {
-	if doc, start, end, ok := app.lsp.Hover(r.Offset); ok {
-		app.code.ShowHover(start, end, doc, nil)
-	}
+    if doc, start, end, ok := app.lsp.Hover(r.Offset); ok {
+        app.code.ShowHover(start, end, doc, nil)
+    }
 }
 app.code.SetDiagnostics(buf.Version(), app.lsp.Diagnostics())
 ```
@@ -323,9 +334,12 @@ app.code.SetDiagnostics(buf.Version(), app.lsp.Diagnostics())
   pressed. `ShowCompletions` lists them below the caret, filtered and
   ranked as typing goes on by the word typed, with their kinds, details
   and documentation; Enter or Tab inserts the one chosen.
-- `OnHover` asks what to show as the pointer rests on the text, or for
-  Cmd+K Cmd+I at the caret. `ShowHover` shows text in a popover over the
-  range, or what a function builds there. The pointer can go into the
+- `OnHover` asks what to show as the pointer rests on the text
+  (`HoverDelay`, 600 ms by default), or for Cmd+K Cmd+I at the caret.
+  `NoPointerHover` turns hovers from the resting pointer off, diagnostics'
+  too, as VS Code's `editor.hover.enabled`; the keys still show one.
+  `ShowHover` shows text in a popover over the range, or what a function
+  builds there. The pointer can go into the
   hover, which stays while it is there, to select and copy its text; the
   hover goes a moment after the pointer leaves the text and the hover,
   and Escape closes it.
@@ -337,6 +351,57 @@ app.code.SetDiagnostics(buf.Version(), app.lsp.Diagnostics())
   the types of variables; `SetSuggestion` shows text after the caret as a
   suggestion, which Tab accepts, as an AI's.
 - `OnDefinition` is called for Cmd+click and F12 on a word.
+
+## Code snippets
+
+A completion's `Insert` is always plain text, even with
+`Kind: editor.CompletionSnippet` (which chooses an icon). To insert a
+code template with editable placeholders, parse one and set `Snippet`:
+
+```go
+snippet, err := editor.ParseSnippet("for ${1:index}, ${2:value} := range ${3:items} {\n\t$0\n}")
+if err != nil {
+    // Offer a plain-text completion instead when a server uses
+    // snippet syntax the editor does not support.
+    return err
+}
+code.ShowCompletions(start, []editor.Completion{{
+    Label: "forrange", Kind: editor.CompletionSnippet, Snippet: snippet,
+}})
+// Or insert at every current selection, outside the completion list:
+code.InsertSnippet(snippet)
+```
+
+Parse templates once; a `Snippet` is immutable and can be shared by
+editors. `Text()` returns its initial text. The parser supports `$1`,
+`${1}`, `${1:default}`, escaped dollars, braces and backslashes, and `$0`
+as the final stop (the end when omitted). Tab visits positive numbers in
+numeric order, with 0 last; Shift+Tab goes back, stopping at the first
+field. Repeated numbers share their default, including forward references,
+and edit together through the editor's normal multiple selections.
+Coincident empty stops of the same number coalesce as carets do.
+Scrolling and input methods follow the first occurrence at the original
+primary insertion site.
+
+A completion list takes Tab before the snippet's navigation, so a field
+can itself be completed. Escape ends the session after closing any open
+completion list or other editor overlay. Moving outside the active
+fields, editing the buffer externally, undo/redo or changing buffers
+ends the session too. Each field's typing is a separate undo group;
+undoing the insertion restores the old text and selections. Redo restores
+the text and selections without restarting snippet navigation. Input
+methods compose and commit at mirrored fields as at ordinary carets.
+A new snippet replaces the previous session.
+
+This is the tab-stop subset of TextMate/LSP syntax: nested placeholders,
+variables, choices, transformations, conflicting defaults for one number,
+and invalid UTF-8 return errors. Text keeps the template's indentation;
+CRLF is normalized to LF. `InsertSnippet` leaves a read-only editor
+unchanged. State methods, including snippet insertion, run on the UI
+thread as the rest of editor interaction does.
+
+Run `go run ./examples/code-editor`, type `funcdef` or `forrange` in a Go
+file, then press Tab to try it.
 
 ## Styling
 
@@ -370,20 +435,20 @@ content; its position can change too. The editor's own looks are
 
 ```go
 app.code.RenderFindBar = func(c *ui.Context, bar ui.Element, f *editor.FindBar) {
-	t := c.Theme()
-	bar.Row().Gap(8).Padding(6).Background(t.Surface).Radius(12).Shadow(0, 4, 12, 0, ui.RGBA(0, 0, 0, 0.2))
-	bar.Children(func() {
-		f.QueryInput(ui.TextInputBase(c, f.Query()).Placeholder("Search").Width(180))
-		ui.Toggle(c, f.Regexp(), ".*").KeepFocus()
-		ui.Text(c, f.Status()).TextColor(t.TextMuted)
-		if ui.Button(c, "Next").KeepFocus().Clicked() {
-			f.Next()
-		}
-	})
+    t := c.Theme()
+    bar.Row().Gap(8).Padding(6).Background(t.Surface).Radius(12).Shadow(0, 4, 12, 0, ui.RGBA(0, 0, 0, 0.2))
+    bar.Children(func() {
+        f.QueryInput(ui.TextInputBase(c, f.Query()).Placeholder("Search").Width(180))
+        ui.Toggle(c, f.Regexp(), ".*").KeepFocus()
+        ui.Text(c, f.Status()).TextColor(t.TextMuted)
+        if ui.Button(c, "Next").KeepFocus().Clicked() {
+            f.Next()
+        }
+    })
 }
 app.code.RenderHover = func(c *ui.Context, panel ui.Element, h *editor.HoverCard) {
-	editor.DefaultHover(c, panel, h) // the editor's look, on another background
-	panel.Background(app.hoverColor)
+    editor.DefaultHover(c, panel, h) // the editor's look, on another background
+    panel.Background(app.hoverColor)
 }
 ```
 

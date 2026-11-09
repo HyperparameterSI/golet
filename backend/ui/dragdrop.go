@@ -12,7 +12,8 @@ import (
 // with a copy of the element following the pointer; Drop and DragOver make
 // an element take values of a type, the innermost under the pointer taking
 // them. Escape gives up a drag. Lists and grids reorder their rows by
-// dragging them (ListState.Reorder, GridState.Reorder).
+// dragging them (ListState.Reorder, GridState.Reorder), and lists drag
+// them out for other elements to take (ListState.DragRows).
 
 // dragStart is how far the pointer moves pressing a source before it
 // drags it.
@@ -30,6 +31,9 @@ type valueDrag struct {
 	elem     *node
 	canceled bool
 	native   bool
+	// count is how many things the value stands for, as rows dragged
+	// (countedDrag), for the badge beside the pointer.
+	count int
 }
 
 // Drag makes the element the source of value, dragged within the window
@@ -59,6 +63,19 @@ func (e *node) dragFrom(value func() any) *node {
 		d.elem = e
 	}
 	return e
+}
+
+// DragMissed reports, in the frame after, that the value the element
+// drags (Drag) was let go over no element taking it, and where, in the
+// window's coordinates: outside the window when it was let go past its
+// edge, as to tear a tab out into a window of its own. A drag given up,
+// with Escape, is not missed.
+func (e *node) DragMissed() (Point, bool) {
+	if !e.hasState() || !e.st.dragMissed {
+		return Point{}, false
+	}
+	e.c.rt.consumed = true
+	return Point{e.st.missX, e.st.missY}, true
 }
 
 // Dragging reports whether the element is dragging its value (Drag), or
@@ -138,14 +155,17 @@ func (rt *engine) dragMove(x, y float32) {
 		if dx*dx+dy*dy < dragStart*dragStart {
 			return
 		}
-		value := s.dragValue
+		value, count := s.dragValue, 0
 		if s.dragFn != nil {
 			value = s.dragFn()
+		}
+		if c, ok := value.(countedDrag); ok {
+			value, count = c.value, c.n
 		}
 		if value == nil && s.dataSource == nil {
 			return
 		}
-		d = &valueDrag{src: s.id, value: value, offX: s.pressX, offY: s.pressY}
+		d = &valueDrag{src: s.id, value: value, offX: s.pressX, offY: s.pressY, count: count}
 		rt.drag = d
 		if src := s.dataSource; src != nil {
 			d.native = true
@@ -182,6 +202,14 @@ func (rt *engine) dragMove(x, y float32) {
 	}
 	d.over = rt.valueTarget(x, y, d.value)
 	rt.requestFrame()
+}
+
+// countedDrag is a value a source drags with how many things it stands
+// for, as a list's rows or a grid's items: the drag carries the value
+// alone, and shows the number.
+type countedDrag struct {
+	value any
+	n     int
 }
 
 // drags reports whether the element drags a value (Drag, a list's rows,
@@ -226,7 +254,7 @@ func (rt *engine) handPress(x, y float32) *state {
 	}
 	rt.pressed, rt.pressDragger = a, 0
 	s.pressed = false
-	a.pressed, a.pressMods, a.pressPending = true, s.pressMods, true
+	a.pressed, a.pressButton, a.pressMods, a.pressPending = true, s.pressButton, s.pressMods, true
 	a.pressX, a.pressY = a.local(px, py)
 	a.drag.reset(rt.now(), px, py)
 	return a
@@ -247,6 +275,8 @@ func (rt *engine) dragEnd() bool {
 		if t := rt.states[rt.valueTarget(rt.pointerX, rt.pointerY, d.value)]; t != nil {
 			t.droppedValue, t.hasDropped = d.value, true
 			t.dropX, t.dropY = rt.pointerX, rt.pointerY
+		} else if s := rt.states[d.src]; s != nil {
+			s.dragMissed, s.missX, s.missY = true, rt.pointerX, rt.pointerY
 		}
 	}
 	rt.requestFrame()
@@ -323,9 +353,9 @@ func (rt *engine) paintDrag(p *Painter, w, h float32) {
 	p.element(e)
 	p.opacity = 1
 	// How many go with it, as several rows dragged.
-	if n, ok := d.value.(interface{ dragCount() int }); ok && n.dragCount() > 1 {
+	if n := d.count; n > 1 {
 		t := p.Theme()
-		label := Span{Text: itoa(n.dragCount()), Size: t.FontSize - 2, Weight: 600, Color: t.AccentText}
+		label := Span{Text: itoa(n), Size: t.FontSize - 2, Weight: 600, Color: t.AccentText}
 		tw, th := p.MeasureText(0, label)
 		bw := max(tw+10, th+4)
 		// Beside the pointer, as the copy may be wider than the window.

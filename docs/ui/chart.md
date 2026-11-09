@@ -18,15 +18,15 @@ _, hi := chart.Extent(app.sales...)
 y := chart.NewLinear(0, hi).Nice(4)
 ticks := y.Ticks(4)
 chart.Plot(c, chart.Axes{Left: ticks, Bottom: x.Ticks()}, func(area ui.Element) {
-	area.Draw(func(p *ui.Painter, r ui.Rect) {
-		for _, tick := range ticks { // grid lines
-			p.Line(r.X, chart.Y(r, tick.At), r.X+r.W, chart.Y(r, tick.At), 1, t.Border)
-		}
-	})
-	for i, v := range app.sales {
-		chart.Rect(c, x.Band(i), y.Span(0, v)).Radius(4).Background(t.Accent).
-			Tooltip(fmt.Sprintf("%s: %.0f", app.months[i], v))
-	}
+    area.Draw(func(p *ui.Painter, r ui.Rect) {
+        for _, tick := range ticks { // grid lines
+            p.Line(r.X, chart.Y(r, tick.At), r.X+r.W, chart.Y(r, tick.At), 1, t.Border)
+        }
+    })
+    for i, v := range app.sales {
+        chart.Rect(c, x.Band(i), y.Span(0, v)).Radius(4).Background(t.Accent).
+            Tooltip(fmt.Sprintf("%s: %.0f", app.months[i], v))
+    }
 }).Label("Sales by month").Height(200).Gap(6)
 ```
 
@@ -74,7 +74,7 @@ height that center them, so keep their text on one line with `NoWrap`:
 
 ```go
 label := func(side chart.Side, tick chart.Tick) {
-	ui.Text(c, tick.Label).NoWrap().FontSize(11).TextColor(t.TextMuted)
+    ui.Text(c, tick.Label).NoWrap().FontSize(11).TextColor(t.TextMuted)
 }
 chart.Plot(c, chart.Axes{Left: y.Ticks(4), Bottom: x.Ticks(), Label: label}, build)
 ```
@@ -102,13 +102,13 @@ clicks, as any element.
 
 ```go
 for i, v := range app.sales {
-	bar := chart.Rect(c, x.Band(i), y.Span(0, v)).Background(t.Accent)
-	if bar.Clicked() {
-		app.month = i
-	}
-	chart.Anchor(c, x.At(i), y.At(v), ui.Center, ui.End, func() {
-		ui.Text(c, fmt.Sprint(v)).NoWrap().FontSize(11).Margin(0, 0, 4, 0)
-	})
+    bar := chart.Rect(c, x.Band(i), y.Span(0, v)).Background(t.Accent)
+    if bar.Clicked() {
+        app.month = i
+    }
+    chart.Anchor(c, x.At(i), y.At(v), ui.Center, ui.End, func() {
+        ui.Text(c, fmt.Sprint(v)).NoWrap().FontSize(11).Margin(0, 0, 4, 0)
+    })
 }
 ```
 
@@ -117,7 +117,7 @@ data changes, as bars growing to new values:
 
 ```go
 chart.Rect(c, x.Band(i), y.Span(0, v)).Background(t.Accent).
-	Transition(ui.ElementTransition{Duration: 300 * time.Millisecond})
+    Transition(ui.ElementTransition{Duration: 300 * time.Millisecond})
 ```
 
 ## Lines and areas
@@ -133,8 +133,8 @@ smoothly, without going past the values of the points it joins, and
 
 ```go
 area.Draw(func(p *ui.Painter, r ui.Rect) {
-	p.FillPath(chart.Area(r, xs, nil, ys, chart.CurveMonotone), t.Accent.Alpha(0.15))
-	p.StrokePath(chart.Line(r, xs, ys, chart.CurveMonotone), 2, t.Accent)
+    p.FillPath(chart.Area(r, xs, nil, ys, chart.CurveMonotone), t.Accent.Alpha(0.15))
+    p.StrokePath(chart.Line(r, xs, ys, chart.CurveMonotone), 2, t.Accent)
 })
 ```
 
@@ -155,17 +155,18 @@ it draws each segment as a rounded rectangle, rather than rasterizing the
 whole line into a mask on the CPU. Where segments overlap, their
 antialiased edges can look a little bolder than `StrokePath`'s.
 Translucent lines, and drawing without a GPU, take `StrokePath`'s way,
-since overlapping segments would show darker there.
+since overlapping segments would show darker there; a translucent line of
+one segment has none to overlap, and stays fast on a GPU.
 
 ```go
 // bx, by and points live in the view's state, reused every frame.
 area.Draw(func(p *ui.Painter, r ui.Rect) {
-	bx, by = chart.MinMax(bx, by, xs, ys, int(math.Ceil(float64(r.W*p.Scale()))))
-	points = points[:0]
-	for i, x := range bx {
-		points = append(points, [2]float32{chart.X(r, x), chart.Y(r, by[i])})
-	}
-	p.StrokePolyline(points, 2, t.Accent)
+    bx, by = chart.MinMax(bx, by, xs, ys, int(math.Ceil(float64(r.W*p.Scale()))))
+    points = points[:0]
+    for i, x := range bx {
+        points = append(points, [2]float32{chart.X(r, x), chart.Y(r, by[i])})
+    }
+    p.StrokePolyline(points, 2, t.Accent)
 })
 ```
 
@@ -187,9 +188,9 @@ piles values up from 0, and negative values down from it;
 ```go
 stacked := chart.Stack([][]float64{app.search, app.direct}, chart.StackStandard)
 for s, series := range stacked {
-	for i, seg := range series {
-		chart.Rect(c, x.Band(i), y.Span(seg.Lo, seg.Hi)).Background(colors[s])
-	}
+    for i, seg := range series {
+        chart.Rect(c, x.Band(i), y.Span(seg.Lo, seg.Hi)).Background(colors[s])
+    }
 }
 ```
 
@@ -207,18 +208,18 @@ slices := chart.Pie(app.shares, 0.03)
 ring := ui.Box(c).Size(160, 160).Label("Users by platform")
 hover := -1
 if x, y, over := ring.PointerPosition(); over {
-	if i, ok := chart.SliceAt(slices, x-80, y-80, 50, 80); ok {
-		hover = i
-	}
+    if i, ok := chart.SliceAt(slices, x-80, y-80, 50, 80); ok {
+        hover = i
+    }
 }
 ring.Draw(func(p *ui.Painter, r ui.Rect) {
-	for i, s := range slices {
-		outer := float32(76)
-		if i == hover {
-			outer = 80
-		}
-		p.FillPath(chart.Sector(r.X+80, r.Y+80, 50, outer, s), colors[i])
-	}
+    for i, s := range slices {
+        outer := float32(76)
+        if i == hover {
+            outer = 80
+        }
+        p.FillPath(chart.Sector(r.X+80, r.Y+80, 50, outer, s), colors[i])
+    }
 })
 ```
 
@@ -235,11 +236,11 @@ it. It reports a new choice. Show the choice with marks:
 describe := func(i int) string { return fmt.Sprintf("%s: %.1f °C", hours[i], temps[i]) }
 chart.Select(c, area, &app.selected, xs, describe)
 if i := app.selected; i >= 0 {
-	chart.RuleX(c, xs[i], 1).Background(t.TextMuted)
-	chart.Point(c, xs[i], ys[i], 10, 10).Radius(5).Background(t.Accent)
-	chart.Anchor(c, xs[i], 1, ui.Center, ui.Start, func() {
-		ui.Text(c, describe(i)).NoWrap().Padding(3, 8).Radius(6).Background(t.Surface)
-	})
+    chart.RuleX(c, xs[i], 1).Background(t.TextMuted)
+    chart.Point(c, xs[i], ys[i], 10, 10).Radius(5).Background(t.Accent)
+    chart.Anchor(c, xs[i], 1, ui.Center, ui.Start, func() {
+        ui.Text(c, describe(i)).NoWrap().Padding(3, 8).Radius(6).Background(t.Surface)
+    })
 }
 ```
 

@@ -69,9 +69,9 @@ program built with `go build` can do the same with `embed`:
 var dist embed.FS
 
 func main() {
-	web, _ := fs.Sub(dist, "dist")
-	golet.SetFrontend(web)
-	// ...
+    web, _ := fs.Sub(dist, "dist")
+    golet.SetFrontend(web)
+    // ...
 }
 ```
 
@@ -91,8 +91,8 @@ golet.Protocol.Handle("thumbs", golet.FileServer(os.DirFS(cache)))
 
 // Anything an http.Handler does.
 golet.Protocol.HandleFunc("api", func(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"path": r.URL.Path})
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{"path": r.URL.Path})
 })
 ```
 
@@ -115,7 +115,7 @@ platform, and give the page its URL:
 ```go
 ln, err := net.Listen("tcp", "127.0.0.1:0") // a free port
 if err != nil {
-	log.Fatal(err)
+    log.Fatal(err)
 }
 go http.Serve(ln, golet.FileServer(os.DirFS(videos)))
 mediaURL := "http://" + ln.Addr().String() + "/" // <video src="{mediaURL}clip.mp4">
@@ -190,24 +190,24 @@ answers:
 
 ```go
 golet.Protocol.HandleFunc("plugin", func(w http.ResponseWriter, r *http.Request) {
-	p := golet.CallerPage(r.Context())
-	plugin := pluginOf[p] // the plugin whose web view made the request
-	if plugin == nil || r.URL.Host != plugin.ID {
-		http.NotFound(w, r)
-		return
-	}
-	if r.Method == http.MethodPost {
-		msg, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
-		...
-		PluginReply.EmitPage(p, reply)
-		return
-	}
-	http.FileServerFS(plugin.Files).ServeHTTP(w, r)
+    p := golet.CallerPage(r.Context())
+    plugin := pluginOf[p] // the plugin whose web view made the request
+    if plugin == nil || r.URL.Host != plugin.ID {
+        http.NotFound(w, r)
+        return
+    }
+    if r.Method == http.MethodPost {
+        msg, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
+        ...
+        PluginReply.EmitPage(p, reply)
+        return
+    }
+    http.FileServerFS(plugin.Files).ServeHTTP(w, r)
 })
 
 view, _ := win.NewWebView(golet.WebViewOptions{
-	URL:  "plugin://" + plugin.ID + "/",
-	Page: golet.PageOptions{Untrusted: true},
+    URL:  "plugin://" + plugin.ID + "/",
+    Page: golet.PageOptions{Untrusted: true},
 })
 pluginOf[view.Page()] = plugin
 ```
@@ -266,6 +266,7 @@ await currentWindow.toggleMaximize();
 | `onFileDrop(listener)` | files dropped on the window, with their paths |
 | `preferences()` | the accent color and the accessibility settings of the desktop; throws outside Golet |
 | `onPreferences(listener)` | the changes of `preferences()` |
+| `windowActive()`, `onWindowActive(listener)` | whether the page's window is drawn as active, the one the user's input goes to, and its changes, see [inactive windows](#inactive-windows) |
 | `locale()`, `direction()`, `onLocaleChange(listener)` | the language the app shows (`App.Locale`), such as `"zh-Hans"`, its direction, `"ltr"` or `"rtl"`, and its changes; the page has them from document start, as `golet.locale` and `golet.dir` |
 
 `golet-runtime/i18n` formats messages of ICU MessageFormat, as package
@@ -349,13 +350,14 @@ the window:
   outer pixels of the page resize the window, as a frameless one's. The
   window's menu bar hides, as with `AutoHideMenuBar`: Alt and F10 show it
   above the page while its menus are open, and its shortcuts work all
-  along.
+  along. `Theme.SetGTKCSS` restyles the buttons, as GTK 4's round ones,
+  for example ([GTK's style](windows.md#gtks-style-on-linux)).
 
 ```go
 golet.NewWindow(golet.WindowOptions{
-	URL:            "/",
-	TitleBarStyle:  golet.TitleBarHidden,
-	TitleBarHeight: 40,
+    URL:            "/",
+    TitleBarStyle:  golet.TitleBarHidden,
+    TitleBarHeight: 40,
 })
 ```
 
@@ -386,10 +388,10 @@ and Windows 11 22H2 and later:
 
 ```go
 golet.NewWindow(golet.WindowOptions{
-	URL:           "/",
-	TitleBarStyle: golet.TitleBarHidden,
-	Transparent:   true,
-	Vibrancy:      golet.VibrancySidebar, // Mica on Windows 11
+    URL:           "/",
+    TitleBarStyle: golet.TitleBarHidden,
+    Transparent:   true,
+    Vibrancy:      golet.VibrancySidebar, // Mica on Windows 11
 })
 ```
 
@@ -481,6 +483,36 @@ that tells them at document start is replaced when they change.
 `golet.Theme.Preferences()` reads them on the Go side, see
 [native](native.md#accent-color-and-accessibility).
 
+## Inactive windows
+
+Native apps draw the window the user's input goes to apart from the
+others: macOS fades an inactive window's sidebar and the accent of its
+selections to gray, Windows draws its Mica as a solid fill, GTK styles it
+`:backdrop`. A page knows which its window is from `<html>`, which has
+the `data-golet-window-inactive` attribute while the window is not active:
+
+```css
+.sidebar .selected {
+  background: var(--accent);
+  color: white;
+}
+:root[data-golet-window-inactive] .sidebar .selected {
+  background: #0000001a;
+  color: inherit;
+}
+```
+
+A window is active while it, or one of its flyouts, has the keyboard: a
+flyout of the window leaves it active, where DOM focus would leave the
+page. Panels, flyouts without a
+parent and windows `SetActiveAppearance` keeps active always are. A page
+starts active and is told otherwise as its DOM is ready; `windowActive()`
+of `golet-runtime` reads the state and `onWindowActive` tells its changes.
+The material behind a transparent page follows on its own (macOS's in
+windows other than panels and flyouts, Windows's Mica). See
+[native UI](ui/windows.md#active-and-inactive-windows) for windows that
+show it.
+
 ## Pages that size their window
 
 The page of a flyout or a window with `FitContent` sizes it, without a
@@ -501,11 +533,11 @@ anything else is denied; `win.Page().SetWindowOpenHandler` decides otherwise:
 
 ```go
 win.Page().SetWindowOpenHandler(func(req golet.WindowOpenRequest) *golet.WindowOptions {
-	if strings.HasPrefix(req.URL, "https://docs.example.com/") {
-		return &golet.WindowOptions{Width: 900, Height: 700} // a window of the app
-	}
-	go golet.Shell.OpenExternal(req.URL) // the default browser
-	return nil
+    if strings.HasPrefix(req.URL, "https://docs.example.com/") {
+        return &golet.WindowOptions{Width: 900, Height: 700} // a window of the app
+    }
+    go golet.Shell.OpenExternal(req.URL) // the default browser
+    return nil
 })
 ```
 
@@ -516,11 +548,11 @@ Refuse those, as ads in an embedded page:
 
 ```go
 win.Page().SetWindowOpenHandler(func(req golet.WindowOpenRequest) *golet.WindowOptions {
-	if !req.UserInitiated {
-		return nil // a pop-up
-	}
-	go golet.Shell.OpenExternal(req.URL)
-	return nil
+    if !req.UserInitiated {
+        return nil // a pop-up
+    }
+    go golet.Shell.OpenExternal(req.URL)
+    return nil
 })
 ```
 

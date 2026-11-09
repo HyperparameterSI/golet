@@ -25,6 +25,9 @@ func TestCatalogSourcesAndIDs(t *testing.T) {
 	if !seen["Browser"] {
 		t.Fatal("Browser demo missing")
 	}
+	if !seen["Assistant"] {
+		t.Fatal("Assistant demo missing")
+	}
 	if !seen["Scene3D"] {
 		t.Fatal("Scene3D demo missing")
 	}
@@ -61,7 +64,7 @@ func TestNativeWidgetCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	helpers := map[string]bool{"DataDragOver": true, "DragOver": true, "Drop": true, "DropData": true, "Local": true, "NewTester": true, "Render": true, "Overlay": true}
+	helpers := map[string]bool{"DataDragOver": true, "DragOver": true, "Drop": true, "DropData": true, "Local": true, "NewTester": true, "NewTesterWith": true, "Render": true, "Overlay": true}
 	for _, decl := range api.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Recv != nil || !ast.IsExported(fn.Name.Name) {

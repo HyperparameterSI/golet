@@ -35,4 +35,5 @@ var demos = []Demo{
 	{"WebView", "嵌入式 WebView", "高级组件", "原生工具栏与系统 WebView 组合，展示离线 HTML。", []string{"ui.WebView", "NewWebView", "LoadHTML", "Reload", "Zoom"}, "backend/examples/studio/native.go"},
 	{"Terminal", "终端", "插件", "真实 Shell 与原生终端控件；首次使用可能获取终端运行库。", []string{"terminal.New", "terminal.View", "PTY"}, "backend/examples/studio/native.go"},
 	{"Browser", "Golet Browser", "插件", "独立 CEF 窗口：Alloy 自定义风格与 Chrome 插件兼容风格。", []string{"StyleAlloy", "StyleChrome", "Navigate", "Back", "Forward", "Reload", "NewTab", "Close"}, "backend/examples/studio/browser.go"},
+	{"Assistant", "DSH-Go · AI Assistant", "插件", "AIMessage + PromptInput 原生聊天：离线演示、DeepSeek 流式回复、Go 工具授权、停止与会话统计。", []string{"dshgo.Conversation", "AIMessage", "PromptInput", "ModelSelector", "CodeBlock"}, "backend/examples/studio/assistant.go"},
 }

@@ -6,6 +6,31 @@ Golet 的可选 Go 组件层，导入 `github.com/HyperparameterSI/golet/backend
 
 ## 使用
 
+### 原生 CodeBlock
+
+沿用 `CodeBlock(c, title, code)`，可通过可选参数开启扩展功能：
+
+```go
+// Author: HyperparameterSI
+// 在 View 外创建一次；不传 Highlight 时不加载语言高亮器。
+highlight := forma.HighlightCode("go")
+expanded := false
+// 在 View 内：
+forma.CodeBlock(c, "main.go", source, forma.CodeBlockOptions{
+    LineNumbers: true, StartLine: 98,
+    Highlight: highlight, HighlightKey: "go",
+    Wrap: false, Expanded: &expanded, CollapsedHeight: 120,
+})
+```
+
+支持默认/Small 尺寸、Destructive 错误样式、自定义 Actions/Footer、自动换行、横纵滚动、键盘方向键/PageUp/PageDown、展开收起，以及按零起始行索引设置 `Lines`（`CodeLineAdded`、`CodeLineRemoved`、`CodeLineHighlighted`）。代码区始终从左到右，标题跟随界面方向。`MaxHeight` 默认 320，负数取消高度上限。
+
+复制按钮保留原始空行、尾换行和缩进，不附带行号及差异标记；成功/失败反馈持续两秒。语法高亮按行缓存，追加内容只重新处理新增或变化的后缀；修改高亮器配置时需同步更新 `HighlightKey`。普通文本使用单个文本节点。Studio → Forma → code-block 展示主题、高亮、差异、错误及展开效果。
+
+参考 [官方 Base Code Block](https://ui.shadcn.com/docs/components/base/code-block)，原生实现不依赖 Shiki/React。目前无标题操作栏保持可见，尚未移植网页的悬停浮动操作、滚动边缘渐隐及 ANSI 终端转义着色；不宣称像素级完全一致。
+
+### 基础组合
+
 ```go
 import (
     "github.com/HyperparameterSI/golet/backend/ui"
@@ -130,3 +155,125 @@ Studio 示例已迁移为 `backend/examples/studio/forma.go`，入口为 **Forma
 目前支持 macOS Alloy 的配色、明暗外观、字体与圆角；不会影响网页内容，
 也不是嵌入式 `ui.Element`。普通 Forma 应用不依赖此包或 CEF。
 用法与平台限制见 [Chromium 插件文档](../../plugins/chromium/README.md#跟随-forma-主题macos-alloy)。
+
+## AI Message 与 Model Selector
+
+<!-- Author: HyperparameterSI -->
+
+参考官方 [AI Message](https://ui.shadcn.com/docs/ai-elements/base/message) 与
+[Model Selector](https://ui.shadcn.com/docs/ai-elements/base/model-selector)，提供纯 Go 原生组合；无 React、WebView 或模型 SDK 依赖。
+
+```go
+// Author: HyperparameterSI
+// 窗口状态，在 View 外保存。
+feedback := forma.FeedbackNone
+model, effort := "reasoner", "medium"
+models := []forma.ModelOption{
+    {ID: "reasoner", Name: "Reasoner", Provider: "My provider",
+        Efforts: []forma.ModelEffort{
+            {ID: "low", Name: "Low"}, {ID: "medium", Name: "Medium"},
+        }},
+    {ID: "chat", Name: "Chat", Provider: "My provider"},
+}
+// View 内：
+forma.AIMessage(c, forma.MessageUser, "帮我创建一个窗口")
+forma.AIMessage(c, forma.MessageAssistant, reply, forma.AIMessageOptions{
+    Streaming: generating,
+    Feedback: &feedback,
+    OnRetry: retry,
+})
+forma.ModelSelector(c, &model, &effort, models)
+```
+
+`AIMessage` 将用户文本置于末端的浅色气泡，助手内容使用原生 Markdown，围栏代码交给 `CodeBlock`；`Streaming` 使用增量 Markdown 渲染并禁用消息操作。支持复制原文及两秒结果反馈、互斥且可取消的好/差评价、重试、编辑和自定义 Footer。`OnEdit` 收到原始文本。`MessageContent`、`MessageHeader`、`MessageFooter` 和 `MessageResponse` 可用于自定义组合，旧 `Message(c, author, end, build)` 保持兼容。底部操作使用复制、点赞、点踩、重试和编辑线框图标，带悬停提示、无障碍名称及选中状态。用户气泡与代码块使用主题的 muted 色，正文保持无边框。
+
+`ModelSelector` 的两个菜单分别绑定模型 ID 与思考强度 ID，支持提供商分组、描述、禁用条目、当前选择标记和原生键盘导航，选中后关闭。模型不提供 `Efforts` 时隐藏强度菜单；切换模型时保留仍受支持的强度，否则使用第一个可用选项或空值。模型 ID 应唯一且非空。`OnChange` 在选择改变时收到模型和强度。整个控件可通过 `Disabled` 禁用。
+
+控件不请求模型、不保存密钥。应用需自行把选择映射到已支持的后端模型参数；此 UI 不会自动使 Assistant 插件或供应商支持任意思考强度。重试、编辑和评价也仅调用应用提供的回调。
+
+Studio → Forma 的 `ai-message` 和 `model-selector` 有交互演示；基础 `message` 页面也显示 AI 消息组合。`AIComponents()` 单独列出 AI 组合入口，保持 `Components()` 对固定基础注册表的映射不变。
+
+CodeBlock 的默认外观采用浅灰（深色主题为深灰）面板、大圆角、终端图标标题及图标复制按钮。传入 `WrapToggle: &wrap` 可显示自动换行切换；传入 `OnDownload: func(source string) { ... }` 可显示下载按钮。下载回调收到原始文本，保存位置和错误处理由应用决定。Studio 的 Terminal 示例使用系统保存对话框导出文本。图标保留无障碍标签、键盘焦点和 Tooltip，复制反馈显示勾选图标。
+
+### 模型输入面板
+
+`ModelSelector` 默认采用带细边框的胶囊按钮；`ModelComposer` 把它与无边框多行输入、添加和发送图标组合为浅灰圆角面板，自动跟随明暗主题：
+
+```go
+// Author: HyperparameterSI
+forma.ModelComposer(c, &prompt, &model, &effort, models, forma.ModelComposerOptions{
+    Placeholder: "让助手帮你修改代码…",
+    OnAdd: openAttachmentPicker,
+    OnSubmit: func(text, model, effort string) {
+        // 将本次输入快照交给应用的后台任务。
+    },
+})
+```
+
+`OnAdd` 或 `OnSubmit` 未设置时，对应按钮禁用；空白输入、无效或禁用模型不能发送。`Disabled` 禁用输入及整组操作。Enter 保持多行输入行为，点击发送才提交。发送不自动清空文本，应用可在请求成功后自行清空。`OnModelChange` 接收模型或强度变更。Studio 的按钮连接演示回调，不自动发起 AI 请求或附件上传。
+
+### Prompt Input
+
+参考 [官方 Prompt Input](https://ui.shadcn.com/docs/ai-elements/base/prompt-input)，`PromptInput` 提供独立的纯 Go 消息输入控件：
+
+```go
+// Author: HyperparameterSI
+// 在窗口状态中保存，不能每帧重新创建。
+input := forma.PromptInputState{Model: "reasoner", Effort: "medium"}
+// View 内：
+forma.PromptInput(c, &input, forma.PromptInputOptions{
+    Models: models, // 可省略：不显示模型菜单，也不要求选择模型。
+    OnAttach: openAttachmentPicker,
+    OnSubmit: func(request forma.PromptSubmission) {
+        // 启动后台任务，将文本、附件元数据及模型选择交给应用处理。
+    },
+})
+```
+
+- Enter 发送，Shift+Enter 换行，空白且无附件时禁止发送；只有附件也可提交。
+- `Attachments` 是应用持有的元数据，可展示文件名、描述并逐项移除；`OnRemove` 通知应用清理资源。`OnDropFiles` 接收拖入的路径，不读取文件。
+- `OnAttach` 由应用接入原生文件选择器；文件读取、大小/格式校验、上传以及错误处理由应用负责，控件不做隐式 I/O。
+- `PromptSubmitted` / `PromptStreaming` 显示等待/生成状态并替换为停止按钮，`OnStop` 由应用连接取消操作；`Disabled` 禁用交互，`Error` 显示错误。`Tools` 可插入自定义工具按钮。
+- 提交回调收到文本、模型、强度及独立的附件列表快照；不会自动清空草稿。应用可在提交成功后清空，并通过 `Window.Update` 更新 UI 状态。
+- 原有 `ModelComposer` 继续保持 Enter 换行行为，迁移时请明确选择所需键盘语义。
+
+Studio → Forma → `prompt-input` 演示附件、文件拖入、发送/停止及明暗主题。添加按钮生成示例附件，拖入文件只保存元数据，发送使用模拟响应，均不会上传文件或调用模型。
+
+See [Native AI Elements](AI_ELEMENTS.md) for the complete 21-entry mapping, usage, and differences from the web examples.
+
+## Native charts
+
+`Chart(c, &state, options)` adds themed grouped bars (`ChartBar`), gradient areas
+(`ChartArea`) and lines (`ChartLine`) on top of `ui/chart`. No React, Recharts,
+JavaScript or WebView is required. Studio → Forma → chart demonstrates grouped
+monthly bars and a 90/30/7-day area chart with smooth, linear and step curves.
+
+```go
+// Author: HyperparameterSI
+state := forma.ChartState{Selected: -1} // Keep outside the view callback.
+// Inside the view:
+forma.Chart(c, &state, forma.ChartOptions{
+    Kind: forma.ChartBar,
+    Labels: []string{"Jan", "Feb", "Mar"},
+    Series: []forma.ChartSeries{
+        {Label: "Desktop", Values: []float64{186, 305, 237}},
+        {Label: "Mobile", Values: []float64{80, 200, 120}},
+    },
+    Height: 260,
+})
+```
+
+Zero series colors inherit `ChartColors(c)`; explicit colors override them.
+`Curve`, `ShowYAxis`, `HideGrid`, `HideLegend` and `FormatValue` customize the
+presentation. Hover or focus the plot and use Left/Right/Home/End to inspect
+values; Escape clears selection. `OnSelect` receives the category index, or -1
+when cleared. Missing/NaN/infinite values produce gaps; negative values are
+included in the automatic zero-based domain. Categories are evenly spaced;
+filter your data before passing it to Chart to change the visible date range.
+Keep supplied slices immutable for the duration of a frame.
+
+This is a native adaptation of the [shadcn Chart](https://ui.shadcn.com/docs/components/base/chart)
+and [area examples](https://ui.shadcn.com/charts/area), not a Recharts API clone.
+Areas overlap rather than stack; pie/radar/radial, animation and stacking are
+not exposed by this convenience API. Existing `ChartContainer`, `ChartLegend`,
+`ChartTooltip` and `ui/chart` remain available for custom compositions.

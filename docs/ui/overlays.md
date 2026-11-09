@@ -5,7 +5,8 @@ dimmed window, [alert dialogs](alert-dialog.md), [popovers](popover.md)
 below an element, the popups of [selects](select.md) and
 [comboboxes](combobox.md), menus drawn in the window
 ([`PopoverMenu`](context-menu.md#drawn-in-the-window) and
-[`PopoverMenuButton`](menu-button.md#drawn-in-the-window)),
+[`PopoverMenuButton`](menu-button.md#drawn-in-the-window), and every menu
+of a window that [draws its menus](context-menu.md#every-menu-of-a-window)),
 [tooltips](tooltip.md) and [toasts](toast.md).
 They share how they treat the keyboard and what is behind them. Though
 they show above the window, they take the theme of where they were asked
@@ -16,18 +17,18 @@ window's.
 ```go
 more := ui.Button(c, "More ▾")
 if more.Clicked() {
-	app.menu = !app.menu
+    app.menu = !app.menu
 }
 ui.Popover(c, more, &app.menu, func() {
-	if ui.Button(c, "Rename").Clicked() {
-		app.menu, app.renaming = false, true
-	}
+    if ui.Button(c, "Rename").Clicked() {
+        app.menu, app.renaming = false, true
+    }
 })
 ui.Modal(c, &app.renaming, func() {
-	ui.Text(c, "Rename").Bold()
-	if ui.TextInput(c, &app.name).AutoFocus().Submitted() {
-		app.renaming = false
-	}
+    ui.Text(c, "Rename").Bold()
+    if ui.TextInput(c, &app.name).AutoFocus().Submitted() {
+        app.renaming = false
+    }
 })
 ```
 
@@ -56,8 +57,8 @@ in DIPs of the window:
 
 ```go
 ui.Overlay(c, func() {
-	ui.Text(c, "Offline").Absolute().Top(12).Right(12).
-		Padding(4, 10).Radius(999).Background(t.Danger).TextColor(t.AccentText)
+    ui.Text(c, "Offline").Absolute().Top(12).Right(12).
+        Padding(4, 10).Radius(999).Background(t.Danger).TextColor(t.AccentText)
 })
 ```
 
@@ -74,10 +75,45 @@ menus, are built from what those are made of:
   vertically is no taller than the room on the target's larger side, and
   scrolls. Its margins keep it apart from the target. It is the target's popover: its elements follow
   the target as Tab moves.
+- `AttachEdgeMargin(v)` keeps such an element `v` DIPs from the window's
+  edges, where it keeps 4 unless set: `AttachEdgeMargin(12)` for a wide
+  panel that must not touch the edges of a narrow window, as the insets of
+  CSS Anchor Positioning's containing block.
+- `AttachedAnchors` returns the anchors it ended on, as Floating UI's
+  placement: `ui.AnchorTop, ui.AnchorBottom` for a panel asked below its
+  button that went above it. The view reads the last frame's, and a
+  `Draw` this frame's; in the frame the panel first shows, the view, built
+  before the layout, reads the anchors asked. What its first frame shows
+  follows the side it goes to from the layout itself: `AttachedOrigin`
+  puts its transform origin on its own anchor, on whichever side it went,
+  so that it scales in from the edge nearest its target, and the `Flip`
+  of an `Enter` or `Exit` [motion](transitions.md#coming-and-going)
+  mirrors its offsets, so that a menu sliding down below its button
+  slides up above it:
+
+  ```go
+  tip := ui.Column(c).AttachTo(b, ui.AnchorBottom, ui.AnchorTop).Margin(6, 0, 0, 0).
+    AttachedOrigin().Transition(ui.ElementTransition{
+        Duration: 150 * time.Millisecond, ExitDuration: 100 * time.Millisecond,
+        Enter: &ui.Motion{Scale: 0.96, Y: -4, Flip: true},
+        Exit:  &ui.Motion{Scale: 0.96, Y: -4, Flip: true},
+    })
+  _, self := tip.AttachedAnchors()
+  tip.AlignItems(ui.Center).Children(func() {
+    if self == ui.AnchorTop { // below the button, as asked
+        ui.Text(c, "▲")
+    }
+    ui.Text(c, "Copied")
+    if self == ui.AnchorBottom { // above it, without room below
+        ui.Text(c, "▼")
+    }
+  })
+  ```
 - `PressedOutside` reports a press outside an element, its target and the
-  popovers of what is inside it, as a popover closes for. A press before
-  the element showed is not outside it: an overlay that a right-click
-  opens stays open, the press opening it in the same frame.
+  popovers of what is inside it, as a popover closes for; `PressedInside`
+  one inside them, without taking the pointer. A press before the element
+  showed is not outside it: an overlay that a right-click opens stays open,
+  the press opening it in the same frame.
 - `OverlayShortcut` takes the keys the focused element and those around it
   leave, wherever the focus is, the overlay built last first, as Escape
   closing the one on top.
@@ -91,17 +127,17 @@ drawer on the right, closing with Escape or a click on its backdrop:
 
 ```go
 if app.drawer {
-	ui.Overlay(c, func() {
-		back := ui.Row(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).Justify(ui.End).
-			Background(ui.RGBA(0, 0, 0, 0.3)).Modal()
-		back.Children(func() {
-			panel := ui.Column(c).Width(320).FillHeight().Padding(16).Background(t.Background).
-				Role(ui.RoleDialog).Label("Filters").Children(app.filters)
-			if panel.PressedOutside() || back.OverlayShortcut(0, ui.KeyEscape) {
-				app.drawer = false
-			}
-		})
-	})
+    ui.Overlay(c, func() {
+        back := ui.Row(c).Absolute().Left(0).Top(0).Right(0).Bottom(0).Justify(ui.End).
+            Background(ui.RGBA(0, 0, 0, 0.3)).Modal()
+        back.Children(func() {
+            panel := ui.Column(c).Width(320).FillHeight().Padding(16).Background(t.Background).
+                Role(ui.RoleDialog).Label("Filters").Children(app.filters)
+            if panel.PressedOutside() || back.OverlayShortcut(0, ui.KeyEscape) {
+                app.drawer = false
+            }
+        })
+    })
 }
 ```
 

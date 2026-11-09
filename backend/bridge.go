@@ -39,7 +39,7 @@ func (w *Window) bridgeScript() string {
 // page's (FitContent), in the CSS pixels of its page, or nil. Main thread
 // only.
 func (w *Window) fitLimits() *bridge.FitContent {
-	if w.fit == nil {
+	if w.fit == nil || w.content {
 		return nil
 	}
 	l := bridge.NewFitContent(w.fit.min, w.fit.max, w.fit.zoom)
@@ -52,7 +52,7 @@ func (w *Window) fitLimits() *bridge.FitContent {
 // pages it loads next through its scripts. Main thread only.
 func (w *Window) zoomChanged() {
 	w.sendTitleBar()
-	if w.fit == nil || w.native == nil || w.content != nil {
+	if w.fit == nil || w.native == nil || w.content {
 		return
 	}
 	w.fit.zoom = w.native.Zoom()
@@ -92,7 +92,7 @@ func localeEvent(locale string) (message, error) {
 // tells its listeners only of a language it did not have. Main thread
 // only.
 func (w *Window) sendLocale() {
-	if w.content != nil || w.native == nil {
+	if w.content || w.native == nil {
 		return
 	}
 	if msg, err := localeEvent(App.Locale()); err == nil {
@@ -109,7 +109,7 @@ func pagesLocaleChanged(locale string) {
 		return
 	}
 	for _, w := range pageWindows() {
-		if w.content != nil || w.native == nil {
+		if w.content || w.native == nil {
 			continue
 		}
 		w.userScripts = w.pageScripts()
@@ -139,7 +139,7 @@ func sendPreferences() {
 // the backend replaces, so that their first paint has them, and the
 // current one through the event. Main thread only.
 func (w *Window) sendPreferences(prefs ThemePreferences, script string) {
-	if w.content != nil || w.native == nil || len(w.userScripts) <= preferencesScriptIndex ||
+	if w.content || w.native == nil || len(w.userScripts) <= preferencesScriptIndex ||
 		w.userScripts[preferencesScriptIndex].Source == script {
 		return
 	}
@@ -169,18 +169,17 @@ var evalCanceled func()
 // eval returns the JSON result of code, which shares the memory of the
 // page's answer.
 func (w *Window) eval(ctx context.Context, code string) (jsontext.Value, error) {
-	if w.content != nil {
+	if w.content {
 		return nil, errNoPage
 	}
 	type result struct {
 		raw string
 		err error
 	}
-	// Both the cancellation and the page may answer; the first one counts
-	// and the other must not block.
-	ch := make(chan result, 2)
-	// Capture the test hook before scheduling cancellation; a prior call may
-	// finish its callback after the next test changes the hook.
+	// The cancellation, the page and the window closing may all answer; the
+	// first one counts and the others must not block.
+	ch := make(chan result, 3)
+	// Capture the hook before an asynchronous cancellation can outlive the call.
 	onCanceled := evalCanceled
 	stop := context.AfterFunc(ctx, func() {
 		deliver(ch, result{err: ctx.Err()})
@@ -191,8 +190,17 @@ func (w *Window) eval(ctx context.Context, code string) (jsontext.Value, error) 
 	defer stop()
 
 	ran := false
+	var off func()
 	w.do(func(n platform.Window) {
 		ran = true
+		// A window opened with the quit under way: no one will close it, and
+		// the event loop stops before the page answers.
+		if nativeCalls.stopped {
+			deliver(ch, result{err: errLoopStopped})
+			return
+		}
+		// The page of a closed window never answers.
+		off = w.onClosed.add(func() { deliver(ch, result{err: errDestroyed}) }, false)
 		expr := strings.TrimRight(code, " \t\r\n;")
 		n.CallAsyncFunction(fmt.Sprintf(evalExpr, expr), func(res string, err error) {
 			if err == nil {
@@ -222,6 +230,9 @@ func (w *Window) eval(ctx context.Context, code string) (jsontext.Value, error) 
 		return nil, errDestroyed
 	}
 	r := await(ch)
+	if off != nil {
+		off()
+	}
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -244,10 +255,22 @@ func (w *Window) eval(ctx context.Context, code string) (jsontext.Value, error) 
 // start; this keeps the current page, and later ones, up to date. Main
 // thread only.
 func (w *Window) sendTitleBar() {
-	if w.content != nil || !w.hiddenTitleBar || w.native == nil {
+	if w.content || !w.hiddenTitleBar || w.native == nil {
 		return
 	}
 	if msg, err := encodeEvent(bridge.TitleBarEvent, bridge.NewTitleBar(w.native.TitleBar(), w.native.Zoom())); err == nil {
+		w.enqueue(msg, true)
+	}
+}
+
+// sendActive tells the page of a window, or of a web view in one, whether
+// the window is drawn as active (active.go). Pages start active, and hear
+// otherwise as their DOM is ready. Main thread only.
+func (w *Window) sendActive() {
+	if w.content || w.native == nil {
+		return
+	}
+	if msg, err := encodeEvent(bridge.WindowActiveEvent, w.top().active); err == nil {
 		w.enqueue(msg, true)
 	}
 }
@@ -313,6 +336,9 @@ func (w *Window) handleMessage(msg string) {
 		// the controls before a change.
 		w.sendTitleBar()
 		w.sendLocale()
+		if !w.top().active {
+			w.sendActive()
+		}
 		w.flush()
 		fire(&w.onDOMReady)
 		w.readyToShow()

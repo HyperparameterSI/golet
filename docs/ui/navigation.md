@@ -12,38 +12,38 @@ builds the page it shows:
 ```go
 // notesApp is the app's state.
 type notesApp struct {
-	router *ui.Router
-	// … the notes and the files
+    router *ui.Router
+    // … the notes and the files
 }
 
 func main() {
-	app := &notesApp{router: ui.NewRouter("/notes")}
-	golet.App.WhenReady(func() {
-		golet.NewWindow(golet.WindowOptions{Title: "Notes", Content: ui.View(app.view)})
-	})
-	if err := golet.App.Run(); err != nil {
-		log.Fatal(err)
-	}
+    app := &notesApp{router: ui.NewRouter("/notes")}
+    golet.App.WhenReady(func() {
+        golet.NewWindow(golet.WindowOptions{Title: "Notes", Content: ui.View(app.view)})
+    })
+    if err := golet.App.Run(); err != nil {
+        log.Fatal(err)
+    }
 }
 
 func (app *notesApp) view(c *ui.Context) {
-	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		app.sidebar(c) // stays as the pages change, see below
-		app.router.View(c, func(r *ui.Route) {
-			switch {
-			case r.Match("/notes"):
-				r.Title("Notes")
-				app.notes(c)
-			case r.Match("/notes/{id}"):
-				r.Title("Note")
-				app.note(c, r.Param("id"))
-			case r.Match("/files/{path...}"):
-				app.files(c, r.Param("path"))
-			default:
-				ui.Text(c, "Not found")
-			}
-		})
-	})
+    ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
+        app.sidebar(c) // stays as the pages change, see below
+        app.router.View(c, func(r *ui.Route) {
+            switch {
+            case r.Match("/notes"):
+                r.Title("Notes")
+                app.notes(c)
+            case r.Match("/notes/{id}"):
+                r.Title("Note")
+                app.note(c, r.Param("id"))
+            case r.Match("/files/{path...}"):
+                app.files(c, r.Param("path"))
+            default:
+                ui.Text(c, "Not found")
+            }
+        })
+    })
 }
 ```
 
@@ -62,13 +62,13 @@ of the app above does:
 
 ```go
 func (app *notesApp) sidebar(c *ui.Context) {
-	page := app.router.Path()
-	ui.Sidebar(c, &page, func() {
-		ui.SidebarItem(c, "/notes", nil, "Notes")
-		ui.SidebarItem(c, "/files", nil, "Files")
-	}).Width(220).OnChange(func() {
-		app.router.Push(page)
-	})
+    page := app.router.Path()
+    ui.Sidebar(c, &page, func() {
+        ui.SidebarItem(c, "/notes", nil, "Notes")
+        ui.SidebarItem(c, "/files", nil, "Files")
+    }).Width(220).OnChange(func() {
+        app.router.Push(page)
+    })
 }
 
 // In a page:
@@ -110,19 +110,19 @@ A page of settings is another case of the `switch` in the view above:
 
 ```go
 case r.Match("/settings/{section...}"):
-	ui.Row(c).Grow(1).Children(func() {
-		app.sectionList(c) // pushes "/settings/general", "/settings/fonts"
-		r.View(c, func(r *ui.Route) {
-			switch {
-			case r.Match("/general"):
-				r.Title("General")
-				app.general(c)
-			case r.Match("/fonts"):
-				r.Title("Fonts")
-				app.fonts(c)
-			}
-		})
-	})
+    ui.Row(c).Grow(1).Children(func() {
+        app.sectionList(c) // pushes "/settings/general", "/settings/fonts"
+        r.View(c, func(r *ui.Route) {
+            switch {
+            case r.Match("/general"):
+                r.Title("General")
+                app.general(c)
+            case r.Match("/fonts"):
+                r.Title("Fonts")
+                app.fonts(c)
+            }
+        })
+    })
 ```
 
 A second `Router` inside a page, in a field of its own, is a history of its
@@ -153,9 +153,17 @@ in. With less motion asked of the desktop, all fade, and
 `router.Transition = ui.TransitionNone` shows them at once. The page going
 away takes neither the pointer nor the keyboard as it slides.
 
+`router.Transition = ui.TransitionMatch` fades the page going away out as
+the page coming fades in, while the elements of a
+[`Match`](transitions.md#shared-elements) in both move from the one to the
+other, as Keynote's Magic Move: a photo's thumbnail opening into its page.
+Those that fly (`Fly`) go over both pages, the element of the page going
+away going with the one coming, fading out, and showing no more once
+there.
+
 `router.Animation` sets how pages move, as a spring or a curve (see
-[Motion](motion.md)), in place of easing out over 250 ms as they slide and
-150 ms as they fade:
+[Motion](motion.md)), in place of easing out over 250 ms as they slide,
+150 ms as they fade, and 300 ms as they fade into each other:
 
 ```go
 router.Animation = &ui.Snappy

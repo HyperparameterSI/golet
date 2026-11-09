@@ -8,12 +8,13 @@ Golet 基于 [MyGo](https://github.com/egoist/mygo) 的完整实现迁移，保�
 - **Web 前端**：使用系统 WebView（macOS WKWebView、Linux WebKitGTK、Windows WebView2），不捆绑 Chromium。
 - **shadcn 模板**：TanStack Start、React、TypeScript、Vite、Tailwind CSS，提供组件源码、明暗主题、类型化 Go 调用和错误处理。可使用 shadcn CLI 继续添加组件。
 - **Go ↔ TypeScript**：生成类型安全客户端，支持事件、流式通道和插件。
+- **纯 Go AI 助手**：[DSH-Go 插件](docs/plugins/dsh-go.md) 集成 dsh-go，提供模型流式输出、Go 工具调用、逐次授权、取消和 Forma 原生聊天面板。运行 `go run ./backend/examples/assistant`，无需前端运行时；设置 `DEEPSEEK_API_KEY` 后连接真实模型。
 - **桌面能力**：窗口、菜单、托盘、剪贴板、对话框、快捷键、文件监听、自动更新及跨平台打包。
 - **无 cgo**：三平台可交叉编译；原生 UI 也支持 WebAssembly。
 - **实验性 3D 视口**：[Scene3D](backend/plugins/scene3d/README.md) 提供纯 Go 软件渲染、摄像机、网格、深度测试、基础灯光、OBJ 加载和 Forma 同窗口演示；原生 GPU 三维管线尚未实现。运行 `go run ./backend/examples/scene3d`。
 - **诊断日志**：核心生命周期、窗口、IPC 和协议错误支持结构化处理器，详细日志按需开启；见[日志接入说明](docs/logging.md)。
 
-已同步 MyGo **v0.7.4**（`9bd34e1e`），包含窗口首帧防闪烁、空闲调度优化、局部主题、精确小数输入、径向渐变、统一滚动条和分发工具增强；详见[同步内容与验证记录](docs/upstream-v0.7.4.md)。
+已同步 MyGo **v0.8.3**（从 v0.7.4 到 `5add3817` 的最终差异），包含渲染内存管理、原生 UI 动画与布局、系统玻璃、无障碍、Markdown、终端、国际化和更新器增强；兼容变化与验证记录见[同步说明](docs/upstream-v0.8.3.md)。
 
 ## 从零构建一个跨平台项目
 

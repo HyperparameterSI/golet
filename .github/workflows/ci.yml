@@ -97,6 +97,7 @@ jobs:
           go build $(go list -f '{{if .GoFiles}}{{.ImportPath}}{{end}}' ./... | grep -v /cmd/golet)
           go vet $(go list ./... | grep -v /cmd/golet)
           go test -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./backend/internal/web ./backend/internal/gpu/gl
+          go test -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" -run 'TestCanvas|TestKeepWords' ./backend/internal/text
       # The plugins' tests load the native libraries their golet-plugin.json
       # pins, and on Windows the installer tests run the NSIS that
       # internal/nsis pins, all of which they download into the user's cache

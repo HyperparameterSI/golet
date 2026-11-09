@@ -1,6 +1,12 @@
 // Author: HyperparameterSI
 package forma
 
+// AIComponents lists the native AI compositions separately from the pinned
+// upstream base registry.
+func AIComponents() []string {
+	return []string{"ai-message", "model-selector", "prompt-input", "chain-of-thought", "chat", "checkpoint", "confirmation", "context", "file-tree", "inline-citation", "plan", "queue", "reasoning", "sources", "stack-trace", "subagent", "suggestion", "task", "terminal", "test-results", "tool"}
+}
+
 // Components returns the pinned Base UI Maia registry names in stable order.
 // Presence in the catalog is not a claim of pixel-level parity; see README.md.
 func Components() []string {

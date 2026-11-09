@@ -111,6 +111,13 @@ func TitleBarScript(tb platform.TitleBar, zoom float64) string {
 	return `window.__golet&&window.__golet.receive({"t":"event","n":"` + TitleBarEvent + `","p":` + string(p) + `});`
 }
 
+// WindowActiveEvent tells a page whether its window is drawn as active,
+// true or false: the bridge keeps it for golet-runtime's windowActive(),
+// and sets the attribute data-golet-window-inactive of <html> while it is
+// not. Pages start active; a page that loads in an inactive window hears
+// it as its DOM is ready.
+const WindowActiveEvent = "golet:window-active"
+
 // PreferencesEvent tells a page the accent color and the accessibility
 // settings of the desktop, as golet.ThemePreferences encodes them. The
 // bridge keeps the latest for golet-runtime's preferences(), the accent in

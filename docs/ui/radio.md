@@ -11,9 +11,9 @@ one chosen, and the arrows choose among them, as do Home and End.
 
 ```go
 ui.RadioGroup(c, func() {
-	for _, size := range []string{"Small", "Medium", "Large"} {
-		ui.Radio(c, &app.size, size, size)
-	}
+    for _, size := range []string{"Small", "Medium", "Large"} {
+        ui.Radio(c, &app.size, size, size)
+    }
 }).Label("Size")
 ```
 
@@ -21,9 +21,9 @@ A radio group is a column; make it a row with `Row`:
 
 ```go
 ui.RadioGroup(c, func() {
-	ui.Radio(c, &app.align, ui.Start, "Left")
-	ui.Radio(c, &app.align, ui.Center, "Center")
-	ui.Radio(c, &app.align, ui.End, "Right")
+    ui.Radio(c, &app.align, ui.Start, "Left")
+    ui.Radio(c, &app.align, ui.Center, "Center")
+    ui.Radio(c, &app.align, ui.End, "Right")
 }).Row().Gap(16).Label("Alignment")
 ```
 
@@ -33,7 +33,8 @@ For a choice among many, use a [select](select.md) or a
 ## Without a look
 
 `ui.RadioBase` is a radio button without a look: a row that selects its
-value when clicked: see [custom widgets](custom-widgets.md).
+value when clicked: see [custom widgets](custom-widgets.md), which has a
+card that stays readable while disabled (`DimDisabled(false)`).
 
 ## Accessibility
 

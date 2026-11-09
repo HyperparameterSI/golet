@@ -5,9 +5,9 @@ Elements lay out their children with flexbox, as in CSS, or in a
 
 ```go
 ui.Row(c).Gap(8).Padding(12).Children(func() {
-	ui.Icon(c, folder)
-	ui.Text(c, "Documents").Grow(1)
-	ui.Text(c, "12 items").TextColor(c.Theme().TextMuted)
+    ui.Icon(c, folder)
+    ui.Text(c, "Documents").Grow(1)
+    ui.Text(c, "12 items").TextColor(c.Theme().TextMuted)
 })
 ```
 
@@ -33,8 +33,10 @@ ui.Row(c).Gap(8).Padding(12).Children(func() {
 - `Width`, `Height` and `Size` set sizes; `WidthPercent` and `HeightPercent`
   take a share of the parent; `MinWidth`, `MaxWidth`, `MinHeight` and
   `MaxHeight` bound them, and their `Percent` forms by a share of the
-  parent; `Fill`, `FillWidth` and `FillHeight` take the parent's whole
-  content box. In a [grid](grid.md#sizing-children), a child's percentages
+  parent. An element with both takes the larger minimum and the smaller
+  maximum, as CSS's `max-width: min(78%, 34rem)` does a chat bubble's:
+  `MaxWidthPercent(78).MaxWidth(544)`. `Fill`, `FillWidth` and
+  `FillHeight` take the parent's whole content box. In a [grid](grid.md#sizing-children), a child's percentages
   are of its cell.
 - `Grow(1)` gives an element the free space along its parent's direction,
   like `flex: 1`: a list that fills the rest of a window, or a `Spacer` that
@@ -77,8 +79,8 @@ bottom, as in CSS:
 
 ```go
 ui.Row(c).AlignItems(ui.Baseline).Gap(4).Children(func() {
-	ui.Text(c, "$42").FontSize(40)
-	ui.Text(c, "/month").TextColor(t.TextMuted)
+    ui.Text(c, "$42").FontSize(40)
+    ui.Text(c, "/month").TextColor(t.TextMuted)
 })
 ```
 
@@ -95,11 +97,14 @@ right and the left [right to left](right-to-left.md). On an element in the
 flow, `Top` and the others move
 it from where the layout put it, without moving its siblings, as CSS's
 relative positioning does: a badge raised a little above its text.
+`Sticky` makes them hold an element in the flow inside the scroll
+container around it instead, as CSS's `position: sticky` (see [Scroll
+view](scroll.md#sticky-elements)).
 
 ```go
 ui.Box(c).Size(40, 40).Children(func() {
-	ui.Icon(c, bell).FontSize(24)
-	ui.Badge(c, "3").Absolute().Top(-4).Right(-6)
+    ui.Icon(c, bell).FontSize(24)
+    ui.Badge(c, "3").Absolute().Top(-4).Right(-6)
 })
 ```
 
@@ -113,14 +118,54 @@ it from there:
 
 ```go
 ui.Box(c).Children(func() {
-	ui.Avatar(c, "Ada Lovelace", nil)
-	// Centered on the avatar's top right corner, whatever its size.
-	ui.Badge(c, "3").Attach(ui.AnchorTopRight, ui.AnchorCenter)
+    ui.Avatar(c, "Ada Lovelace", nil)
+    // Centered on the avatar's top right corner, whatever its size.
+    ui.Badge(c, "3").Attach(ui.AnchorTopRight, ui.AnchorCenter)
 })
 ui.Box(c).Fill().Children(func() {
-	ui.PrimaryButton(c, "New").Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).Right(16).Bottom(16)
+    ui.PrimaryButton(c, "New").Attach(ui.AnchorBottomRight, ui.AnchorBottomRight).Right(16).Bottom(16)
 })
 ```
+
+## Paint order
+
+Siblings paint in the order they are built, those in the flow first and
+the absolute and sticky ones over them, and a later one takes the pointer
+where they overlap. `ZIndex` changes that order without moving the element
+in the tree, as CSS's `z-index`: siblings with a higher value paint over
+those with a lower one and take the pointer first, those with the same
+value keep the order above, and the default is 0. A negative value puts an
+element under its siblings, over its parent's background. The layout, the
+order `Tab` moves the focus in and what assistive technology reads still
+follow the tree, which is why reordering the children is no substitute.
+
+```go
+// Overlapping avatars, the first on top.
+ui.Row(c).Children(func() {
+    for i, u := range users {
+        a := ui.Avatar(c, u.Name, u.Photo).ZIndex(len(users) - i)
+        if i > 0 {
+            a.Margin(0, 0, 0, -8)
+        }
+    }
+})
+
+// A cell growing over its neighbours while the pointer is over it.
+cell := ui.Box(c).Size(80, 80)
+if cell.Hovered() {
+    cell.Scale(1.2, 1.2).ZIndex(1)
+}
+```
+
+The order is among siblings alone: the element moves with all that is
+inside it, still clipped by its parent, and is never mixed with the
+elements of other parents, as if each z-index other than 0 made a CSS
+stacking context. Raising a card inside a column does not lift it over the
+next column; raise the column. The window's content stays under its
+[overlays](overlays.md), and overlays keep the order they open in. The copy
+of an element leaving with its [`Exit`](transitions.md) keeps the z-index
+the element had, under its siblings of the same one: a toast raised over the
+page fades out over it.
 
 ## Clipping and visibility
 
@@ -140,7 +185,7 @@ ui.Box(c).Fill().Children(func() {
 
   ```go
   ui.Column(c).Hidden(!app.showDetails).Children(func() {
-	ui.TextArea(c, &app.notes)
+    ui.TextArea(c, &app.notes)
   })
   ```
 - `Debug` outlines an element and everything inside it, with their padding

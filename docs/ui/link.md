@@ -4,8 +4,10 @@
 
 `ui.Link` creates a text that opens a URL in the browser, or the app
 registered for its scheme, when clicked, or with Enter while it has the
-keyboard focus. It shows in the accent color, underlined while the pointer
-is over it:
+keyboard focus; Space scrolls the container around it, as in a web page.
+It shows in the accent color, underlined while the pointer is over it, by a
+line kept whole through descenders and slashes, where other underlines skip
+their ink on macOS:
 
 ```go
 ui.Link(c, "Privacy policy", "https://example.com/privacy")
@@ -28,9 +30,9 @@ the paragraph, wrapping with it; Tab reaches it all the same:
 
 ```go
 ui.RichText(c).Children(func() {
-	ui.Text(c, "Read ")
-	ui.Link(c, "the guide", "https://example.com/guide")
-	ui.Text(c, " to get started.")
+    ui.Text(c, "Read ")
+    ui.Link(c, "the guide", "https://example.com/guide")
+    ui.Text(c, " to get started.")
 })
 ```
 
@@ -44,7 +46,7 @@ that is clicked: give `Link` an empty URL and ask `Clicked`, or use a
 
 ```go
 if ui.Link(c, "Show details", "").Clicked() {
-	app.details = true
+    app.details = true
 }
 ```
 

@@ -3,6 +3,7 @@ module github.com/HyperparameterSI/golet
 go 1.27.3
 
 require (
+	github.com/JopenChen/dsh-go v0.0.0-20260911155656-c1023d186802
 	github.com/ebitengine/purego v0.11.1
 	github.com/go-text/typesetting v0.3.5
 	github.com/hajimehoshi/go-mp3 v0.3.4
@@ -13,3 +14,5 @@ require (
 )
 
 require github.com/jfreymuth/vorbis v1.0.2 // indirect
+
+replace github.com/JopenChen/dsh-go => github.com/HyperparameterSI/dsh-go v0.0.0-20260911155656-c1023d186802

@@ -58,7 +58,7 @@ func TestNativeMenuShortcuts(t *testing.T) {
 
 // In a page, the edit roles' keys are the page's, as in a browser and as in
 // native UI: WebView2 pastes with the page's own paste event and every
-// format of the clipboard, where Edit › Paste would type its text alone.
+// format of the clipboard.
 func TestPageEditKeys(t *testing.T) {
 	prev := golet.App.Menu()
 	defer golet.App.SetMenu(prev)
@@ -84,6 +84,65 @@ addEventListener("paste", (e) => { window.pasted = e.clipboardData.types.join(" 
 	waitFor(t, w, "window.pasted !== undefined")
 	if types, _ := golet.EvalAs[string](w.Page(), "window.pasted"); !strings.Contains(types, "text/html") {
 		t.Errorf("the page's paste had %q, want text/html among them", types)
+	}
+}
+
+// Activating Edit › Paste gives the page the clipboard's formats and lets
+// the browser insert the text. Paste and Match Style still types only text.
+func TestPageMenuPaste(t *testing.T) {
+	prev := golet.App.Menu()
+	defer golet.App.SetMenu(prev)
+	golet.App.SetMenu(golet.NewMenu([]*golet.MenuItem{{Role: golet.RoleEditMenu}}))
+	w := newWindow(t, golet.WindowOptions{Width: 400, Height: 300})
+	w.Page().LoadHTML(`<textarea id=t></textarea><script>
+window.pastes = [];
+window.keys = [];
+addEventListener("paste", (e) => {
+  pastes.push({types: Array.from(e.clipboardData.types), html: e.clipboardData.getData("text/html")});
+});
+for (const type of ["keydown", "keyup"]) {
+  addEventListener(type, (e) => { keys.push({type, key: e.key, ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey, meta: e.metaKey}) });
+}
+</script>`, "")
+	waitFor(t, w, "document.getElementById('t') !== null")
+	if err := golet.Clipboard.Write(transfer.New(transfer.NewItem(
+		transfer.Bytes(transfer.Text, []byte("Golet")), transfer.Bytes(transfer.HTML, []byte("<b>Golet</b>"))))); err != nil {
+		t.Fatal(err)
+	}
+	var front bool
+	golet.RunOnMain(func() { front = win.TestForeground(w.NativeHandle()) })
+	if !front {
+		t.Fatal("the window did not come to the front")
+	}
+	if _, err := w.Page().Eval("document.getElementById('t').focus()"); err != nil {
+		t.Fatal(err)
+	}
+	var err error
+	golet.RunOnMain(func() { err = win.TestActivateMenuItem(w.NativeHandle(), "Edit", "Paste") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, w, "document.getElementById('t').value === 'Golet'")
+	if ok, err := golet.EvalAs[bool](w.Page(), `pastes.length === 1 && pastes[0].types.includes("text/html") && pastes[0].html.includes("<b>Golet</b>")`); err != nil || !ok {
+		pastes, _ := w.Page().Eval("JSON.stringify(pastes)")
+		t.Fatalf("the page's paste events were %v, want one with the clipboard's HTML: %v", pastes, err)
+	}
+	waitFor(t, w, `keys.some(e => e.type === "keyup" && e.key === "Unidentified")`)
+	if ok, err := golet.EvalAs[bool](w.Page(), `keys.filter(e => e.key === "Unidentified").length === 2 && !keys.some(e => e.key === "Unidentified" && (e.ctrl || e.alt || e.shift || e.meta))`); err != nil || !ok {
+		t.Errorf("menu paste did not send a pair of keys without modifiers: %v", err)
+	}
+
+	if _, err := w.Page().Eval("document.getElementById('t').value = ''; window.pastes = []"); err != nil {
+		t.Fatal(err)
+	}
+	var handled bool
+	golet.RunOnMain(func() { handled = win.TestEditRole(w.NativeHandle(), "pasteAndMatchStyle") })
+	if !handled {
+		t.Fatal("Paste and Match Style was not handled")
+	}
+	waitFor(t, w, "document.getElementById('t').value === 'Golet'")
+	if count, err := golet.EvalAs[int](w.Page(), "pastes.length"); err != nil || count != 0 {
+		t.Errorf("Paste and Match Style fired %d paste events, want none: %v", count, err)
 	}
 }
 

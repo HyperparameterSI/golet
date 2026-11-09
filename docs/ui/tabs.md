@@ -11,11 +11,11 @@ reports a new choice. Build the page of the tab chosen below them:
 ui.Tabs(c, &app.tab, "General", "Appearance", "Advanced")
 switch app.tab {
 case 0:
-	app.general(c)
+    app.general(c)
 case 1:
-	app.appearance(c)
+    app.appearance(c)
 case 2:
-	app.advanced(c)
+    app.advanced(c)
 }
 ```
 
@@ -27,18 +27,19 @@ of view in a toolbar, a [segmented control](segmented.md).
 
 `ui.TabsBase` is a tab list without a look: the `List` holding the tabs,
 whose `Tab`s choose the index, with the arrows moving the choice and the
-focus:
+focus. A tab with `Disabled(true)` cannot be clicked, and the arrows, Home
+and End pass over it:
 
 ```go
 tabs := ui.TabsBase(c, &app.tab, len(names))
 tabs.List.Gap(4).Children(func() {
-	for i, name := range names {
-		tab := tabs.Tab(i).Padding(6, 12).Radius(6)
-		if i == app.tab {
-			tab.Background(t.Surface)
-		}
-		tab.Children(func() { ui.Text(c, name) })
-	}
+    for i, name := range names {
+        tab := tabs.Tab(i).Padding(6, 12).Radius(6).Disabled(!app.enabled[i])
+        if i == app.tab {
+            tab.Background(t.Surface)
+        }
+        tab.Children(func() { ui.Text(c, name) })
+    }
 })
 ```
 
@@ -47,4 +48,4 @@ See [custom widgets](custom-widgets.md).
 ## Accessibility
 
 Assistive technology sees a tab list of tabs named by their labels, the one
-chosen selected.
+chosen selected, and those disabled disabled.

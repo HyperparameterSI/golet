@@ -56,15 +56,6 @@ func Trace(c *ui.Context, title string, open *bool, build func()) ui.Element {
 		})
 	})
 }
-func CodeBlock(c *ui.Context, language, code string) ui.Element {
-	return ui.Column(c).Radius(radius(c, 12)).Border(1, c.Theme().Border).Clip().Children(func() {
-		ui.Row(c).Padding(12, 16).AlignItems(ui.Center).Children(func() {
-			CardDescription(c, language).Grow(1)
-			Button(c, "Copy", ButtonOptions{Variant: Ghost, Size: Small}).OnClick(func() { c.WriteClipboard(code) })
-		})
-		ui.ScrollBoth(c).MaxHeight(320).Padding(16).Children(func() { ui.Text(c, code).Font("monospace").FontSize(fontSize(c, 14)).Selectable() })
-	})
-}
 
 // Question is one single-choice step. Answer is an application-owned binding.
 type Question struct {

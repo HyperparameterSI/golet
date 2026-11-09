@@ -44,7 +44,9 @@ func webViewAttached(*golet.Window) (bool, bool) { return false, false }
 func collectionBehavior(*golet.Window) (uint, bool)               { return 0, false }
 func deactivateApp() bool                                         { return false }
 func material(*golet.Window) (string, int, float64, bool, bool)   { return "", 0, 0, false, false }
+func materialState(*golet.Window) (int, bool)                     { return 0, false }
 func roundedBacking(*golet.Window) (bool, float64, float64, bool) { return false, 0, 0, false }
+func windowBacking(*golet.Window) (bool, float64, bool)           { return false, 0, false }
 func appActive() (bool, bool)                                     { return false, false }
 
 func dockDevTools(*golet.Window) bool { return false }
@@ -105,6 +107,8 @@ func failWebViews(int) bool { return false }
 // A Control-click is a secondary click on macOS only.
 func controlClick(*golet.Window, float64, float64) bool { return false }
 
+func secondaryClickAsPrimary(*golet.Window, float64, float64) bool { return false }
+
 // Input methods, file drops and assistive technology are only automated
 // on macOS.
 func composeOver(*golet.Window, string, int, bool, int, int) bool { return false }
@@ -147,6 +151,8 @@ func popupItemEnabled(string) (bool, bool)            { return false, false }
 func pressKey(*golet.Window, uint16, string) bool { return false }
 func pressTab(*golet.Window, bool) bool           { return false }
 
+func pressKeyComposing(*golet.Window, uint16, string, string, string) bool { return false }
+
 func dragFiles(*golet.Window, float64, float64, []string) (bool, bool) { return false, false }
 
 // AppKit's older accessibility API is macOS's.
@@ -179,3 +185,23 @@ func choosePageMenuItem(string) bool                      { return false }
 func dismissPageMenu()                                    {}
 
 func takeForeground(*golet.Window) {}
+
+func pressLetter(*golet.Window, byte, bool) bool { return false }
+
+func glassTint(*golet.Window) (red, green, blue, alpha float64, ok bool) { return 0, 0, 0, 0, false }
+
+func nativeGlassSupported() bool { return false }
+
+func nativeGlass(*golet.Window) (class string, frame [4]float64, style int, ok bool) {
+	return "", frame, 0, false
+}
+
+func nativeGlassTint(*golet.Window) (red, green, blue, alpha float64) { return 0, 0, 0, 0 }
+
+func activateApp() {}
+
+func hitView(*golet.Window, float64, float64) string { return "" }
+
+// Only X servers keep a keyboard's state for the tests after a test: see
+// left_behind_linux_test.go.
+func keyboardState() (state string, restore func()) { return "", func() {} }

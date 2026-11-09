@@ -10,26 +10,59 @@ makes three columns of equal width; `ColumnTracks` sets them one by one, as
 
 ```go
 ui.Grid(c).Columns(3).Gap(12).Children(func() {
-	for _, p := range app.photos {
-		ui.Image(c, p).AspectRatio(1).Fit(ui.Cover).Radius(8)
-	}
+    for _, p := range app.photos {
+        ui.Image(c, p).AspectRatio(1).Fit(ui.Cover).Radius(8)
+    }
 })
 
 ui.Grid(c).ColumnTracks(ui.FitContent(), ui.Fr(1)).GapX(16).GapY(8).Children(func() {
-	ui.Text(c, "Name").Bold().ColumnSpan(-1) // across every column
-	ui.Text(c, "Email")
-	ui.TextInput(c, &app.email)
-	ui.Text(c, "Bio")
-	ui.TextArea(c, &app.bio).RowSpan(2)
+    ui.Text(c, "Name").Bold().ColumnSpan(-1) // across every column
+    ui.Text(c, "Email")
+    ui.TextInput(c, &app.email)
+    ui.Text(c, "Bio")
+    ui.TextArea(c, &app.bio).RowSpan(2)
 })
 ```
+
+## Minimums
+
+An `Fr` track shares the room even where its content is wider, as CSS's
+`minmax(0, 1fr)`. `Min` gives a track a least size, as CSS's
+`minmax(240px, 1fr)`: a main pane beside a side column that keeps a
+readable width, the grid overflowing its box (and a scroll around it
+scrolling) rather than squeezing the pane. An `Fr` track whose share would
+be less keeps its minimum, and the other `Fr` tracks share what is left.
+`MinContent` makes an `Fr` track no smaller than its children's content,
+their min-content widths and `MinWidth`s (heights, for rows), as CSS's
+plain `1fr`, which is `minmax(auto, 1fr)`: a toolbar's label column that
+takes the room left but never gets narrower than its label's longest word,
+or its `MinWidth`.
+
+```go
+ui.Grid(c).ColumnTracks(ui.Fr(1).Min(240), ui.Fixed(320)).Children(func() {
+    mainPane(c)
+    sideColumn(c)
+})
+
+ui.Grid(c).ColumnTracks(ui.Fr(1).MinContent(), ui.FitContent()).GapX(8).Children(func() {
+    ui.Text(c, app.title).MinWidth(120)
+    ui.Button(c, "Share")
+})
+```
+
+A child spanning several `MinContent` tracks widens them in proportion
+to their factors, as CSS does; a track that is `Fr` without `MinContent`,
+or `Fixed`, takes none of it.
 
 ## Placing children
 
 `ColumnSpan` and `RowSpan` make a child span tracks, a negative span every
 track to the last, and `ColumnStart` and `RowStart` put it in a given column
 and row, counting from 1. `RowTracks` and `Rows` set the first rows, which
-`Fr` makes share the grid's height.
+`Fr` makes share the grid's height. A cell of a table or a grid of your
+own that spans tracks tells screen readers it covers them too
+(`aria-colspan`, `aria-rowspan`): see
+[Grids](accessibility.md#grids).
 
 ## Sizing children
 

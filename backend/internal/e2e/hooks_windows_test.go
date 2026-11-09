@@ -94,7 +94,9 @@ func webViewAttached(*golet.Window) (bool, bool) { return false, false }
 func collectionBehavior(*golet.Window) (uint, bool)               { return 0, false }
 func deactivateApp() bool                                         { return false }
 func material(*golet.Window) (string, int, float64, bool, bool)   { return "", 0, 0, false, false }
+func materialState(*golet.Window) (int, bool)                     { return 0, false }
 func roundedBacking(*golet.Window) (bool, float64, float64, bool) { return false, 0, 0, false }
+func windowBacking(*golet.Window) (bool, float64, bool)           { return false, 0, false }
 func appActive() (bool, bool)                                     { return false, false }
 
 // WebView2 opens DevTools in a window of its own.
@@ -215,6 +217,13 @@ func topNonClient(w *golet.Window) (px, want int32, supported bool) {
 	return px, want, true
 }
 
+// frameExtension returns how far a window's frame extends over the top and
+// the bottom of its client area, -1 for all over.
+func frameExtension(w *golet.Window) (top, bottom int32) {
+	golet.RunOnMain(func() { top, bottom = win.TestFrameExtension(w.NativeHandle()) })
+	return top, bottom
+}
+
 // titleButtonColor puts the pointer over a window control of a hidden
 // title bar and returns the color on the screen beside its glyph.
 func titleButtonColor(w *golet.Window, name string) (r, g, b uint8, ok bool) {
@@ -251,6 +260,8 @@ func failWebViews(n int) bool {
 
 // A Control-click is a secondary click on macOS only.
 func controlClick(*golet.Window, float64, float64) bool { return false }
+
+func secondaryClickAsPrimary(*golet.Window, float64, float64) bool { return false }
 
 // composeOver does what an input method that converts typed text again
 // does through IMM32: it settles the range it reconverts, then composes or
@@ -346,6 +357,8 @@ func popupItemEnabled(label string) (enabled, ok bool) {
 // themselves here (GTK's filtering, IMM32's VK_PROCESSKEY), which a
 // composition the test makes up does not show.
 func pressKey(*golet.Window, uint16, string) bool { return false }
+
+func pressKeyComposing(*golet.Window, uint16, string, string, string) bool { return false }
 
 // dragFiles drags files from another application to (x, y) of a window of
 // native UI and drops them, as OLE does, waiting for the target to answer.
@@ -457,3 +470,37 @@ func takeForeground(w *golet.Window) {
 		}
 	})
 }
+
+// pressLetter presses the key of an uppercase letter, with Ctrl held when
+// cmd is set, like a keyboard, in the window brought to the foreground.
+func pressLetter(w *golet.Window, letter byte, cmd bool) (ok bool) {
+	golet.RunOnMain(func() {
+		if ok = win.TestForeground(w.NativeHandle()); !ok {
+			return
+		}
+		if cmd {
+			win.TestPressKeys(0x11, letter) // VK_CONTROL
+		} else {
+			win.TestPressKeys(letter)
+		}
+	})
+	return ok
+}
+
+func glassTint(*golet.Window) (red, green, blue, alpha float64, ok bool) { return 0, 0, 0, 0, false }
+
+func nativeGlassSupported() bool { return false }
+
+func nativeGlass(*golet.Window) (class string, frame [4]float64, style int, ok bool) {
+	return "", frame, 0, false
+}
+
+func nativeGlassTint(*golet.Window) (red, green, blue, alpha float64) { return 0, 0, 0, 0 }
+
+func activateApp() {}
+
+func hitView(*golet.Window, float64, float64) string { return "" }
+
+// Only X servers keep a keyboard's state for the tests after a test: see
+// left_behind_linux_test.go.
+func keyboardState() (state string, restore func()) { return "", func() {} }

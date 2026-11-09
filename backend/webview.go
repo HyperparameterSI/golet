@@ -66,7 +66,7 @@ func (w *Window) NewWebView(opts WebViewOptions) (*WebView, error) {
 	if err != nil {
 		return nil, err
 	}
-	if w.content == nil {
+	if !w.content {
 		return nil, errNoContent
 	}
 	var v *WebView
@@ -189,6 +189,7 @@ func (w *Window) placeWebViews(views []platform.WebViewPlacement) {
 			for _, p := range views {
 				if p.WebView == n.web {
 					n.frame, n.shown = p.Frame, true
+					n.scaleX, n.scaleY = p.Scale()
 				}
 			}
 		}
@@ -224,6 +225,7 @@ func (w *Window) destroyWebView() {
 	cancel := w.pageCancel
 	w.mu.Unlock()
 	cancel()
+	fire(&w.onClosed)
 }
 
 // destroyWebViews closes the web views of a window that closed. Main
@@ -266,11 +268,12 @@ type webViewNative struct {
 	platform.Window
 	web platform.WebView
 	// frame is where the window's view last showed the web view, while
-	// shown; misplaced is set once a view of another window placed it,
-	// which is logged once.
-	frame     platform.RectF
-	shown     bool
-	misplaced bool
+	// shown, scaled by scaleX and scaleY; misplaced is set once a view of
+	// another window placed it, which is logged once.
+	frame          platform.RectF
+	scaleX, scaleY float64
+	shown          bool
+	misplaced      bool
 }
 
 func (n *webViewNative) Surface() platform.Surface   { return nil }
@@ -307,6 +310,7 @@ func (n *webViewNative) Zoom() float64          { return n.web.Zoom() }
 func (n *webViewNative) SetUserAgent(ua string) { n.web.SetUserAgent(ua) }
 func (n *webViewNative) UserAgent() string      { return n.web.UserAgent() }
 func (n *webViewNative) ProcessID() int         { return n.web.ProcessID() }
+func (n *webViewNative) GPUProcessID() int      { return n.web.GPUProcessID() }
 func (n *webViewNative) IsAudible() bool        { return n.web.IsAudible() }
 func (n *webViewNative) SetAudioMuted(v bool)   { n.web.SetAudioMuted(v) }
 func (n *webViewNative) IsAudioMuted() bool     { return n.web.IsAudioMuted() }

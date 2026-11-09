@@ -7,8 +7,8 @@ as the outcome of what the user just did:
 
 ```go
 if ui.Button(c, "Save").Clicked() {
-	app.save()
-	c.Toast("Saved")
+    app.save()
+    c.Toast("Saved")
 }
 ```
 
@@ -23,9 +23,10 @@ c.ToastAction("Note deleted", "Undo", func() { app.restore(note) })
 
 A message already showing shows anew; others stack above it, the newest
 three showing, while older ones wait hidden, their time running. The time
-of the toasts stops while the pointer rests on them, the keyboard focus is
-in them, or the window is in the background. Escape closes the toast the
-focus is in. Toasts fade in and out.
+of the toasts stops while the pointer rests on them or the keyboard focus is
+in them, and runs on while the window is in the background (see
+[below](#in-the-background)). Escape closes the toast the focus is in.
+Toasts fade in and out.
 
 A toast takes the theme's `Inverse` and `InverseText` colors, its text and
 background turned over unless the theme sets them (see
@@ -39,9 +40,9 @@ message as the ID and the title:
 
 ```go
 id := c.AddToast(ui.Toast{
-	Title:       "Uploading",
-	Description: "report.pdf",
-	Timeout:     -1, // until closed
+    Title:       "Uploading",
+    Description: "report.pdf",
+    Timeout:     -1, // until closed
 })
 // ...
 c.CloseToast(id)
@@ -59,6 +60,17 @@ c.CloseToast(id)
 
 `c.CloseToast("")` closes every toast.
 
+## In the background
+
+A toast's time runs on while the window is in the background or hidden,
+since a toast tells news that goes stale, as a tray app's whose main window
+stays hidden while a download or a restart finishes. A toast whose time is
+over by the time the window shows again closes on that frame, running its
+`OnClose`, without showing. The pointer resting on the toasts still stops
+their time, and so does the keyboard focus in them while the window has it.
+A message the user must see shows until it is closed (a negative
+`Timeout`).
+
 ## Without a look
 
 `ToastViewportBase` builds the window's toasts with a look of your own, in
@@ -72,22 +84,22 @@ bottom right corner:
 
 ```go
 ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
-	viewport.Padding(16).AlignItems(ui.End).Gap(8)
-	for _, t := range toasts {
-		toast := ui.ToastBase(c, t)
-		toast.Root.Row().Gap(12).Padding(10, 14).Radius(8).Background(surface).Border(1, border)
-		toast.Root.Transition(ui.ElementTransition{Enter: &ui.Motion{Y: 8}, Exit: &ui.Motion{}})
-		toast.Root.Children(func() {
-			if t.Type == "error" {
-				ui.Icon(c, alert).TextColor(danger)
-			}
-			ui.Text(c, t.Title).Grow(1)
-			if t.Action != "" {
-				toast.ActionButton().Children(func() { ui.Text(c, t.Action) })
-			}
-			toast.CloseButton().Label("Close").Children(func() { ui.Icon(c, x) })
-		})
-	}
+    viewport.Padding(16).AlignItems(ui.End).Gap(8)
+    for _, t := range toasts {
+        toast := ui.ToastBase(c, t)
+        toast.Root.Row().Gap(12).Padding(10, 14).Radius(8).Background(surface).Border(1, border)
+        toast.Root.Transition(ui.ElementTransition{Enter: &ui.Motion{Y: 8}, Exit: &ui.Motion{}})
+        toast.Root.Children(func() {
+            if t.Type == "error" {
+                ui.Icon(c, alert).TextColor(danger)
+            }
+            ui.Text(c, t.Title).Grow(1)
+            if t.Action != "" {
+                toast.ActionButton().Children(func() { ui.Text(c, t.Action) })
+            }
+            toast.CloseButton().Label("Close").Children(func() { ui.Icon(c, x) })
+        })
+    }
 })
 ```
 

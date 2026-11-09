@@ -11,17 +11,17 @@ would take it:
 
 ```go
 for _, task := range app.todo {
-	ui.Row(c).Key(task.ID).Drag(task).Children(func() {
-		ui.Text(c, task.Name)
-	})
+    ui.Row(c).Key(task.ID).Drag(task).Children(func() {
+        ui.Text(c, task.Name)
+    })
 }
 
 done := ui.Column(c).Grow(1).Padding(12).Radius(8).Border(1, t.Border)
 if _, over := ui.DragOver[*Task](done); over {
-	done.Border(2, t.Accent)
+    done.Border(2, t.Accent)
 }
 if task, ok := ui.Drop[*Task](done); ok {
-	task.Done = true
+    task.Done = true
 }
 ```
 
@@ -42,6 +42,19 @@ if task, ok := ui.Drop[*Task](done); ok {
 `Dragging` reports that an element is dragging its value, to dim it where
 it was.
 
+`DragMissed` reports, in the frame after, that the value was let go over
+no element taking it, and where, in the window's coordinates: outside the
+window when it was let go past its edge, as to tear a tab out into a
+window of its own. A drag given up with Escape is not missed.
+
+```go
+tab := ui.Row(c).Drag(t.id)
+w, h := c.Size()
+if at, ok := tab.DragMissed(); ok && (at.X < 0 || at.Y < 0 || at.X > w || at.Y > h) {
+    app.tearOut(t, at)
+}
+```
+
 ## Reordering
 
 Lists, tables and grid views reorder their rows by dragging with
@@ -51,11 +64,15 @@ with a line, and the rows go where the pointer let them go.
 
 ```go
 app.list.Reorder = func(rows []int, to int) {
-	app.items = move(app.items, rows, to) // before row to, len for the end
+    app.items = move(app.items, rows, to) // before row to, len for the end
 }
 ```
 
 See [List](list.md#reordering) and [Grid view](grid-view.md).
+
+A list's rows can also leave it, as files dragged into a folder: with
+`ListState.DragRows` they drag a value of the app's, for `ui.Drop` to take
+anywhere. See [List](list.md#dragging-rows-out).
 
 Files dragged from other apps are [dropped files](input.md#dropped-files).
 
@@ -73,13 +90,13 @@ ui.Text(c, "Drag me").Padding(12).DragData(data)
 zone := ui.Box(c).Size(260, 140).Border(1, c.Theme().Border)
 options := transfer.DropOptions{Formats: []transfer.Format{transfer.Text}}
 if _, over := ui.DataDragOver(zone, options); over {
-	zone.Border(2, c.Theme().Accent)
+    zone.Border(2, c.Theme().Accent)
 }
 if drop, ok := ui.DropData(zone, options); ok {
-	text, err := drop.Data.Read(transfer.Text)
-	if err == nil {
-		app.message = string(text)
-	}
+    text, err := drop.Data.Read(transfer.Text)
+    if err == nil {
+        app.message = string(text)
+    }
 }
 ```
 
@@ -98,10 +115,10 @@ MIME names and explicit encodings, such as JSON:
 const taskFormat transfer.Format = "application/vnd.example.task+json"
 frozen := *task // snapshot the value that all representations describe
 data := transfer.New(transfer.NewItem(
-	transfer.Bytes(transfer.Text, []byte(frozen.Title)),
-	transfer.Lazy(taskFormat, func() ([]byte, error) {
-		return json.Marshal(frozen)
-	}),
+    transfer.Bytes(transfer.Text, []byte(frozen.Title)),
+    transfer.Lazy(taskFormat, func() ([]byte, error) {
+        return json.Marshal(frozen)
+    }),
 ))
 row.Drag(task).DragData(data)
 ```
@@ -136,14 +153,14 @@ elsewhere; Cmd requests move on macOS and Shift elsewhere.
 
 ```go
 row.DragData(data, transfer.DragOptions{
-	Operations: transfer.Copy | transfer.Move,
-	Done: func(result transfer.Result) {
-		if result.Err != nil {
-			app.report(result.Err)
-		} else if result.Operation == transfer.Move {
-			app.removeOriginal(task.ID)
-		}
-	},
+    Operations: transfer.Copy | transfer.Move,
+    Done: func(result transfer.Result) {
+        if result.Err != nil {
+            app.report(result.Err)
+        } else if result.Operation == transfer.Move {
+            app.removeOriginal(task.ID)
+        }
+    },
 })
 ```
 

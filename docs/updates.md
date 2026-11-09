@@ -194,6 +194,12 @@ archive is left out. Builds need to download the published updates then;
 when they cannot, such as for the first version, they make no deltas and
 say why.
 
+If the latest GitHub release has no manifest for the platform being built,
+the build looks through earlier releases for that platform's manifest,
+with the configured tag prefix, skipping drafts and prereleases. This
+keeps delta updates and their history when platforms are published
+separately. Installed apps still check the configured update feed.
+
 An app whose version has a delta downloads it, checks its signature and
 makes the new version from itself next to it, checking that every file has
 the size and SHA-256 that the delta gives, so that the result is exactly
@@ -228,27 +234,27 @@ your own, such as a banner in the app's page:
 var UpdateProgress = golet.NewEvent[float64]("update-progress")
 
 func checkForUpdates(ctx context.Context) {
-	if !golet.Updater.Enabled() {
-		return
-	}
-	up, err := golet.Updater.Check(ctx)
-	if err != nil || up == nil {
-		return // offline, or up to date
-	}
-	res, _ := golet.Dialog.Message(golet.MessageOptions{
-		Message: "Version " + up.Version + " is available.",
-		Detail:  up.Notes, // Markdown
-		Buttons: []string{"Install and Restart", "Later"},
-	})
-	if res.Button != 0 {
-		return
-	}
-	err = up.Install(ctx, func(downloaded, total int64) {
-		UpdateProgress.Broadcast(float64(downloaded) / float64(total))
-	})
-	if err == nil {
-		golet.App.Relaunch()
-	}
+    if !golet.Updater.Enabled() {
+        return
+    }
+    up, err := golet.Updater.Check(ctx)
+    if err != nil || up == nil {
+        return // offline, or up to date
+    }
+    res, _ := golet.Dialog.Message(golet.MessageOptions{
+        Message: "Version " + up.Version + " is available.",
+        Detail:  up.Notes, // Markdown
+        Buttons: []string{"Install and Restart", "Later"},
+    })
+    if res.Button != 0 {
+        return
+    }
+    err = up.Install(ctx, func(downloaded, total int64) {
+        UpdateProgress.Broadcast(float64(downloaded) / float64(total))
+    })
+    if err == nil {
+        golet.App.Relaunch()
+    }
 }
 ```
 
@@ -260,7 +266,13 @@ func checkForUpdates(ctx context.Context) {
   of the archive. The running app is not affected: the new version runs
   after `App.Relaunch`, or at the next launch. On macOS the new bundle
   replaces the app's once the app has exited, so that the Dock keeps the
-  app's tile.
+  app's tile. On Linux and Windows it replaces the files of the app's
+  folder, and removes those that the running version installed and the
+  new one no longer has, which `.golet-files` in the folder lists. Files
+  that no version installed stay, such as the data a portable copy keeps
+  next to it, and so does the executable the app runs from. An app built
+  before Golet wrote the list has none, so its first update removes
+  nothing.
 - `Enabled` reports whether the app can update itself: it was built with
   updates, and it can write where it is installed. Development builds
   cannot, and `Check` returns `golet.ErrUpdatesDisabled` in them.
@@ -289,26 +301,26 @@ its files, and add the user's token to every request:
 type accountUpdates struct{ token string }
 
 func (s accountUpdates) Manifest(ctx context.Context, prereleases bool) (io.ReadCloser, error) {
-	// The manifest of the platform the app was built for; a universal
-	// macOS build reads update-darwin-universal.json.
-	return s.Open(ctx, "https://downloads.example.com/my-app/update-"+runtime.GOOS+"-"+runtime.GOARCH+".json")
+    // The manifest of the platform the app was built for; a universal
+    // macOS build reads update-darwin-universal.json.
+    return s.Open(ctx, "https://downloads.example.com/my-app/update-"+runtime.GOOS+"-"+runtime.GOARCH+".json")
 }
 
 func (s accountUpdates) Open(ctx context.Context, url string) (io.ReadCloser, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+s.token)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
-		return nil, fmt.Errorf("GET %s: %s", url, resp.Status)
-	}
-	return resp.Body, nil
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+    if err != nil {
+        return nil, err
+    }
+    req.Header.Set("Authorization", "Bearer "+s.token)
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    if resp.StatusCode != http.StatusOK {
+        resp.Body.Close()
+        return nil, fmt.Errorf("GET %s: %s", url, resp.Status)
+    }
+    return resp.Body, nil
 }
 
 // Once the user has signed in:

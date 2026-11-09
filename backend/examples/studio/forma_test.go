@@ -9,7 +9,7 @@ import (
 )
 
 func TestMaiaCatalogRenders(t *testing.T) {
-	for _, name := range forma.Components() {
+	for _, name := range append(forma.Components(), forma.AIComponents()...) {
 		t.Run(name, func(t *testing.T) {
 			tt := ui.NewTester(newFormaView(name), 1040, 840)
 			tt.Frame()

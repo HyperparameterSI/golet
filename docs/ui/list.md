@@ -10,7 +10,7 @@ them.
 
 ```go
 ui.List(c, nil, len(app.files), func(i int) {
-	ui.Text(c, app.files[i].Name).Padding(6, 12)
+    ui.Text(c, app.files[i].Name).Padding(6, 12)
 }).Grow(1)
 ```
 
@@ -26,11 +26,11 @@ rows, as a message that it is empty:
 
 ```go
 ui.List(c, nil, len(results), func(i int) {
-	ui.Text(c, results[i].Title).Padding(6, 12)
+    ui.Text(c, results[i].Title).Padding(6, 12)
 }).Grow(1).Children(func() {
-	if len(results) == 0 {
-		ui.Text(c, "No results").TextColor(c.Theme().TextMuted).Padding(12)
-	}
+    if len(results) == 0 {
+        ui.Text(c, "No results").TextColor(c.Theme().TextMuted).Padding(12)
+    }
 })
 ```
 
@@ -70,7 +70,11 @@ behaves and to move it:
   does; scrolling back to the end follows it again. `FollowAnimation`
   makes it glide there, as a spring (`&ui.Smooth`) or a curve, rather
   than show the end at once: what is added comes up from below, as the
-  chat apps scroll, and the user scrolling stops it.
+  chat apps scroll, and the user scrolling stops it. Each layout reads
+  `FollowEnd` as it is then, and `HoldPlace` keeps the list where it is
+  for the next layout alone: call it in the frame a click opens a fold in
+  the last message, and the line clicked stays under the pointer rather
+  than following the end as the row grows.
 - `Header` names the rows heading sections: the header of the section at
   the top stays pinned there while its rows scroll under it, until the next
   header pushes it away. Give headers a background.
@@ -100,24 +104,24 @@ Files to choose several of, by their paths:
 
 ```go
 type fileList struct {
-	files  []File
-	chosen ui.Selection[string]
-	list   ui.ListState
+    files  []File
+    chosen ui.Selection[string]
+    list   ui.ListState
 }
 
 func (app *fileList) view(c *ui.Context) {
-	app.list.Key = func(i int) any { return app.files[i].Path }
-	app.list.Label = func(i int) string { return app.files[i].Name }
-	app.list.Selection = &app.chosen
-	ui.List(c, &app.list, len(app.files), func(i int) {
-		ui.Text(c, app.files[i].Name).Padding(6, 12)
-	}).Grow(1)
-	if ui.Button(c, fmt.Sprintf("Delete %d", app.chosen.Len())).Clicked() {
-		for path := range app.chosen.All() {
-			app.delete(path)
-		}
-		app.chosen.Clear()
-	}
+    app.list.Key = func(i int) any { return app.files[i].Path }
+    app.list.Label = func(i int) string { return app.files[i].Name }
+    app.list.Selection = &app.chosen
+    ui.List(c, &app.list, len(app.files), func(i int) {
+        ui.Text(c, app.files[i].Name).Padding(6, 12)
+    }).Grow(1)
+    if ui.Button(c, fmt.Sprintf("Delete %d", app.chosen.Len())).Clicked() {
+        for path := range app.chosen.All() {
+            app.delete(path)
+        }
+        app.chosen.Clear()
+    }
 }
 ```
 
@@ -146,7 +150,7 @@ down, as a spreadsheet does, rather than at the release; a press on a row
 chosen waits for the release, so a drag of the choice keeps it.
 `DragSelecting` reports a drag choosing rows while the pointer holds it, for
 work that follows the choice, as a sum of the rows chosen, to wait until it
-ends. A list cannot both `DragSelect` and `Reorder`.
+ends. A list cannot both `DragSelect` and `Reorder` (or `DragRows`).
 
 `ExtendTo(row)` chooses the rows from the one Shift extends from to `row`,
 as a Shift-click on it does, for keys of your own, as one that extends the
@@ -154,7 +158,7 @@ choice to the last row:
 
 ```go
 if app.extendToEnd {
-	app.list.ExtendTo(len(app.files) - 1) // after the list is built
+    app.list.ExtendTo(len(app.files) - 1) // after the list is built
 }
 ```
 
@@ -166,10 +170,10 @@ choose.
 
 ```go
 ui.List(c, &app.list, len(app.files), func(i int) {
-	name := ui.Text(c, app.files[i].Name).Padding(6, 12)
-	if name.RowDoubleClicked() {
-		app.rename(i)
-	}
+    name := ui.Text(c, app.files[i].Name).Padding(6, 12)
+    if name.RowDoubleClicked() {
+        app.rename(i)
+    }
 })
 ```
 
@@ -189,13 +193,13 @@ app.chat.Key = func(i int) any { return app.messages[i].ID }
 app.chat.FollowEnd = true
 app.chat.FollowAnimation = &ui.Smooth
 if first, _ := app.chat.Visible(); first < 5 && app.more {
-	app.loadOlder() // above the messages in view, which stay put
+    app.loadOlder() // above the messages in view, which stay put
 }
 if !app.chat.AtEnd() && ui.Button(c, "Jump to latest").Clicked() {
-	app.chat.ScrollToEnd()
+    app.chat.ScrollToEnd()
 }
 ui.List(c, &app.chat, len(app.messages), func(i int) {
-	message(c, app.messages[i])
+    message(c, app.messages[i])
 }).Grow(1).Justify(ui.End)
 ```
 
@@ -209,13 +213,35 @@ dragged, and scrolls near its edges.
 
 ```go
 app.list.Reorder = func(rows []int, to int) {
-	app.items = move(app.items, rows, to)
+    app.items = move(app.items, rows, to)
 }
 ```
 
 Rows that are buttons, which open what they show as they are clicked,
 reorder too: a press on a row's button drags the row once the pointer
 moves, and clicks the button if it does not.
+
+## Dragging rows out
+
+`DragRows` lets the user drag rows out of the list, to drop them elsewhere:
+the rows chosen, when the row dragged is one of them, else that row, drag
+the value `DragRows` returns, which `ui.Drop` and `ui.DragOver` take as
+they take any value dragged. The list itself takes nothing and shows no
+line between its rows, so a target inside it, as a folder in a list of
+files, or one around it, gets the value wherever the pointer is:
+
+```go
+app.files.DragRows = func(rows []int) any {
+    return app.pathsOf(rows) // []string
+}
+// In the row of a folder:
+if paths, ok := ui.Drop[[]string](row); ok {
+    app.move(paths, folder)
+}
+```
+
+Return nil for rows that do not drag. A list cannot both `Reorder` and
+`DragRows`.
 
 See [drag and drop](drag-and-drop.md).
 
@@ -262,6 +288,8 @@ the rows it is, "5 of 10,000", although the list builds only those in view.
 A list choosing its rows gives assistive technology the focus on the row
 chosen: Up and Down are read as they move the choice, and focusing a row
 chooses it. A screen reader moving out of view asks the list to scroll
-there, which builds the rows it reaches.
+there, which builds the rows it reaches. A list of rows of cells, as a
+spreadsheet's, is a [grid](accessibility.md#grids) with
+`Role(ui.RoleGrid)`: its rows are then rows of a table.
 
 For rows in columns, see [Table](table.md); for a tree, [Outline](outline.md).

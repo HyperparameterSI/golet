@@ -84,6 +84,9 @@ export function createRuntime(
   // start, and the golet:locale event when it changes.
   let locale = config.locale || "en";
   let dir: Direction = config.dir === "rtl" ? "rtl" : "ltr";
+  // Whether the window is drawn as active: pages start active, and the
+  // golet:window-active event tells otherwise.
+  let windowActive = true;
 
   const send = (message: Outgoing) => post(JSON.stringify(message));
 
@@ -96,7 +99,10 @@ export function createRuntime(
         const ch = typeof arg === "object" && arg !== null ? states.get(arg) : undefined;
         if (!ch) continue;
         if (ch.id || ch.closed) {
-          chans?.forEach((c) => channels.delete(c.id));
+          chans?.forEach((c) => {
+            channels.delete(c.id);
+            c.id = 0;
+          });
           reject(new Error("golet: a channel can be passed to one call, before it is closed"));
           return;
         }
@@ -109,7 +115,10 @@ export function createRuntime(
         send({ t: "call", id, k: token, m: method, a: args });
       } catch (err) {
         pending.delete(id);
-        chans?.forEach((c) => channels.delete(c.id));
+        chans?.forEach((c) => {
+          channels.delete(c.id);
+          c.id = 0;
+        });
         reject(err);
       }
     });
@@ -253,6 +262,12 @@ export function createRuntime(
         if (msg.t === "event") {
           // Before the listeners, which may read it.
           if (msg.n === "golet:preferences") preferences = Object.freeze(msg.p as ThemePreferences);
+          if (msg.n === "golet:window-active") {
+            if (typeof msg.p !== "boolean") continue;
+            // Listeners hear changes only.
+            if (msg.p === windowActive) continue;
+            windowActive = msg.p;
+          }
           if (msg.n === "golet:locale") {
             const p = msg.p as Partial<LocaleChange> | undefined;
             if (typeof p?.locale !== "string") continue;
@@ -311,6 +326,9 @@ export function createRuntime(
     },
     get dir() {
       return dir;
+    },
+    get windowActive() {
+      return windowActive;
     },
     window: Object.freeze({
       minimize: win("Minimize"),

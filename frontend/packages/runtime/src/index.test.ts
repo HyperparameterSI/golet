@@ -16,8 +16,10 @@ import {
   onFileDrop,
   onLocaleChange,
   onPreferences,
+  onWindowActive,
   preferences,
   runtime,
+  windowActive,
   type DocumentState,
   type FileDrop,
   type Runtime,
@@ -66,6 +68,7 @@ const fake: Runtime = {
   },
   locale: "en",
   dir: "ltr",
+  windowActive: false,
   window: {
     minimize: () => fake.call("golet:window.Minimize"),
     maximize: () => fake.call("golet:window.Maximize"),
@@ -173,6 +176,17 @@ test("preferences and onPreferences", () => {
   expect(got).toEqual([changed]);
   off();
   expect(listeners.has("golet:preferences")).toBe(false);
+});
+
+test("windowActive and onWindowActive", () => {
+  (globalThis as { golet?: Runtime }).golet = fake;
+  expect(windowActive()).toBe(false);
+  const got: boolean[] = [];
+  const off = onWindowActive((a) => got.push(a));
+  listeners.get("golet:window-active")?.(true);
+  expect(got).toEqual([true]);
+  off();
+  expect(listeners.has("golet:window-active")).toBe(false);
 });
 
 test("locale, direction and onLocaleChange", () => {

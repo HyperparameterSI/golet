@@ -26,3 +26,6 @@ frontend/examples/*/dist/
 !/frontend/website/src/components/docs/**
 !/frontend/website/src/routes/docs/
 !/frontend/website/src/routes/docs/**
+
+# Local example binary
+/assistant

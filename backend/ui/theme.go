@@ -2,7 +2,10 @@
 
 package ui
 
-import "runtime"
+import (
+	"runtime"
+	"time"
+)
 
 // Theme holds the colors and metrics widgets use. Change a copy of
 // LightTheme or DarkTheme and set it with Context.SetTheme.
@@ -41,15 +44,31 @@ type Theme struct {
 	AccentHover   Color
 	AccentPressed Color
 	AccentText    Color
-	Danger        Color
+	// InactiveAccent is what the accent fades to in a window that is not
+	// drawn as active (Context.WindowActive), as AppKit fades an inactive
+	// window's: the fill of selected rows, of checked check boxes, radio
+	// buttons and switches, of sliders and progress bars, the line of the
+	// selected tab and the icons of a sidebar, with AccentText on it as on
+	// the accent; primary buttons show as the others there. Left zero, it
+	// is a gray AccentText stands out on; set it to Accent to keep the
+	// accent in every window.
+	InactiveAccent Color
+	Danger         Color
 	// Warning and Success color what calls for attention and what went
 	// well, as a Meter's levels.
 	Warning Color
 	Success Color
 	// Selection highlights selected text.
 	Selection Color
-	// Focus is the ring around the control with the keyboard focus.
-	Focus Color
+	// Focus is the ring around the control with the keyboard focus,
+	// FocusRingWidth DIPs wide (2 by default; 0 is 2) and FocusRingOffset
+	// DIPs outside its edge (1 in LightTheme and DarkTheme): 0 puts the
+	// ring on the edge, and a negative offset inside it.
+	// Element.FocusRingOffset and Element.FocusRingColor change them for
+	// one element.
+	Focus           Color
+	FocusRingWidth  float32
+	FocusRingOffset float32
 	// Inverse fills tooltips and toasts, the theme turned over so that
 	// they stand out from what they are over: dark in a light theme, light
 	// in a dark one. InverseText is text on it. Left zero, they are Text
@@ -70,6 +89,12 @@ type Theme struct {
 	// FontSize is the size of text, Font its family ("" is the system's).
 	FontSize float32
 	Font     string
+	// TooltipDelay is how long the pointer rests on an element before its
+	// tooltip shows (Tooltip, TooltipBase): 0 is 0.6 seconds, and a
+	// negative delay shows it at once. Within two thirds of it after
+	// another tip goes, as the pointer moves along a toolbar, the next one
+	// shows at once: 0.4 seconds by default.
+	TooltipDelay time.Duration
 }
 
 // Space returns n units of the theme's Spacing, to size elements of your
@@ -80,6 +105,20 @@ func (t *Theme) Space(n float32) float32 {
 		s = 4
 	}
 	return n * s
+}
+
+// inactiveAccent returns what the accent fades to in a window that is not
+// drawn as active (InactiveAccent).
+func (t *Theme) inactiveAccent() Color {
+	if t.InactiveAccent != Transparent {
+		return t.InactiveAccent
+	}
+	// As far from AccentText as text on it needs, 4.5 times its contrast.
+	far := Color{A: 255}
+	if t.AccentText.gray().R <= 127 {
+		far = Color{R: 255, G: 255, B: 255, A: 255}
+	}
+	return t.AccentText.Mix(far, 0.55)
 }
 
 // inverse returns the fill of tooltips and toasts, and the color of text
@@ -95,11 +134,33 @@ func (t *Theme) inverse() (fill, text Color) {
 	return fill, text
 }
 
+// focusRingWidth returns how wide the focus ring is (FocusRingWidth).
+func (t *Theme) focusRingWidth() float32 {
+	if t.FocusRingWidth <= 0 {
+		return 2
+	}
+	return t.FocusRingWidth
+}
+
 func (t *Theme) scrollbarWidth() float32 {
 	if t.ScrollbarWidth <= 0 {
 		return 6
 	}
 	return t.ScrollbarWidth
+}
+
+// tooltipDelay returns how long the pointer rests on an element before its
+// tip shows (TooltipDelay), and how soon after a tip goes the next one
+// shows at once.
+func (t *Theme) tooltipDelay() (delay, warm time.Duration) {
+	switch d := t.TooltipDelay; {
+	case d == 0:
+		return tooltipDelay, tooltipWarm
+	case d < 0:
+		return 0, 0
+	default:
+		return d, d * 2 / 3
+	}
 }
 
 // Rem returns n times the theme's FontSize, as CSS's rem, to size elements
@@ -139,55 +200,59 @@ func (t *Theme) sidebarColor() Color {
 // keeping gamut conversion out of the default startup path.
 func LightTheme() *Theme {
 	return &Theme{
-		Background:     Hex("#ffffff"),
-		Surface:        Hex("#ffffff"),
-		SurfaceHover:   Hex("#f5f5f5"),
-		SurfacePressed: Hex("#e5e5e5"),
-		Border:         Hex("#e5e5e5"),
-		Sidebar:        Hex("#fafafa"),
-		Text:           Hex("#171717"),
-		TextMuted:      Hex("#737373"),
-		Accent:         Hex("#171717"),
-		AccentHover:    Hex("#262626"),
-		AccentPressed:  Hex("#404040"),
-		AccentText:     Hex("#fafafa"),
-		Danger:         Hex("#e7000b"),
-		Warning:        Hex("#d97706"),
-		Success:        Hex("#16a34a"),
-		Selection:      RGBA(23, 23, 23, 0.12),
-		Focus:          Hex("#a3a3a3"),
-		Scrollbar:      RGBA(0, 0, 0, 0.32),
-		Radius:         10,
-		Spacing:        4,
-		FontSize:       defaultFontSize(),
+		Background:      Hex("#ffffff"),
+		Surface:         Hex("#ffffff"),
+		SurfaceHover:    Hex("#f5f5f5"),
+		SurfacePressed:  Hex("#e5e5e5"),
+		Border:          Hex("#e5e5e5"),
+		Sidebar:         Hex("#fafafa"),
+		Text:            Hex("#171717"),
+		TextMuted:       Hex("#737373"),
+		Accent:          Hex("#171717"),
+		AccentHover:     Hex("#262626"),
+		AccentPressed:   Hex("#404040"),
+		AccentText:      Hex("#fafafa"),
+		Danger:          Hex("#e7000b"),
+		Warning:         Hex("#d97706"),
+		Success:         Hex("#16a34a"),
+		Selection:       RGBA(23, 23, 23, 0.12),
+		Focus:           Hex("#a3a3a3"),
+		Scrollbar:       RGBA(0, 0, 0, 0.32),
+		Radius:          10,
+		Spacing:         4,
+		FontSize:        defaultFontSize(),
+		FocusRingWidth:  2,
+		FocusRingOffset: 1,
 	}
 }
 
 // DarkTheme returns the theme for a dark appearance.
 func DarkTheme() *Theme {
 	return &Theme{
-		Dark:           true,
-		Background:     Hex("#0a0a0a"),
-		Surface:        Hex("#171717"),
-		SurfaceHover:   Hex("#262626"),
-		SurfacePressed: Hex("#404040"),
-		Border:         RGBA(255, 255, 255, 0.10),
-		InputBorder:    RGBA(255, 255, 255, 0.15),
-		Sidebar:        Hex("#171717"),
-		Text:           Hex("#fafafa"),
-		TextMuted:      Hex("#a3a3a3"),
-		Accent:         Hex("#e5e5e5"),
-		AccentHover:    Hex("#d4d4d4"),
-		AccentPressed:  Hex("#a3a3a3"),
-		AccentText:     Hex("#171717"),
-		Danger:         Hex("#ff6467"),
-		Warning:        Hex("#f59e0b"),
-		Success:        Hex("#22c55e"),
-		Selection:      RGBA(250, 250, 250, 0.18),
-		Focus:          Hex("#737373"),
-		Scrollbar:      RGBA(255, 255, 255, 0.35),
-		Radius:         10,
-		Spacing:        4,
-		FontSize:       defaultFontSize(),
+		Dark:            true,
+		Background:      Hex("#0a0a0a"),
+		Surface:         Hex("#171717"),
+		SurfaceHover:    Hex("#262626"),
+		SurfacePressed:  Hex("#404040"),
+		Border:          RGBA(255, 255, 255, 0.10),
+		InputBorder:     RGBA(255, 255, 255, 0.15),
+		Sidebar:         Hex("#171717"),
+		Text:            Hex("#fafafa"),
+		TextMuted:       Hex("#a3a3a3"),
+		Accent:          Hex("#e5e5e5"),
+		AccentHover:     Hex("#d4d4d4"),
+		AccentPressed:   Hex("#a3a3a3"),
+		AccentText:      Hex("#171717"),
+		Danger:          Hex("#ff6467"),
+		Warning:         Hex("#f59e0b"),
+		Success:         Hex("#22c55e"),
+		Selection:       RGBA(250, 250, 250, 0.18),
+		Focus:           Hex("#737373"),
+		Scrollbar:       RGBA(255, 255, 255, 0.35),
+		Radius:          10,
+		Spacing:         4,
+		FontSize:        defaultFontSize(),
+		FocusRingWidth:  2,
+		FocusRingOffset: 1,
 	}
 }

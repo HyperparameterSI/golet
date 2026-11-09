@@ -7,26 +7,26 @@ bar, context menus, the Dock menu and the menus of tray icons.
 
 ```go
 menu := golet.NewMenu([]*golet.MenuItem{
-	{Role: golet.RoleAppMenu},
-	{Label: "File", Submenu: []*golet.MenuItem{
-		{Label: "New Note", Accelerator: "CmdOrCtrl+N", Click: func(item *golet.MenuItem, win *golet.Window) {
-			newNote()
-		}},
-		{Label: "Export…", Accelerator: "CmdOrCtrl+E", Click: exportNotes},
-		golet.Separator(),
-		{Role: golet.RoleClose},
-	}},
-	{Role: golet.RoleEditMenu},
-	{Label: "View", Submenu: []*golet.MenuItem{
-		{ID: "sidebar", Label: "Show Sidebar", Type: golet.MenuItemCheckbox, Checked: true, Click: toggleSidebar},
-		golet.Separator(),
-		{Label: "List", Type: golet.MenuItemRadio, Checked: true},
-		{Label: "Grid", Type: golet.MenuItemRadio},
-		golet.Separator(),
-		{Role: golet.RoleToggleDevTools},
-		{Role: golet.RoleToggleFullScreen},
-	}},
-	{Role: golet.RoleWindowMenu},
+    {Role: golet.RoleAppMenu},
+    {Label: "File", Submenu: []*golet.MenuItem{
+        {Label: "New Note", Accelerator: "CmdOrCtrl+N", Click: func(item *golet.MenuItem, win *golet.Window) {
+            newNote()
+        }},
+        {Label: "Export…", Accelerator: "CmdOrCtrl+E", Click: exportNotes},
+        golet.Separator(),
+        {Role: golet.RoleClose},
+    }},
+    {Role: golet.RoleEditMenu},
+    {Label: "View", Submenu: []*golet.MenuItem{
+        {ID: "sidebar", Label: "Show Sidebar", Type: golet.MenuItemCheckbox, Checked: true, Click: toggleSidebar},
+        golet.Separator(),
+        {Label: "List", Type: golet.MenuItemRadio, Checked: true},
+        {Label: "Grid", Type: golet.MenuItemRadio},
+        golet.Separator(),
+        {Role: golet.RoleToggleDevTools},
+        {Role: golet.RoleToggleFullScreen},
+    }},
+    {Role: golet.RoleWindowMenu},
 })
 ```
 
@@ -44,6 +44,9 @@ A `MenuItem` has:
   items toggle `Checked` before `Click` runs;
 - `Disabled`, `Hidden` and `ToolTip`;
 - `Icon`, an image shown beside the label (see [icons](#icons));
+- `Subtitle`, a second, smaller line under the label. macOS 14 and browsers
+  show it so; earlier macOS, Windows and Linux show it after the label, as
+  `Label — Subtitle`;
 - `ID`, to find the item with `Menu.ItemByID`;
 - `Role`, a built-in behavior with its label and accelerator.
 
@@ -56,9 +59,13 @@ shortcut, which `Label` and `Accelerator` override:
   `RoleDelete`, `RoleSelectAll`, and on macOS `RolePasteAndMatchStyle`.
   Their keys go to the content first, as in a browser: in a page on
   Windows, WebView2 cuts, copies and pastes with the page's own events and
-  every format of the clipboard, while choosing Paste from the menu types
-  the clipboard's text, as pages may not read the clipboard (as does an
-  edit role given a key the page has no use for, as Copy on Ctrl+Shift+C);
+  every format of the clipboard. Choosing Paste from the menu restores
+  focus to the page and runs Chromium's paste command through DevTools,
+  with the same paste event and formats. The page also sees `keydown` and
+  `keyup` for an `Unidentified` key without modifiers, so its Ctrl+V
+  handlers are not invoked. Paste and Match Style still inserts plain
+  text. An edit role given a key the page has no use for, as Copy on
+  Ctrl+Shift+C, still runs its command;
 - formatting: `RoleBold`, `RoleItalic`, `RoleUnderline`,
   `RoleStrikethrough`, `RoleAlignLeft`, `RoleAlignCenter` and
   `RoleAlignRight`, which format the selection of a [rich text
@@ -100,7 +107,7 @@ the state the app gave them. An item the app disables stays disabled.
 
 Change items of a menu in use with their methods, so that the native menu
 follows: `SetLabel`, `SetEnabled`, `SetVisible`, `SetChecked`,
-`SetAccelerator` and `SetIcon`:
+`SetAccelerator`, `SetSubtitle` and `SetIcon`:
 
 ```go
 item := menu.ItemByID("sidebar")
@@ -122,12 +129,12 @@ var japanPNG []byte
 
 japan, err := golet.NewMenuIcon(japanPNG, false)
 if err != nil {
-	log.Fatal(err)
+    log.Fatal(err)
 }
 servers := golet.NewMenu([]*golet.MenuItem{
-	{ID: "tokyo", Label: "Tokyo", Type: golet.MenuItemRadio, Checked: true, Icon: japan},
-	{ID: "osaka", Label: "Osaka", Type: golet.MenuItemRadio, Icon: japan},
-	{ID: "direct", Label: "Direct", Type: golet.MenuItemRadio},
+    {ID: "tokyo", Label: "Tokyo", Type: golet.MenuItemRadio, Checked: true, Icon: japan},
+    {ID: "osaka", Label: "Osaka", Type: golet.MenuItemRadio, Icon: japan},
+    {ID: "direct", Label: "Direct", Type: golet.MenuItemRadio},
 })
 ```
 
@@ -147,11 +154,35 @@ image take the color of the menu's text, as macOS tints its template
 images: white in a dark menu and on the highlight. Linux shows template
 icons as they are.
 
+`NewMenuIconSVG` makes an icon of an SVG instead, the `*ui.SVG` that
+`ui.ParseSVG` parses, so that an app shows the icons it draws with
+`ui.Icon` in its menus too. It draws the SVG once, with native UI's
+renderer (`ui.SVG`'s `Image`), to an image of 64 pixels on its longer
+side, which stays sharp up to 400% scaling, and returns an error for a nil
+SVG or one without a size. As a template, only its shapes count, whatever
+their colors, as for `ui.Icon`:
+
+```go
+//go:embed icons/trash.svg
+var trashSVG []byte
+
+var trash = ui.MustParseSVG(trashSVG) // ui.Icon(c, trash) in the window
+
+trashIcon, err := golet.NewMenuIconSVG(trash, true)
+```
+
+In the menus native UI draws, an item's
+[`IconColor`](ui/context-menu.md#items) gives its template icon a color
+of its own.
+
 Golet decodes and scales each image once, however many items show it and
 however often their menus open or are made again, the icons of the same
 image included, and frees what it made of it once neither the app nor a
 menu holds the icon; the bitmaps of Windows 10's menus go with their
 menus. Apps that make no icon don't link the code that draws them.
+
+The context menus of native UI take the same icons, with
+[`Icon`](ui/context-menu.md#items) on their items.
 
 - **macOS** shows the icon (an `NSImage`) after the column of checks, on
   every menu, the menu bar's own items included, which show it in the
@@ -188,7 +219,12 @@ removes the menu.
 On Windows, menu bars and menus follow the appearance, light or dark, as
 the title bar does (see [dark mode](frontend.md#dark-mode)). On Windows 11
 they look like the system's own menus, as File Explorer's: roomier items,
-highlights with rounded corners, and shortcuts in a fainter color.
+highlights with rounded corners, shortcuts smaller and in a fainter
+color, the rounder corners of the system's flyouts and, from Windows 11
+22H2, Acrylic behind popup menus, as WinUI's menus have, unless
+transparency effects are off, energy saver or a contrast theme is on, or
+the session is a remote one, when they have the solid background WinUI's
+menus fall back to, with one faint outline.
 
 A window with `AutoHideMenuBar` keeps its menu bar out of sight, and the
 room for the page. Alt pressed alone, or F10, shows the bar with the
@@ -222,11 +258,11 @@ method, which the page calls on right-click:
 ```go
 // ShowNoteMenu shows the context menu of a note.
 func (n *Notes) ShowNoteMenu(ctx context.Context, id int64) {
-	menu := golet.NewMenu([]*golet.MenuItem{
-		{Label: "Rename", Click: func(*golet.MenuItem, *golet.Window) { n.startRename(id) }},
-		{Label: "Delete", Click: func(*golet.MenuItem, *golet.Window) { n.Delete(id) }},
-	})
-	menu.Popup(golet.CallerWindow(ctx))
+    menu := golet.NewMenu([]*golet.MenuItem{
+        {Label: "Rename", Click: func(*golet.MenuItem, *golet.Window) { n.startRename(id) }},
+        {Label: "Delete", Click: func(*golet.MenuItem, *golet.Window) { n.Delete(id) }},
+    })
+    menu.Popup(golet.CallerWindow(ctx))
 }
 ```
 
@@ -253,13 +289,13 @@ of the app's, which work as in any other menu:
 
 ```go
 page.OnContextMenu(func(e *golet.ContextMenuEvent) {
-	e.Menu.Remove(golet.ContextMenuReload, golet.ContextMenuInspect)
-	if e.LinkURL != "" {
-		e.Menu.Append(golet.Separator(), &golet.MenuItem{
-			Label: "Open in Browser",
-			Click: func(*golet.MenuItem, *golet.Window) { go golet.Shell.OpenExternal(e.LinkURL) },
-		})
-	}
+    e.Menu.Remove(golet.ContextMenuReload, golet.ContextMenuInspect)
+    if e.LinkURL != "" {
+        e.Menu.Append(golet.Separator(), &golet.MenuItem{
+            Label: "Open in Browser",
+            Click: func(*golet.MenuItem, *golet.Window) { go golet.Shell.OpenExternal(e.LinkURL) },
+        })
+    }
 })
 ```
 
@@ -318,7 +354,7 @@ called in `main` before `App.Run`:
 
 ```go
 golet.App.Dock.SetMenu(golet.NewMenu([]*golet.MenuItem{
-	{Label: "New Window", Click: func(*golet.MenuItem, *golet.Window) { openMainWindow() }},
+    {Label: "New Window", Click: func(*golet.MenuItem, *golet.Window) { openMainWindow() }},
 }))
 ```
 
@@ -332,20 +368,20 @@ Windows and Linux. Create one once the app is ready:
 var trayIcon []byte
 
 golet.App.WhenReady(func() {
-	tray, err := golet.NewTray(golet.TrayOptions{
-		Icon:           trayIcon,
-		IconIsTemplate: true, // macOS tints it to match the menu bar
-		ToolTip:        "Notes",
-		Menu: golet.NewMenu([]*golet.MenuItem{
-			{Label: "Open Notes", Click: func(*golet.MenuItem, *golet.Window) { openMainWindow() }},
-			golet.Separator(),
-			{Role: golet.RoleQuit},
-		}),
-	})
-	if err != nil {
-		log.Println("tray:", err)
-	}
-	_ = tray
+    tray, err := golet.NewTray(golet.TrayOptions{
+        Icon:           trayIcon,
+        IconIsTemplate: true, // macOS tints it to match the menu bar
+        ToolTip:        "Notes",
+        Menu: golet.NewMenu([]*golet.MenuItem{
+            {Label: "Open Notes", Click: func(*golet.MenuItem, *golet.Window) { openMainWindow() }},
+            golet.Separator(),
+            {Role: golet.RoleQuit},
+        }),
+    })
+    if err != nil {
+        log.Println("tray:", err)
+    }
+    _ = tray
 })
 ```
 
@@ -371,7 +407,7 @@ narrower.
 ```go
 // "  9.0 MB/s", " 12.5 MB/s", "128.0 MB/s": all as wide.
 func speed(mbps float64) string {
-	return strings.ReplaceAll(fmt.Sprintf("%5.1f", mbps), " ", "\u2007") + " MB/s"
+    return strings.ReplaceAll(fmt.Sprintf("%5.1f", mbps), " ", "\u2007") + " MB/s"
 }
 
 tray.SetTitle(speed(rate))
@@ -406,7 +442,10 @@ draw()
 
 `Tray.PopUpMenu` opens the menu set with `SetMenu` programmatically. On
 macOS, AppKit places it below the status item and highlights its button
-while the menu is open. To show a menu only on right-click while keeping
+while the menu is open. On Windows 11 it opens as the system's tray menus
+do, centered on the icon a little above the taskbar (or beside it, where
+the taskbar is on another edge); on Windows 10, and for an icon in the
+taskbar's overflow, at the pointer. To show a menu only on right-click while keeping
 primary clicks available, set the menu in `OnRightClick`, call
 `PopUpMenu`, then clear it with `SetMenu(nil)` when the call returns.
 
@@ -421,10 +460,10 @@ var quitting bool // OnBeforeQuit and OnClose run on the main thread
 golet.App.OnBeforeQuit(func(*golet.QuitEvent) { quitting = true })
 
 win.OnClose(func(e *golet.CloseEvent) {
-	if !quitting {
-		e.PreventDefault()
-		win.Hide()
-	}
+    if !quitting {
+        e.PreventDefault()
+        win.Hide()
+    }
 })
 // The icon's click, without a menu, or an item of its menu, brings it back.
 tray.OnClick(win.Show)

@@ -3,12 +3,15 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/HyperparameterSI/golet/backend"
 	"github.com/HyperparameterSI/golet/backend/examples/internal/demotheme"
 	"github.com/HyperparameterSI/golet/backend/ui"
-	"github.com/HyperparameterSI/golet/backend/ui/chart"
+
 	"github.com/HyperparameterSI/golet/backend/ui/forma"
 )
 
@@ -16,6 +19,8 @@ func openForma() *golet.Window {
 	return golet.NewWindow(golet.WindowOptions{Title: "Studio · Forma / Maia", Width: 1040, Height: 840, Content: ui.View(newFormaView())})
 }
 func newFormaView(initial ...string) func(*ui.Context) {
+	aiPatterns := newAIPatternDemo()
+	chartDemo := newChartDemo()
 	selected := "button"
 	if len(initial) > 0 {
 		selected = initial[0]
@@ -43,6 +48,21 @@ func newFormaView(initial ...string) func(*ui.Context) {
 	split := float32(180)
 	list := ui.ListState{}
 	scroll := ui.ScrollState{}
+	codeWrap, codeNumbers, codeExpanded := false, true, false
+	terminalWrap := true
+	codeHighlight := forma.HighlightCode("go")
+	messageFeedback := forma.FeedbackNone
+	messageStreaming := false
+	messageStatus := ""
+	modelID, modelEffort := "demo-reasoner", "medium"
+	prompt := forma.PromptInputState{Model: "demo-reasoner", Effort: "medium"}
+	promptStatus := forma.PromptReady
+	promptResult := ""
+	models := []forma.ModelOption{
+		{ID: "demo-reasoner", Name: "Reasoner", Provider: "Golet Demo", Description: "支持思考强度的示例模型", Efforts: []forma.ModelEffort{{ID: "low", Name: "Low"}, {ID: "medium", Name: "Medium"}, {ID: "high", Name: "High"}}},
+		{ID: "demo-chat", Name: "Chat", Provider: "Golet Demo", Description: "不提供思考强度选项"},
+		{ID: "local", Name: "Local model", Provider: "Local", Description: "尚未配置", Disabled: true},
+	}
 	return func(c *ui.Context) {
 		demotheme.Apply(c)
 		if !follow {
@@ -71,9 +91,9 @@ func newFormaView(initial ...string) func(*ui.Context) {
 				ui.Checkbox(c, &dark, "Dark")
 				ui.Checkbox(c, &follow, "跟随 Studio 主题")
 			})
-			ui.Text(c, "65 个官方目录项 · 纯 Go 原生组件 · 基准源码已固定").TextColor(c.Theme().TextMuted)
+			ui.Text(c, "65 个基础目录项 + AI 组合 · 纯 Go 原生组件").TextColor(c.Theme().TextMuted)
 			ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-				forma.Select(c, &selected, forma.Components()).Width(240).Label("Component")
+				forma.Select(c, &selected, append(forma.Components(), forma.AIComponents()...)).Width(240).Label("Component")
 				forma.Select(c, &preset, presetNames).Width(160).Label("Theme palette").Disabled(follow)
 				forma.Select(c, &corners, []string{"Maia", "Soft", "Sharp"}).Width(140).Label("Corner style").Disabled(follow)
 				forma.Select(c, &fontScale, []string{"14", "16"}).Width(80).Label("Font size").Disabled(follow)
@@ -282,14 +302,7 @@ func newFormaView(initial ...string) func(*ui.Context) {
 								}
 							}).Height(220)
 						case "chart":
-							forma.ChartContainer(c, chart.Axes{}, func(area ui.Element) {
-								area.Draw(func(p *ui.Painter, r ui.Rect) {
-									xs := []float32{0, .2, .4, .6, .8, 1}
-									ys := []float32{.2, .5, .3, .8, .6, .9}
-									p.StrokePath(chart.Line(r, xs, ys, chart.CurveMonotone), 2, c.Theme().Accent)
-								})
-							}).Height(180)
-							forma.ChartLegend(c, []string{"Activity"}, []ui.Color{c.Theme().Accent})
+							chartDemo(c)
 						case "toast", "sonner":
 							forma.Button(c, "Show notification").OnClick(func() {
 								forma.Toast(c, ui.Toast{Title: "Changes saved", Description: "Your profile has been updated.", Action: "Undo", OnAction: func() { c.Toast("Undone") }})
@@ -302,9 +315,41 @@ func newFormaView(initial ...string) func(*ui.Context) {
 						case "bubble":
 							forma.Bubble(c, "A native message bubble", forma.Default)
 							forma.Bubble(c, "Secondary reply", forma.Secondary)
-						case "message":
-							forma.Message(c, "You", true, func() { forma.Bubble(c, "Build something native.", forma.Default) })
-							forma.Message(c, "Assistant", false, func() { forma.Bubble(c, "Let's build it with Golet.", forma.Secondary) })
+						case "message", "ai-message":
+							ui.Column(c).FillWidth().Gap(28).Children(func() {
+								forma.Checkbox(c, &messageStreaming, "模拟生成中（禁用操作）")
+								forma.AIMessage(c, forma.MessageUser, "如何创建一个原生窗口？", forma.AIMessageOptions{OnEdit: func(value string) { text = value; messageStatus = "已将消息填入编辑框" }})
+								forma.AIMessage(c, forma.MessageAssistant, "使用 **Golet** 创建原生窗口：\n\n```go\nwindow := golet.NewWindow(options)\n```\n\n界面和交互均由 Go 实现。", forma.AIMessageOptions{Streaming: messageStreaming, Feedback: &messageFeedback, OnRetry: func() { messageStatus = "已触发重试回调（演示不调用模型）" }, OnFeedback: func(v forma.MessageFeedback) { messageStatus = "反馈：" + string(v) }})
+								forma.Input(c, &text, forma.InputOptions{Placeholder: "编辑消息…"})
+								ui.Text(c, messageStatus).TextColor(c.Theme().TextMuted)
+							})
+						case "chain-of-thought", "chat", "checkpoint", "confirmation", "context", "file-tree", "inline-citation", "plan", "queue", "reasoning", "sources", "stack-trace", "subagent", "suggestion", "task", "terminal", "test-results", "tool":
+							aiPatterns(c, selected)
+						case "prompt-input":
+							ui.Column(c).FillWidth().Gap(16).Children(func() {
+								forma.PromptInput(c, &prompt, forma.PromptInputOptions{Models: models, Status: promptStatus, OnAttach: func() {
+									prompt.Attachments = append(prompt.Attachments, forma.PromptAttachment{ID: fmt.Sprint(len(prompt.Attachments)), Name: "notes.txt", Description: "演示附件 · 未读取或上传文件"})
+								}, OnDropFiles: func(paths []string) {
+									for _, path := range paths {
+										prompt.Attachments = append(prompt.Attachments, forma.PromptAttachment{ID: path, Path: path, Name: filepath.Base(path), Description: "本地文件 · 未上传"})
+									}
+								}, OnSubmit: func(p forma.PromptSubmission) {
+									promptResult = fmt.Sprintf("提交快照：%s · %s · %d 个附件 · %s", p.Model, p.Effort, len(p.Attachments), p.Text)
+									promptStatus = forma.PromptStreaming
+								}, OnStop: func() { promptStatus = forma.PromptReady }})
+								ui.Text(c, "Enter 发送 · Shift+Enter 换行 · 可拖入文件。添加按钮使用示例附件；不调用模型、不上传文件。").TextColor(c.Theme().TextMuted)
+								ui.Text(c, promptResult)
+								forma.Button(c, "完成模拟响应", forma.ButtonOptions{Variant: forma.Outline}).OnClick(func() { promptStatus = forma.PromptReady })
+							})
+						case "model-selector":
+							ui.Column(c).FillWidth().Gap(16).Children(func() {
+								forma.ModelComposer(c, &text, &modelID, &modelEffort, models, forma.ModelComposerOptions{Placeholder: "让助手帮你修改代码…", OnAdd: func() { messageStatus = "已触发添加回调（可由应用接入附件选择）" }, OnSubmit: func(prompt, model, effort string) {
+									messageStatus = "已提交给演示回调：" + model + " / " + effort + " · " + prompt
+								}})
+								ui.Text(c, messageStatus).TextColor(c.Theme().TextMuted)
+								ui.Text(c, "Model: "+modelID+" · Effort: "+modelEffort)
+								ui.Text(c, "列表由应用提供；此演示不会发起模型请求。").TextColor(c.Theme().TextMuted)
+							})
 						case "message-scroller":
 							forma.MessageScroller(c, &scroll, func() {
 								for i := 0; i < 20; i++ {
@@ -316,7 +361,27 @@ func newFormaView(initial ...string) func(*ui.Context) {
 						case "trace":
 							forma.Trace(c, "Read project files", &expanded, func() { ui.Text(c, "main.go"); ui.Text(c, "go.mod") })
 						case "code-block":
-							forma.CodeBlock(c, "Go", "func main() {\n    println(\"Hello, Golet\")\n}")
+							ui.Column(c).FillWidth().Gap(16).Children(func() {
+								forma.CodeBlock(c, "Terminal", "$ pnpm lint\napps/web/components/message-list.tsx\n  18:22  error  'messages' is possibly 'undefined'. Add a guard before calling map  @typescript-eslint/no-unsafe-call\n  42:7  warning  React Hook React.useEffect has a missing dependency: 'scrollToBottom'  react-hooks/exhaustive-deps\n\n✖ 2 problems (1 error, 1 warning)", forma.CodeBlockOptions{WrapToggle: &terminalWrap, MaxHeight: -1, OnDownload: func(source string) {
+									go func() {
+										path, err := golet.Dialog.Save(golet.SaveDialogOptions{Title: "保存终端输出", DefaultPath: "terminal.txt"})
+										if err == nil && path != "" {
+											err = os.WriteFile(path, []byte(source), 0600)
+										}
+										if err != nil {
+											log.Printf("studio: save terminal output: %v", err)
+										}
+									}()
+								}})
+								ui.Row(c).Gap(16).Children(func() {
+									forma.Checkbox(c, &codeWrap, "自动换行")
+									forma.Checkbox(c, &codeNumbers, "行号")
+								})
+								forma.CodeBlock(c, "main.go", "package main\n\nfunc main() {\n    println(\"Hello, Golet\")\n    println(\"Forma code blocks are rendered entirely in Go, with optional syntax highlighting.\")\n}\n", forma.CodeBlockOptions{LineNumbers: codeNumbers, StartLine: 98, Wrap: codeWrap, Highlight: codeHighlight, HighlightKey: "go", Expanded: &codeExpanded, CollapsedHeight: 100})
+								forma.CodeBlock(c, "修改预览", "func greeting() string {\n    return \"Hello\"\n    return \"Hello, Forma\"\n}", forma.CodeBlockOptions{LineNumbers: true, Lines: map[int]forma.CodeLineVariant{1: forma.CodeLineRemoved, 2: forma.CodeLineAdded, 0: forma.CodeLineHighlighted}})
+								forma.CodeBlock(c, "构建错误 · Small", "Error: configuration is missing.\nPlease set the application name before building.", forma.CodeBlockOptions{Size: forma.Small, Variant: forma.Destructive, Wrap: true})
+								forma.CodeBlock(c, "", "$ go build ./...\n\nBuild completed successfully.\n", forma.CodeBlockOptions{Size: forma.Small})
+							})
 						case "questionnaire":
 							forma.Questionnaire(c, &question, []forma.Question{{Title: "Choose a language", Description: "Select one option.", Choices: []string{"Go", "TypeScript", "Rust"}, Answer: &answer, Required: true}}, func() { c.Toast("Submitted: " + answer) })
 						}

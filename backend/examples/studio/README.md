@@ -87,3 +87,13 @@ go vet ./backend/examples/studio ./backend/examples/internal/...
 「原生控件 → Forma · Maia」展示固定官方目录的 65 个条目，使用纯 Go 原生组件。下拉框选择组件，Dark 切换明暗，“跟随 Studio 主题”验证全局主题适配。高级能力与视觉验收状态见 [原生组件说明](../../ui/forma/README.md)。
 
 Maia 原生演示现支持 Neutral、Zinc、Stone、Blue、Violet、Emerald、Rose 七套配色，搭配 Dark、Maia/Soft/Sharp 圆角和 14/16 DIP 字号。主题按选择缓存，不在动画帧中重复构造。自定义方式见 `backend/ui/forma/README.md` 的 `NewTheme` 示例。
+
+## DSH-Go · AI Assistant
+
+在「插件」分类打开 **DSH-Go · AI Assistant**。原生演示复用 `AIMessage`、`PromptInput`、`ModelSelector` 和 `CodeBlock`，跟随 Studio 主题。
+
+默认离线模式可体验发送、Go 时间工具授权、代码回复、复制、评价和清空。配置 `DEEPSEEK_API_KEY` 后启动 Studio 即可连接真实模型；可选 `DEEPSEEK_MODEL`、`DEEPSEEK_BASE_URL`。请求期间可停止，关闭窗口会取消请求。密钥只由 Go 后端读取，不进入前端绑定。
+
+插件实现现位于 `backend/plugins/dsh-go`，详细 API 与迁移说明见 [DSH-Go 文档](../../../docs/plugins/dsh-go.md)。附件上传与模型思考强度尚未接入此聊天演示。
+
+也可直接点击助手窗口右上角 **模型设置** 填写 API Key、API 地址和模型。密钥默认遮罩，仅保存在当前窗口内存中；点击 **应用并新建会话** 后立即生效并清空会话，无需重启。可通过 **离线演示** 切回离线模式。
