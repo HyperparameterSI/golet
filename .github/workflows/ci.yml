@@ -42,6 +42,8 @@ jobs:
         with:
           go-version-file: go.mod
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
       # Ubuntu's mirrors are slow now and then (9 minutes for these packages
       # once), so the packages are kept in the Actions cache, under a key of
       # the files apt would download for them.
