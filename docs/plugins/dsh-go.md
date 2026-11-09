@@ -3,7 +3,7 @@
 <!-- Author: HyperparameterSI -->
 
 `backend/plugins/dsh-go` 是独立可选插件，集成
-[dsh-go](https://github.com/HyperparameterSI/dsh-go) 的模型接口、工具 schema 校验、工具执行管线和会话事件。
+[omnix](https://github.com/herlanai/omnix) 的模型接口、工具 schema 校验、工具执行管线和会话事件。
 `dsh-go/native` 提供跟随 Forma 主题的原生聊天面板，包含 Markdown、流式输出、发送、停止、清空及逐次工具授权。
 实现和示例均为 Go，不需要 Node、Python、浏览器或 cgo。
 
@@ -64,7 +64,7 @@ tool := dshgo.Tool{
 // 在 Options.Tools 中传入 []dshgo.Tool{tool}。
 ```
 
-`Parameters` 接受 dsh-go 支持的 JSON Schema；省略时为空对象。
+`Parameters` 接受 omnix 支持的 JSON Schema；省略时为空对象。
 框架先校验参数，再授权，再调用 Go 函数。原生面板会展示工具名和完整可滚动参数，由用户单次允许或拒绝。
 使用无 UI 的会话时，受保护工具必须配置 `Options.Approve`，否则拒绝执行。
 默认不注册 shell、文件系统、网络、浏览器操作或桌面控制工具。由应用显式接入所需能力，并自行限制路径、域名和权限。
@@ -76,34 +76,27 @@ tool := dshgo.Tool{
 历史最多保留 20 个完整成功轮次、1 MiB；超过上下文请求预算返回 `ErrLimit`，可清空历史后重试。
 工具输出超限会结束当前轮，避免将大结果继续交给模型。相同会话并发调用返回 `ErrBusy`。
 失败或取消的轮次不进入历史，但已经执行的工具副作用不会回滚。
-`Result` 提供用量、步骤数及 dsh-go 事件记录；`History()` 返回独立快照。没有默认磁盘持久化或遥测。
+`Result` 提供用量、步骤数及 omnix 事件记录；`History()` 返回独立快照。没有默认磁盘持久化或遥测。
 这些记录可能含用户输入和工具结果，保存时由应用决定访问权限及保留策略。
 
 ## 兼容范围与来源
 
-固定使用 dsh-go 提交 `c1023d186802c2fc0df87eb57c1ff98bde238728`（MIT，Copyright 2026 JopenChen）。
-依赖来源为 `github.com/HyperparameterSI/dsh-go`。该仓库目前仍声明
-`module github.com/JopenChen/dsh-go`，因此通过根目录 `go.mod` 的 `replace`
-切换下载来源，Go 导入路径保留其模块声明，避免产生两套不兼容的类型。
-外部应用使用本插件时也需在自己的 `go.mod` 添加相同替换规则（Go 不继承依赖模块的 `replace`）：
+固定使用 omnix `v0.1.1`，对应提交 `eee361d5f193ab7bb2fc8e24b3c183ea3031c858`（MIT，Copyright 2026 JopenChen）。
+直接依赖 `github.com/herlanai/omnix`，模块声明与导入路径一致，应用无需添加 `replace`。
 
-```go
-replace github.com/JopenChen/dsh-go => github.com/HyperparameterSI/dsh-go v0.0.0-20260911155656-c1023d186802
-```
-
-dsh-go 自身是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Go 参考实现。
+omnix 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Go 参考实现。
 本插件复用其公开接口与执行管线，但没有直接使用其尚不完整的 agent 循环及 DeepSeek provider：Golet 实现了有界循环和标准 HTTP/SSE 工具消息协议，正确发送 `role=tool`、工具参数及模型名称。
 
 当前支持文本、推理内容转发、串行工具调用和可替换的 `llm.LLMAdapter`。
 尚未实现完整官方 Harness 的技能、MCP、沙箱、子代理、检查点恢复、多模态或本地模型推理引擎。
-可通过 `BaseURL` 连接兼容的本地推理服务（仅 loopback 允许 HTTP），或实现 dsh-go 的 `LLMAdapter` 接入其他供应商。
+可通过 `BaseURL` 连接兼容的本地推理服务（仅 loopback 允许 HTTP），或实现 omnix 的 `LLMAdapter` 接入其他供应商。
 HTTP 重定向被拒绝，不自动重试模型或工具调用。没有引入官方 Harness 的 Node 运行时。
 
 该插件只有在应用导入时才进入依赖图；普通原生 UI/webview 应用不启用任何 AI 后台线程或服务。
 
 ## Studio 演示与命名迁移
 
-插件目录由 `backend/plugins/assistant` 改为 `backend/plugins/dsh-go`，包名为 `dshgo`。旧目录不保留兼容包装；应用需更新导入路径及包名前缀。底层依赖仍通过 `go.mod replace` 使用 HyperparameterSI/dsh-go。
+插件目录由 `backend/plugins/assistant` 改为 `backend/plugins/dsh-go`，包名为 `dshgo`。旧目录不保留兼容包装；应用需更新导入路径及包名前缀。底层依赖直接使用 `github.com/herlanai/omnix`。
 
 Studio 的「插件 → DSH-Go · AI Assistant」打开真实原生聊天窗口，复用 `native.Panel`。聊天使用 `forma.AIMessage`，输入使用 `forma.PromptInput`（Enter 发送，Shift+Enter 换行），代码围栏使用 `forma.CodeBlock`，模型标签/菜单使用 `forma.ModelSelector`。跟随 Studio 的明暗和材质主题。支持流式回复、复制、评价、将问题放回输入框编辑、工具单次授权/拒绝、停止、清空以及步骤/token 统计。关闭窗口自动取消请求。
 

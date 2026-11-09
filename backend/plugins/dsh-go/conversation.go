@@ -1,6 +1,6 @@
 // Author: HyperparameterSI
 
-// Package dshgo embeds dsh-go's model, event and tool interfaces in a
+// Package dshgo embeds omnix's model, event and tool interfaces in a
 // bounded, cancellable desktop conversation. It starts no process or server.
 package dshgo
 
@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/JopenChen/dsh-go/pkg/brand"
-	"github.com/JopenChen/dsh-go/pkg/llm"
-	"github.com/JopenChen/dsh-go/pkg/session"
-	"github.com/JopenChen/dsh-go/pkg/tools"
+	"github.com/herlanai/omnix/pkg/brand"
+	"github.com/herlanai/omnix/pkg/llm"
+	"github.com/herlanai/omnix/pkg/session"
+	"github.com/herlanai/omnix/pkg/tools"
 )
 
 var (
@@ -59,7 +59,7 @@ type Event struct {
 	IsError bool
 }
 
-// Result includes a per-turn dsh-go event log, suitable for explicit persistence.
+// Result includes a per-turn omnix event log, suitable for explicit persistence.
 // Failed turns are not added to conversation history; tools may already have run.
 type Result struct {
 	Text   string

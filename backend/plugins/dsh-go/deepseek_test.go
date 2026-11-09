@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/JopenChen/dsh-go/pkg/llm"
+	"github.com/herlanai/omnix/pkg/llm"
 )
 
 func TestDeepSeekToolsOverSSE(t *testing.T) {

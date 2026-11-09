@@ -1,5 +1,3 @@
-github.com/HyperparameterSI/dsh-go v0.0.0-20260911155656-c1023d186802 h1:/tBnoKJgLI2Cj1kctJZAx0UfRHPmRWh8Jkcl9ZxNDyM=
-github.com/HyperparameterSI/dsh-go v0.0.0-20260911155656-c1023d186802/go.mod h1:LjtHqo5kFWOIjzfsXb949Ol9Ca/H9sFGMlG/W0VYRHE=
 github.com/ebitengine/purego v0.11.1 h1:2zpWRSQNVKN4eKsKO9eM1ILDgWfYMY9GwqRmK6XeQ/0=
 github.com/ebitengine/purego v0.11.1/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
 github.com/go-text/typesetting v0.3.5 h1:XZPUooClHY0Vf/rFyUyuPRNEkawARaFzLMQcXLSEyPk=
@@ -9,6 +7,8 @@ github.com/go-text/typesetting-utils v0.0.0-20260419141703-4ffe8874dabc/go.mod h
 github.com/hajimehoshi/go-mp3 v0.3.4 h1:NUP7pBYH8OguP4diaTZ9wJbUbk3tC0KlfzsEpWmYj68=
 github.com/hajimehoshi/go-mp3 v0.3.4/go.mod h1:fRtZraRFcWb0pu7ok0LqyFhCUrPeMsGRSVop0eemFmo=
 github.com/hajimehoshi/oto/v2 v2.3.1/go.mod h1:seWLbgHH7AyUMYKfKYT9pg7PhUu9/SisyJvNTT+ASQo=
+github.com/herlanai/omnix v0.1.1 h1:hZbrPSsqesDWPLVXyCuf9TX3KT99V3L3o3Lrx75VT98=
+github.com/herlanai/omnix v0.1.1/go.mod h1:V+0/fcohDyY1G1ucavVkew8OGJuMFYOeC41jeKtGiTQ=
 github.com/jfreymuth/oggvorbis v1.0.5 h1:u+Ck+R0eLSRhgq8WTmffYnrVtSztJcYrl588DM4e3kQ=
 github.com/jfreymuth/oggvorbis v1.0.5/go.mod h1:1U4pqWmghcoVsCJJ4fRBKv9peUJMBHixthRlBeD6uII=
 github.com/jfreymuth/vorbis v1.0.2 h1:m1xH6+ZI4thH927pgKD8JOH4eaGRm18rEE9/0WKjvNE=

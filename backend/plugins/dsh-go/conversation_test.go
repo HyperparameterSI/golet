@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/JopenChen/dsh-go/pkg/llm"
-	"github.com/JopenChen/dsh-go/pkg/session"
+	"github.com/herlanai/omnix/pkg/llm"
+	"github.com/herlanai/omnix/pkg/session"
 )
 
 type modelFunc func(context.Context, llm.ChatRequest, func(llm.StreamChunk)) (llm.Usage, error)

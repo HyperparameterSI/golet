@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/JopenChen/dsh-go/pkg/llm"
+	"github.com/herlanai/omnix/pkg/llm"
 )
 
 // DeepSeekOptions configures the Go HTTP/SSE adapter. BaseURL may point to a

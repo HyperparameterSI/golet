@@ -13,7 +13,7 @@ import (
 	"github.com/HyperparameterSI/golet/backend/plugins/dsh-go/native"
 	"github.com/HyperparameterSI/golet/backend/ui"
 	"github.com/HyperparameterSI/golet/backend/ui/forma"
-	"github.com/JopenChen/dsh-go/pkg/llm"
+	"github.com/herlanai/omnix/pkg/llm"
 )
 
 func studioAssistantOptions() (dshgo.Options, string, error) {
