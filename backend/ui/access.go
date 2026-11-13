@@ -49,6 +49,12 @@ const (
 	RoleTabList
 	RoleTab
 	RoleSplitter
+	// RoleStatus is a live region of advisory information, as "3 rows
+	// selected" or "Saved": when its text changes, screen readers read the
+	// whole of it out, politely, after what they are reading. Give it a
+	// Key when elements come before it, so that it is the same status from
+	// frame to frame. What a status shows as assistive technology comes,
+	// or as it first shows, is not read.
 	RoleStatus
 	RoleTable
 	RoleRow
@@ -158,6 +164,36 @@ const (
 	//	})
 	RoleDeletion
 	RoleInsertion
+	// RoleTabPanel holds the content of a tab, as ARIA's tabpanel does in
+	// its Tabs pattern: name it after its tab with Label (or LabelledBy,
+	// a text), and have the tab point to it with Controls, so that screen
+	// readers can move between a tab and its content.
+	//
+	//	panel := ui.Column(c).Role(ui.RoleTabPanel).Label("Settings").Children(content)
+	//	tab.Controls(panel)
+	RoleTabPanel
+	// RoleMain is the landmark holding the main content of a window, as
+	// HTML's main: what the window is for, apart from its bars and
+	// sidebars. A window has one, and a Label is not needed. Screen
+	// readers list it among the window's landmarks, and jump to it.
+	RoleMain
+	// RoleBanner is the landmark holding the top bar of a window, with
+	// the app's name or the window's title, as a page's header. A window
+	// has at most one. Screen readers list it among the window's
+	// landmarks, and jump to it.
+	RoleBanner
+	// RoleContentInfo is the landmark holding information about the
+	// content of a window, as its footer or status area (the document's
+	// word count, its author, a copyright), as a page's footer. A window
+	// has at most one. Screen readers list it among the window's
+	// landmarks, and jump to it.
+	RoleContentInfo
+	// RoleComplementary is the landmark holding content that completes
+	// the main content and makes sense on its own, as a sidebar of
+	// related items or an inspector, as HTML's aside. Name it with Label
+	// when a window has several. Screen readers list it among the
+	// window's landmarks, and jump to it.
+	RoleComplementary
 )
 
 // tabular reports whether elements of a role hold rows of cells: tables,
@@ -494,10 +530,20 @@ const (
 // opens, as a button opening a list of options (PopupListBox) or a menu
 // (PopupMenu), which Expanded says shows: screen readers read it with the
 // element ("pop-up button", "menu button") and offer to open it.
-// PopupNone takes it back.
+// PopupNone takes it back. Menu buttons (Menu, PopoverMenuButton,
+// MenuButton, MenuBase) tell PopupMenu themselves; HasPopup, before or
+// after, wins over it.
 func (e *node) HasPopup(kind Popup) *node {
-	e.hasPopup = kind
+	e.hasPopup, e.popupSet = kind, true
 	return e
+}
+
+// opensMenu tells assistive technology that the element, a menu button,
+// opens a menu (PopupMenu), unless the app said otherwise (HasPopup).
+func (e *node) opensMenu() {
+	if !e.popupSet {
+		e.hasPopup = PopupMenu
+	}
 }
 
 // SortDirection is the order a table's rows are sorted in by a column
@@ -545,6 +591,16 @@ func (e *node) accessRole() (platform.AccessRole, bool) {
 		return platform.RoleDeletion, true
 	case RoleInsertion:
 		return platform.RoleInsertion, true
+	case RoleTabPanel:
+		return platform.RoleTabPanel, true
+	case RoleMain:
+		return platform.RoleMain, true
+	case RoleBanner:
+		return platform.RoleBanner, true
+	case RoleContentInfo:
+		return platform.RoleContentInfo, true
+	case RoleComplementary:
+		return platform.RoleComplementary, true
 	default:
 		return platform.AccessRole(e.role - RoleGroup), true
 	}
@@ -584,7 +640,8 @@ func leafRole(r platform.AccessRole) bool {
 		platform.RoleTabList, platform.RoleTable, platform.RoleRow, platform.RoleCell, platform.RoleColumnHeader, platform.RoleRowHeader, platform.RoleTree,
 		platform.RoleListItem, platform.RoleToolbar, platform.RoleRadioGroup, platform.RoleMenu, platform.RoleMenuBar, platform.RoleHeading, platform.RoleNavigation,
 		platform.RoleRegion, platform.RoleLog, platform.RoleTimer, platform.RoleAlert, platform.RoleSearch,
-		platform.RoleArticle, platform.RoleGrid, platform.RoleTreeGrid, platform.RoleDeletion, platform.RoleInsertion:
+		platform.RoleArticle, platform.RoleGrid, platform.RoleTreeGrid, platform.RoleDeletion, platform.RoleInsertion, platform.RoleTabPanel,
+		platform.RoleMain, platform.RoleBanner, platform.RoleContentInfo, platform.RoleComplementary:
 		return false
 	}
 	return true
@@ -771,7 +828,10 @@ func (rt *engine) accessElement(t *platform.AccessTree, e *node, parent int, scr
 			rt.accessInline(t, e, parent)
 			return
 		}
-		if leafRole(role) {
+		// A text field describing its text itself holds elements of its
+		// own over it, as a code editor's find bar and what replaces its
+		// ranges, which are not the text: they show.
+		if leafRole(role) && (role != platform.RoleTextField || e.accFill == nil) {
 			return
 		}
 	}
@@ -951,6 +1011,12 @@ func (rt *engine) accessDetails(e *node, n *platform.AccessNode) {
 	if st := e.st; (st.vw <= 0 || st.vh <= 0) && e.w > 0 && e.h > 0 {
 		n.States |= platform.AccessOffscreen
 	}
+	// An element of your own that shows a value it does not let the user
+	// change says so (ReadOnly), also while it is disabled.
+	readOnly := e.readOnly && e.reportsReadOnly(n.Role)
+	if readOnly {
+		n.States |= platform.AccessReadOnly
+	}
 	if disabled {
 		return
 	}
@@ -989,10 +1055,20 @@ func (rt *engine) accessDetails(e *node, n *platform.AccessNode) {
 			n.SelStart, n.SelEnd = ed.selection()
 		}
 	}
+	// A text box of your own, with no editor of Golet's, says it takes
+	// several lines (Multiline).
+	if n.Role == platform.RoleTextField && e.multiline && (e.st.editor == nil || e.flags&flagEditable == 0) {
+		n.States |= platform.AccessMultiline
+	}
 	// Custom text clients without an editor take set-value here; inputs and
 	// text areas with an editor follow the editor branch above.
-	if e.textClient != nil && (e.st == nil || e.st.editor == nil || e.flags&flagEditable == 0) {
+	if e.textClient != nil && (e.st == nil || e.st.editor == nil || e.flags&flagEditable == 0) && n.States&platform.AccessReadOnly == 0 {
 		n.Actions |= platform.ActionSetValue
+	}
+	if readOnly {
+		// Its value is not settable (Core-AAM's aria-readonly): not by
+		// assistive technology's set-value, increment and decrement.
+		n.Actions &^= platform.ActionSetValue | platform.ActionIncrement | platform.ActionDecrement
 	}
 	if e.accFill != nil {
 		e.accFill(n)
@@ -1002,6 +1078,36 @@ func (rt *engine) accessDetails(e *node, n *platform.AccessNode) {
 	if e.st.accessDisabled {
 		n.Actions &= platform.ActionFocus | platform.ActionScrollIntoView
 	}
+}
+
+// reportsReadOnly reports whether an element that shows a role of
+// platform r tells assistive technology that it is read-only (ReadOnly),
+// the roles ARIA's aria-readonly is supported on, with the cells, row
+// headers and column headers of a grid or a tree grid, which a table's do
+// not have. A control of Golet's own, with its behavior, decides for itself,
+// as a text box with an editor of Golet's does.
+func (e *node) reportsReadOnly(r platform.AccessRole) bool {
+	if r == platform.RoleTextField {
+		return e.st.editor == nil || e.flags&flagEditable == 0
+	}
+	if e.widget != "" {
+		return false
+	}
+	switch r {
+	case platform.RoleComboBox, platform.RoleCheckBox, platform.RoleSwitch, platform.RoleSlider, platform.RoleStepper,
+		platform.RoleRadioGroup, platform.RoleGrid, platform.RoleTreeGrid:
+		return true
+	case platform.RoleList:
+		return e.role == RoleListBox
+	case platform.RoleCell, platform.RoleColumnHeader, platform.RoleRowHeader:
+		// A cell of a table is only a cell; of a grid, a grid cell.
+		for p := e.parent; p != nil; p = p.parent {
+			if tabular(p.role) {
+				return p.role != RoleTable
+			}
+		}
+	}
+	return false
 }
 
 // accessRelations fills in what describes a node: the elements whose
@@ -1101,8 +1207,9 @@ func (rt *engine) accessAction(ev platform.SurfaceEvent) {
 		}
 		if s.flags&flagChoosable != 0 {
 			// A row of a list choosing rows: its list takes the focus for
-			// it, choosing it.
-			s.click(0)
+			// it, choosing it, as the keys would, which no RowClicked
+			// reports.
+			s.quietClick(0)
 			break
 		}
 		rt.focusOn(s)

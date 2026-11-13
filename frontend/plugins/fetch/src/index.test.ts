@@ -79,6 +79,103 @@ test("takes a Request", async () => {
   expect(res.body).toBeNull();
 });
 
+test("clones preserve response metadata and independently readable bodies", async () => {
+  go = fakeGo({
+    "plugin:fetch.Fetch": (c) => {
+      c.send(
+        1,
+        head(201, [
+          ["content-type", "text/plain"],
+          ["x-test", "clone"],
+        ]),
+      );
+      c.send(1, { chunk: b64("first ") });
+      c.send(1, { chunk: b64("second") });
+    },
+  });
+  const res = await fetch("https://example.com/start");
+  const copy = res.clone();
+  const another = copy.clone();
+  for (const response of [res, copy, another]) {
+    expect(response).toBeInstanceOf(Response);
+    expect(response.url).toBe("https://example.com/final");
+    expect(response.redirected).toBe(true);
+    expect(response.status).toBe(201);
+    expect(response.statusText).toBe("OK");
+    expect(response.headers.get("x-test")).toBe("clone");
+    expect(response.bodyUsed).toBe(false);
+  }
+  expect(await Promise.all([res.text(), copy.text(), another.text()])).toEqual([
+    "first second",
+    "first second",
+    "first second",
+  ]);
+  expect(go.calls).toHaveLength(1);
+});
+
+for (const status of [101, 204]) {
+  test(`clones preserve metadata of a bodyless ${status} response`, async () => {
+    go = fakeGo({
+      "plugin:fetch.Fetch": (c) => {
+        c.send(1, { status, statusText: "", url: "https://example.com/final", redirected: true });
+      },
+    });
+    const res = await fetch("https://example.com/start");
+    const copy = res.clone().clone();
+    expect(copy.status).toBe(status);
+    expect(copy.url).toBe(res.url);
+    expect(copy.redirected).toBe(true);
+    expect(copy.body).toBeNull();
+  });
+}
+
+test("cloning still rejects a locked or consumed body", async () => {
+  go = fakeGo({
+    "plugin:fetch.Fetch": (c) => {
+      c.send(1, head());
+      c.send(1, { chunk: b64("body") });
+    },
+  });
+  const res = await fetch("https://example.com/start");
+  const copy = res.clone();
+  const reader = copy.body!.getReader();
+  expect(() => copy.clone()).toThrow(TypeError);
+  reader.releaseLock();
+  expect(await copy.text()).toBe("body");
+  expect(() => copy.clone()).toThrow(TypeError);
+  expect(await res.text()).toBe("body");
+  expect(() => res.clone()).toThrow(TypeError);
+});
+
+test("rejects URL credentials before calling Go", async () => {
+  go = fakeGo({ "plugin:fetch.Fetch": (c) => c.send(1, head(204)) });
+  for (const url of [
+    "https://user:password@example.com/",
+    "http://user@example.com/",
+    "https://:password@example.com/",
+  ]) {
+    for (const input of [url, new URL(url)]) {
+      await expect(fetch(input)).rejects.toThrow(TypeError);
+      expect(go.calls).toEqual([]);
+    }
+  }
+});
+
+test("allows an empty URL userinfo and explicit authorization", async () => {
+  let got: Req | undefined;
+  go = fakeGo({
+    "plugin:fetch.Fetch": (c) => {
+      got = c.args[0] as Req;
+      c.send(1, head(204));
+    },
+  });
+  await fetch("https://:@example.com/", {
+    headers: { authorization: "Basic dXNlcjpwYXNzd29yZA==" },
+  });
+  expect(got?.url).toBe("https://example.com/");
+  expect(got?.headers).toContainEqual(["authorization", "Basic dXNlcjpwYXNzd29yZA=="]);
+});
+
 test("inherits a Request body when init.body is null or omitted", async () => {
   let got: Req | undefined;
   go = fakeGo({

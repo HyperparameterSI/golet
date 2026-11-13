@@ -230,6 +230,7 @@ golet.Shell.OpenExternal("https://example.com") // the default browser
 golet.Shell.OpenPath("/Users/ada/report.pdf")   // the default app for the file
 golet.Shell.ShowItemInFolder(path)              // Finder, Explorer, the file manager
 golet.Shell.TrashItem(path)                     // to the trash
+golet.Shell.PreviewItem(path)                   // Quick Look, as the space bar does
 golet.Shell.Beep()
 ```
 
@@ -238,6 +239,12 @@ it fails and leaves the item where it is. On Windows that is an item too
 big for the recycle bin, or on a drive without one, as network shares and
 many removable drives are, which Windows would otherwise delete without
 asking.
+
+`PreviewItem` shows a file in the Quick Look panel, the preview Finder
+opens with the space bar: the panel stays open until the user closes it,
+and asking again replaces the item it shows. It is macOS only; other
+platforms return `ErrUnsupported`. The panel is not modal: the app keeps
+running and the call returns once the item is set.
 
 `FileIcon` returns the icon the file manager shows for a file, a folder
 or an application, as a PNG of the size asked for in pixels: pass the size
@@ -391,6 +398,10 @@ is that same JSON, and the generated client types it with golet-runtime's
 release := golet.Power.KeepAwake("Exporting the video", false)
 defer release()
 
+// Keep the app at full speed while none of its windows shows.
+stop := golet.Power.KeepRunning("Serving the phones")
+defer stop()
+
 golet.Power.OnSuspend(func() { pauseSync() })
 golet.Power.OnResume(func() { resumeSync() })
 golet.Power.OnLockScreen(func() { hideSecrets() })
@@ -401,7 +412,19 @@ idle := golet.Power.IdleTime() // since the last keyboard or mouse input
 ```
 
 The reason given to `KeepAwake` shows where the system lists what keeps it
-awake. On Linux, `OnLockScreen` is called when the screen saver starts,
+awake.
+
+macOS puts an app none of whose windows shows, hidden, minimized, covered
+or behind the locked screen, into App Nap within a minute: it lowers the
+app's priority, coalesces its timers and throttles its I/O, which slows an
+app that serves the network, streams or syncs in the background. A tray
+icon counts as a window that shows while the menu bar shows it.
+`KeepRunning` keeps App Nap off until its release, and lets the computer
+sleep when idle, as an app that stays in the menu bar all day should;
+`KeepAwake` keeps App Nap off too, but the computer awake as well. Other
+systems do nothing for `KeepRunning`.
+
+On Linux, `OnLockScreen` is called when the screen saver starts,
 which usually locks the screen, and `IdleTime` is 0 on desktops that do not
 report it.
 
@@ -593,7 +616,10 @@ token, err := golet.Secrets.Service("MyApp").Get("refresh-token")
 Secrets protect against other users and stolen disks, not against other
 apps of the same user: macOS asks the user before another app reads them,
 and before a rebuilt app does when it is not signed with the same
-identity, while Linux and Windows let them read.
+identity, while Linux and Windows let them read. `golet dev` signs every
+build with the user's Apple Development identity, so "Always Allow" lasts
+across rebuilds; apps signed ad hoc, as without one, with `-sign -` or with
+`go run`, are asked again after each build.
 
 Where there is no credential store, the methods fail with an error for
 which `errors.Is(err, errors.ErrUnsupported)` holds: in browsers, and on

@@ -61,6 +61,13 @@ type Options struct {
 	// builds, so it looks up what the app has at hand, as in a map, and
 	// paragraphs follow when its answers change.
 	Resolve func(in parser.Inline) (dest string, ok bool)
+	// CodeLink, when set, makes code within text a link where it returns
+	// one: a chat links `src/app.go:12` to the file it names. It is asked
+	// for each piece of code shown whenever the view builds, as Resolve
+	// is, and paragraphs follow when its answers change. The code keeps
+	// its look; its source is untouched, so a document streaming in
+	// parses as it would without.
+	CodeLink func(code string) (dest string, ok bool)
 	// Preview, when set, returns what shows while the pointer rests on a
 	// link to dest, a mention's or a reference's included: a function
 	// filling the tip, as ui.TooltipBase does, or nil for the address
@@ -103,7 +110,9 @@ type Options struct {
 	Reveal *Reveal
 	// ShareSelection leaves the selection to a Selectable container around
 	// the view, as one across a chat's messages, rather than giving the
-	// view one of its own.
+	// view one of its own. Within another view, as a block Block builds,
+	// it shares that view's, whose Copy as Markdown copies its text as
+	// the Markdown of its own source.
 	ShareSelection bool
 
 	images sync.Map // url → *imageEntry
@@ -205,6 +214,51 @@ type viewState struct {
 	notes         map[string]int
 	sb            spanBuilder
 	fade          func(src int) float32
+	// nested are the views with ShareSelection built within this one's
+	// blocks, whose text this one's selection holds, for copying it as
+	// Markdown; cur is the block being built, which a nested view is
+	// noted in.
+	nested []nestedView
+	cur    int
+}
+
+// nestedView is a view sharing the selection of the view around it,
+// built in its block.
+type nestedView struct {
+	st    *viewState
+	block int
+}
+
+// building maps a window's context to the view whose blocks are being
+// built in it, for the views within it that share its selection to note
+// themselves in it.
+// A plain map under a lock rather than a sync.Map, whose stores
+// allocate, so a steady frame stays free of allocations.
+var building struct {
+	sync.Mutex
+	m map[*ui.Context]*viewState
+}
+
+// outerView returns the view whose blocks are being built in c.
+func outerView(c *ui.Context) *viewState {
+	building.Lock()
+	defer building.Unlock()
+	return building.m[c]
+}
+
+// setBuilding notes st as the view whose blocks are being built in c,
+// or that none is when st is nil.
+func setBuilding(c *ui.Context, st *viewState) {
+	building.Lock()
+	defer building.Unlock()
+	if st == nil {
+		delete(building.m, c)
+		return
+	}
+	if building.m == nil {
+		building.m = map[*ui.Context]*viewState{}
+	}
+	building.m[c] = st
 }
 
 type paraCache struct {
@@ -262,7 +316,11 @@ func build(c *ui.Context, src string, o *Options, streaming bool) ui.Element {
 	if th.Font != "" {
 		root.Font(th.Font)
 	}
-	if !o.ShareSelection {
+	if o.ShareSelection {
+		if outer := outerView(c); outer != nil {
+			outer.nested = append(outer.nested, nestedView{st, outer.cur})
+		}
+	} else {
 		root.Selectable()
 		root.CopyData(st.copyData)
 		root.ContextMenu(func(m *ui.Menu) {
@@ -276,8 +334,13 @@ func build(c *ui.Context, src string, o *Options, streaming bool) ui.Element {
 		}
 	}
 	st.elems = st.elems[:0]
+	clear(st.nested)
+	st.nested, st.cur = st.nested[:0], 0
 	st.numberNotes()
 	root.Children(func() {
+		prev := outerView(c)
+		setBuilding(c, st)
+		defer setBuilding(c, prev)
 		st.blocks(c, 0, false, spanStyle{})
 		st.footnotes(c)
 	})
@@ -367,6 +430,8 @@ func (st *viewState) block(c *ui.Context, i int, tight bool, base spanStyle) ui.
 	o := st.o
 	th := &st.th
 	b := d.Block(i)
+	defer func(prev int) { st.cur = prev }(st.cur)
+	st.cur = i
 	if o.Block != nil {
 		box := ui.Column(c)
 		done := false
@@ -495,27 +560,58 @@ func (st *viewState) para(i int, base spanStyle) *para {
 	sb.notes = st.noteNumber
 	sb.math = st.o.InlineMath
 	sb.linkIcon = st.o.LinkIcon
-	sb.resolve = st.o.Resolve
+	sb.resolve, sb.resolvers = nil, st.o.resolvers()
+	if sb.resolvers != 0 {
+		sb.resolve = st.o.resolveInline
+	}
 	sb.build(&pc.p, base)
 	return &pc.p
 }
 
-// sameResolved reports whether the mentions and references of block i
-// resolve where they did as p was built, Options.Resolve set or not
-// alike.
+// resolvers says which of Resolve and CodeLink are set, as bits.
+func (o *Options) resolvers() uint8 {
+	var r uint8
+	if o.Resolve != nil {
+		r |= 1
+	}
+	if o.CodeLink != nil {
+		r |= 2
+	}
+	return r
+}
+
+// resolveInline asks where an inline goes: Resolve for a mention or a
+// reference, CodeLink for code.
+func (o *Options) resolveInline(in parser.Inline) (string, bool) {
+	switch in.Kind {
+	case parser.Mention, parser.Reference:
+		if o.Resolve != nil {
+			return o.Resolve(in)
+		}
+	case parser.Code:
+		if o.CodeLink != nil {
+			return o.CodeLink(in.Text)
+		}
+	}
+	return "", false
+}
+
+// sameResolved reports whether the mentions, references and code of block i
+// resolve where they did as p was built, Options.Resolve and CodeLink set
+// or not alike.
 func (st *viewState) sameResolved(i int, p *para) bool {
 	if len(p.refs) == 0 {
 		return true
 	}
-	if (st.o.Resolve != nil) != p.withResolve {
+	if st.o.resolvers() != p.resolvers {
 		return false
 	}
-	if st.o.Resolve == nil {
+	if p.resolvers == 0 {
 		return true
 	}
 	in := st.doc.Inlines(i)
 	for k, x := range p.refs {
-		dest, ok := st.o.Resolve(in[x])
+		dest, ok := st.o.resolveInline(in[x])
 		if !ok {
 			dest = ""
 		}
@@ -576,7 +672,8 @@ func (st *viewState) piece(c *ui.Context, block int, pc *piece) {
 	default:
 		in := st.doc.Inlines(block)[pc.link]
 		if pc.dest != "" {
-			// A mention or a reference, which Options.Resolve made a link.
+			// A mention or a reference, which Options.Resolve made a link,
+			// or code, which Options.CodeLink did.
 			in.Dest, in.Auto = pc.dest, true
 		}
 		st.link(c, &in, func() { ui.RichText(c, pc.spans...) })

@@ -56,7 +56,7 @@ func TestCodeDiffIncremental(t *testing.T) {
 		old := NewBuffer(sb.String())
 		nw := NewBuffer(sb.String())
 		var d diffModel
-		d.set(old, nw)
+		d.set(old, nw, false)
 		d.update()
 		for range 20 {
 			text := nw.String()
@@ -93,7 +93,7 @@ func TestCodeDiffRevertAccept(t *testing.T) {
 	} {
 		old, nw := NewBuffer(c.old), NewBuffer(c.new)
 		var d diffModel
-		d.set(old, nw)
+		d.set(old, nw, false)
 		d.update()
 		for i := 0; len(d.hunks) > 0 && i < 10; i++ {
 			d.revert(0)
@@ -104,7 +104,7 @@ func TestCodeDiffRevertAccept(t *testing.T) {
 		}
 		old, nw = NewBuffer(c.old), NewBuffer(c.new)
 		d = diffModel{}
-		d.set(old, nw)
+		d.set(old, nw, false)
 		d.update()
 		for i := 0; len(d.hunks) > 0 && i < 10; i++ {
 			d.accept(0)
@@ -230,6 +230,38 @@ func TestDiffViewerLineSelection(t *testing.T) {
 	if r, _ := d.SelectedLines(); r != (DiffLineRange{DiffNew, 1, 2}) {
 		t.Fatalf("extended %+v", r)
 	}
+}
+
+// A press on the divider focuses it where the user scrolled the page: a
+// diff the page's scroll view cuts stays put.
+func TestDiffDividerPressKeepsThePageScroll(t *testing.T) {
+	d := &DiffState{Old: NewBuffer("a\nb\nc\n"), New: NewBuffer("a\nx\nc\n"), Layout: DiffSplit}
+	var page ui.ScrollState
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Scroll(c.Key("page")).Fill().TrackScroll(&page).Children(func() {
+			ui.Box(c).Height(100).Shrink(0)
+			// 100 to 360 of a window 300 high.
+			DiffView(c, d).Height(260).Shrink(0)
+			ui.Box(c).Height(400).Shrink(0)
+		})
+	}, 900, 300)
+	tt.Frame()
+	tt.Frame()
+	div, ok := tt.AccessByRole(ui.RoleSplitter, "")
+	if !ok {
+		t.Fatal("the diff has no divider")
+	}
+	x := div.Bounds.X + div.Bounds.W/2
+	tt.Press(x, 200)
+	tt.Frame()
+	tt.Frame()
+	if div, _ := tt.AccessByRole(ui.RoleSplitter, ""); !div.Focused {
+		t.Fatal("the press didn't focus the divider")
+	}
+	if page.Y != 0 {
+		t.Errorf("the press scrolled the page to %v", page.Y)
+	}
+	tt.Release(x, 200)
 }
 
 // The app runs commands and reads the caret in the side that has the
@@ -712,7 +744,7 @@ func TestDiffLineTop(t *testing.T) {
 	a := []string{"a", "b", "c", "d", "e", "f"}
 	b := []string{"a", "B", "c", "d", "e", "f", "g"}
 	for _, layout := range []DiffLayout{DiffSplit, DiffUnified} {
-		d := &DiffState{Old: NewBuffer(strings.Join(a, "\n")), New: NewBuffer(strings.Join(b, "\n")), Layout: layout, ExpandUnchanged: true}
+		d := &DiffState{Old: NewBuffer(strings.Join(a, "\n") + "\n"), New: NewBuffer(strings.Join(b, "\n") + "\n"), Layout: layout, ExpandUnchanged: true}
 		tt := ui.NewTester(func(c *ui.Context) { DiffView(c, d).Fill() }, 800, 600)
 		tt.Frame()
 		tt.Frame()
@@ -1213,5 +1245,142 @@ func TestDiffSplitAligned(t *testing.T) {
 				t.Fatalf("over the old side, scrolled sideways to %v of %v, the new side to %v of %v", old.scrollX, m, nw.scrollX, nw.maxScrollX())
 			}
 		}
+	}
+}
+
+// A diff whose state is reset between frames, as an app does while it
+// reads the next file's texts, can get a pointer move before the next
+// frame lays its editors out. The move must not panic.
+func TestDiffViewPointerMoveAfterReset(t *testing.T) {
+	st := &DiffState{Old: NewBuffer("a\nb\n"), New: NewBuffer("a\nc\n")}
+	tt := ui.NewTester(func(c *ui.Context) { DiffView(c, st).Fill() }, 600, 300)
+	tt.Frame()
+	ed := &st.eds[1]
+	x, y := ed.r.X+ed.r.W/2, ed.r.Y+ed.r.H/2
+	tt.Move(x, y)
+	*st = DiffState{}
+	tt.Move(x+1, y+1)
+}
+
+// An empty side of a diff, as of a file added or deleted, has no lines,
+// as git shows it: the line its editor keeps is not numbered, selected
+// by its number or commented on.
+func TestDiffViewEmptySide(t *testing.T) {
+	added, _ := ParsePatch("diff --git a/x.go b/x.go\nnew file mode 100644\n--- /dev/null\n+++ b/x.go\n@@ -0,0 +1,2 @@\n+a\n+b\n")
+	for _, c := range []struct {
+		name  string
+		st    *DiffState
+		empty DiffSide
+	}{
+		{"added", &DiffState{New: NewBuffer("a\nb\n")}, DiffOld},
+		{"deleted", &DiffState{Old: NewBuffer("a\nb\n")}, DiffNew},
+		{"deleted unified", &DiffState{Old: NewBuffer("a\nb\n"), Layout: DiffUnified}, DiffNew},
+		{"emptied", &DiffState{Old: NewBuffer("a\nb\n"), New: NewBuffer("")}, DiffNew},
+		{"added patch", func() *DiffState { d := &DiffState{}; d.SetPatch(added[0]); return d }(), DiffOld},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d := c.st
+			var selected, commented []DiffLineRange
+			d.LineSelection = true
+			d.OnLineSelection = func(r DiffLineRange) { selected = append(selected, r) }
+			d.OnGutterButton = func(r DiffLineRange) { commented = append(commented, r) }
+			d.RenderGutterButton = func(c *ui.Context, btn ui.Element, line DiffLineRange) { btn.Label("Comment") }
+			tt := ui.NewTester(func(c *ui.Context) { DiffView(c, d).Fill() }, 600, 300)
+			tt.Frame()
+			// inked reports whether the gutter of line 0 of a side shows
+			// anything but its background.
+			inked := func(side DiffSide) bool {
+				ed := &d.eds[side]
+				lh := ed.view.lineHeight
+				y := ed.r.Y + float32(ed.view.heights.geometry(0).rows-ed.scrollY)
+				img := tt.Image()
+				s := float32(img.Bounds().Dx()) / 600
+				first := img.RGBAAt(int((ed.r.X+1)*s), int((y+1)*s))
+				for py := int((y + 1) * s); py < int((y+lh-1)*s); py++ {
+					for px := int((ed.r.X + 1) * s); px < int((ed.r.X+ed.gutterW-1)*s); px++ {
+						if img.RGBAAt(px, py) != first {
+							return true
+						}
+					}
+				}
+				return false
+			}
+			if inked(c.empty) {
+				t.Fatal("the empty side's line is numbered")
+			}
+			if d.Layout == DiffSplit && !inked(1-c.empty) {
+				t.Fatal("the other side's first line is not numbered")
+			}
+			// Its gutter selects nothing and offers no button.
+			ed := &d.eds[c.empty]
+			y := ed.r.Y + float32(ed.view.heights.geometry(0).rows-ed.scrollY) + ed.view.lineHeight/2
+			tt.Move(ed.r.X+ed.gutterW/2, y)
+			tt.Frame()
+			if tt.HasText("Comment") {
+				t.Fatal("the empty side's line has a gutter button")
+			}
+			tt.ClickAt(ed.r.X+ed.gutterW-8, y)
+			if _, ok := d.SelectedLines(); ok || len(selected) > 0 || len(commented) > 0 {
+				t.Fatalf("selected %+v, commented %+v on the empty side", selected, commented)
+			}
+		})
+	}
+}
+
+// A unified view lays out the deleted lines it shows of a long run, as of
+// a file deleted, not those above them, and gives their highlighter the
+// frames it asks for.
+func TestDiffViewDeletedRunInView(t *testing.T) {
+	var lines []string
+	for i := range 5000 {
+		lines = append(lines, "fn line"+strconv.Itoa(i))
+	}
+	var hl *parserHighlighter
+	lang := &Language{Name: "Parsed", Highlighter: func(text Snapshot, invalidate func()) Highlighter {
+		hl = &parserHighlighter{text: text, invalidate: invalidate, pending: 10}
+		return hl
+	}}
+	d := &DiffState{Old: NewBuffer(strings.Join(lines, "\n")), New: NewBuffer(""), Layout: DiffUnified}
+	d.Old.SetLanguage(lang)
+	tt := ui.NewTester(func(c *ui.Context) { DiffView(c, d).Fill() }, 600, 300)
+	tt.Frame()
+	d.SetScrollY(math.MaxFloat64)
+	tt.Frame()
+	if n := len(d.oldView.lines.m); n > 100 {
+		t.Fatalf("%d deleted lines laid out to show the last few", n)
+	}
+	if hl == nil || hl.pending > 0 {
+		t.Fatal("the deleted lines' highlighter got no frames to finish in")
+	}
+	if l := d.oldView.line(len(lines) - 1); !l.exact || len(l.toks) == 0 || l.toks[0].Kind != TokenKeyword {
+		t.Fatalf("the last deleted line's tokens: %+v, final %v", l.toks, l.exact)
+	}
+}
+
+// A unified view forgets the deleted lines it laid out, and the rows it
+// shaped, once frames stop showing them, as an editor does its own: a
+// diff scrolled through keeps no more of them than of a screen or two.
+func TestDiffViewForgetsDeletedLines(t *testing.T) {
+	var old, nw []string
+	for i := range 6000 {
+		line := "line " + strconv.Itoa(i)
+		old = append(old, line)
+		if i%3 != 0 {
+			nw = append(nw, line)
+		}
+	}
+	d := &DiffState{Old: NewBuffer(strings.Join(old, "\n")), New: NewBuffer(strings.Join(nw, "\n")), Layout: DiffUnified, ExpandUnchanged: true}
+	tt := ui.NewTester(func(c *ui.Context) { DiffView(c, d).Fill() }, 600, 300)
+	tt.Frame()
+	for y := 0.0; y < d.eds[1].view.heights.total(); y += 250 {
+		d.SetScrollY(y)
+		tt.Frame()
+	}
+	ov := &d.oldView
+	if n := len(ov.lines.m); n > 600 {
+		t.Errorf("%d of 2,000 deleted lines still laid out", n)
+	}
+	if n := len(ov.shaped.cur) + len(ov.shaped.prev); n > 600 {
+		t.Errorf("%d shaped rows of 2,000 deleted lines still kept", n)
 	}
 }

@@ -121,6 +121,8 @@ UI as they read other apps (see [Accessibility](accessibility.md)).
 - [Link](link.md): text that opens a URL, or a page of a router.
 - [Menu button](menu-button.md): a button opening a menu below it, the
   system's or one Golet draws in the window with the theme's look.
+- [Split button](split-button.md): a button joined to an arrow opening a
+  menu of related actions, as Save and Save As….
 - [Context menu](context-menu.md): a menu of the system's for any element,
   on a right click, or one Golet draws in the window with the theme's look;
   [every menu of a window](context-menu.md#every-menu-of-a-window) drawn so,
@@ -249,7 +251,8 @@ UI as they read other apps (see [Accessibility](accessibility.md)).
 ## Images
 
 - [Image](image.md): bitmaps and SVGs in their own colors.
-- [Video](video.md): clips that play, as animated GIFs, behind the content
-  or as previews.
+- [Video](video.md): video files and streams with sound, played by the
+  system's media engine, and animated GIFs and PNGs, as trailers, clips
+  behind the content or previews.
 - [Icon](icon.md): SVG icons in the color of the text.
 - [Avatar](avatar.md): a picture of a person, or their initials.

@@ -97,3 +97,27 @@ Maia 原生演示现支持 Neutral、Zinc、Stone、Blue、Violet、Emerald、Ro
 插件实现现位于 `backend/plugins/dsh-go`，详细 API 与迁移说明见 [DSH-Go 文档](../../../docs/plugins/dsh-go.md)。附件上传与模型思考强度尚未接入此聊天演示。
 
 也可直接点击助手窗口右上角 **模型设置** 填写 API Key、API 地址和模型。密钥默认遮罩，仅保存在当前窗口内存中；点击 **应用并新建会话** 后立即生效并清空会话，无需重启。可通过 **离线演示** 切回离线模式。
+
+## 页面性能监控
+
+统计字段与本地 omnigo Studio 对齐：Studio CPU（单核 100%，可超过 100%）、
+Studio 常驻内存 RSS、系统 CPU（全核平均）、系统非空闲内存。
+四条趋势分别为进程 CPU、系统 CPU、RSS、Go 已分配堆。
+Go Runtime 明细包含平台、逻辑 CPU、Goroutine、HeapAlloc、HeapSys、Sys、
+GC 次数、最近 GC 暂停和采样时间。Sys 为 Go 向系统申请的空间，不再扣除 HeapReleased。
+
+macOS 使用 Getrusage、proc_pidinfo、host_statistics 和 sysctlbyname，全部通过
+Go syscall/purego 调用，无 cgo。其他平台与当前 omnigo 一致，仅提供 Go runtime
+指标，其余显示不可用。RSS 不包含 WebView/Chromium 子进程，系统非空闲内存
+为物理总量减空闲页（包含缓存），不等于活动监视器的“已使用内存”。不提供 GPU 指标。
+
+后台每 2 秒采样，最多保存 120 点（约 4 分钟）；应用退出时取消采样并释放原生资源。
+暂停只冻结展示，隐藏页面停止前端轮询；恢复后读取后台历史。首个 CPU 样本和采集失败
+显示为不可用，趋势中的缺失点断开，不伪装成零占用。指标无法直接推导框架自身的
+净性能损耗，需要对照工作负载测量。实现参考 omnigo/desktop/metrics 与 Studio insights。
+
+### MyGo v0.9.0 同步功能
+
+Studio 的共享 Gallery 更新了分体按钮、视频播放和非线性图表演示，代码编辑器同步预览与 diff 增强。
+「原生模块 · MapKit」展示 Swift MapKit 视图和 Go 原生按钮共用窗口：仅 macOS 可用，需安装 Swift 工具链并通过 `pnpm dev` 构建模块。
+更完整的功能和 SQLite 迁移说明见 [v0.9.0 同步记录](../../../docs/upstream-v0.9.0.md)。

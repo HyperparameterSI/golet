@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/HyperparameterSI/golet/backend/internal/imagesrc"
 )
 
 // Box creates a container that lays its children out in a column.
@@ -157,12 +159,9 @@ func styleButton(c *context, b *node, primary bool) {
 	base, hover, pressed, fg, border := t.Surface, t.SurfaceHover, t.SurfacePressed, t.Text, t.Border
 	switch {
 	case primary && c.emphasized(t):
-		base, hover, pressed, fg, border = t.Accent, t.AccentHover, t.AccentPressed, t.AccentText, Color{}
+		base, hover, pressed, fg, border = t.Accent, t.AccentHover, t.AccentPressed, t.AccentText, t.Accent
 	case primary:
-		// As other buttons in a window not drawn as active, as AppKit's
-		// default button: its border inside the padding, so that it is as
-		// large as active and nothing around it moves.
-		b.Padding(t.Space(1.5)-1, t.Space(3.5)-1)
+		// Keep the reserved outline and padding identical in inactive windows.
 	case c.buttons == toolbarButtons:
 		b.Padding(t.Space(1.5), t.Space(2.5)).Radius(t.Radius)
 		base, border = Color{}, Color{}
@@ -179,22 +178,27 @@ func styleButton(c *context, b *node, primary bool) {
 	if c.buttons == ownButtons {
 		b.MinHeight(t.Space(9))
 	}
-	b.styleFn = func(b *node) {
-		if b.bg != base || b.IsDisabled() {
-			return
-		}
-		if b.Pressed() {
-			b.bg = pressed
-		} else if b.Hovered() {
-			b.bg = hover
-		}
-	}
+	b.faces = [3]Color{base, hover, pressed}
+	b.styleFn = styleButtonFace
 	if c.buttons == ownButtons {
 		m := t.ControlMaterial
 		if primary {
 			m = t.AccentMaterial
 		}
 		themeMaterial(b, m)
+	}
+}
+
+// styleButtonFace is a button's styleFn: its pressed or hovered background
+// over the one it was built with, unless the view gave it another.
+func styleButtonFace(b *node) {
+	if b.bg != b.faces[0] || b.IsDisabled() {
+		return
+	}
+	if b.Pressed() {
+		b.bg = b.faces[2]
+	} else if b.Hovered() {
+		b.bg = b.faces[1]
 	}
 }
 
@@ -498,14 +502,18 @@ func paintKnob(p *Painter, t *Theme, k Rect, held float32, focus bool) {
 // Progress creates a progress bar filled to value between 0 and 1; a
 // negative value shows activity of unknown length. It fills from its
 // start: the right right to left (Direction). Reverse fills it from the
-// other side.
+// other side. It fills in the accent color, or the color TextColor gives
+// it, as a quota bar in a product's own color, over a track in the
+// theme's Border color, or the one Background gives it.
+//
+//	ui.Progress(c, app.used/app.quota).TextColor(brand).Label("Storage")
 func coreProgress(c *context, value float64) *node {
 	t := c.theme
 	rad := t.Space(0.75)
-	e := coreBox(c).Height(t.Space(1.5)).Radius(rad).Background(t.Border).Clip()
+	e := coreBox(c).Height(t.Space(1.5)).Radius(rad).Background(t.Border).TextColor(c.accent(t)).Clip()
 	e.role, e.hasRange, e.accRange = RoleProgress, true, [3]float64{0, 1, value}
-	fill := c.accent(t)
 	e.Draw(func(p *Painter, r Rect) {
+		fill := e.ts.color
 		fromRight := e.reverse != e.rtl()
 		if value >= 0 {
 			w := r.W * float32(math.Min(value, 1))
@@ -554,19 +562,29 @@ func coreScrollBoth(c *context) *node {
 	return e
 }
 
-// ImageSource is what Image shows: a *Bitmap, or an *SVG in its own
-// colors.
+// ImageSource is what Image shows: a *Bitmap, an *SVG in its own
+// colors, or a *native.Texture, which a native module draws into on the
+// GPU.
 type ImageSource interface {
-	imageSize() (w, h float32)
+	imagesrc.Source
 }
 
+// imageMark makes the types embedding it ImageSources.
+type imageMark = imagesrc.Mark
+
 // ImageSize returns the size Image shows src at by default, in DIPs: a
-// bitmap's pixels, or the size an SVG says it has. It is 0×0 for nil.
+// bitmap's pixels, the size an SVG says it has, or a texture's pixels as
+// its last frame has them. It is 0×0 for nil.
 func ImageSize(src ImageSource) (w, h float32) {
-	if src == nil {
-		return 0, 0
+	switch s := src.(type) {
+	case *Bitmap:
+		return s.imageSize()
+	case *SVG:
+		return s.imageSize()
+	case imagesrc.Frames:
+		return s.Size()
 	}
-	return src.imageSize()
+	return 0, 0
 }
 
 // DecodeImage decodes a picture whose format is not known up front, as
@@ -593,11 +611,11 @@ func coreImage(c *context, src ImageSource) *node {
 		e.image = s
 	case *SVG:
 		e.svg = s
+	case imagesrc.Frames:
+		e.texture = s
 	}
-	if src != nil {
-		if w, h := src.imageSize(); h > 0 {
-			e.aspect = w / h
-		}
+	if w, h := ImageSize(src); h > 0 {
+		e.aspect = w / h
 	}
 	return e
 }
@@ -607,8 +625,11 @@ func coreImage(c *context, src ImageSource) *node {
 func (e *node) intrinsicSize() (w, h float32) {
 	switch e.kind {
 	case kindImage:
-		if e.image != nil {
+		switch {
+		case e.image != nil:
 			return e.image.imageSize()
+		case e.texture != nil:
+			return e.texture.Size()
 		}
 		return e.svg.imageSize()
 	case kindIcon:
@@ -725,7 +746,7 @@ func coreSelect(c *context, selected *string, options []string) *node {
 	b.Justify(SpaceBetween).FontWeight(400).MinWidth(t.Space(35))
 	b.Children(func() {
 		coreText(c, *selected).SingleLine()
-		chevron(c)
+		chevron(c, t.TextMuted)
 	})
 	sel.Popup(func(panel *node) {
 		stylePanel(c, panel)
@@ -745,13 +766,14 @@ func coreSelect(c *context, selected *string, options []string) *node {
 	return b
 }
 
-// chevron draws the arrow of a button opening something below it.
-func chevron(c *context) {
+// chevron draws the arrow of a button opening something below it, in
+// color.
+func chevron(c *context, color Color) {
 	t := c.theme
 	coreBox(c).Size(t.Space(2.5), t.Space(2.5)).Shrink(0).Draw(func(p *Painter, r Rect) {
 		var path Path
 		path.MoveTo(r.X+r.W*0.1, r.Y+r.H*0.3).LineTo(r.X+r.W*0.5, r.Y+r.H*0.7).LineTo(r.X+r.W*0.9, r.Y+r.H*0.3)
-		p.StrokePath(&path, 1.5, t.TextMuted)
+		p.StrokePath(&path, 1.5, color)
 	})
 }
 
@@ -798,7 +820,7 @@ func menuButton(c *context, label string) *node {
 		if label != "" {
 			coreText(c, label).SingleLine()
 		}
-		chevron(c)
+		chevron(c, c.theme.TextMuted)
 	})
 	return b
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/HyperparameterSI/golet/backend/i18n"
+	"github.com/HyperparameterSI/golet/backend/internal/pacing"
 	"github.com/HyperparameterSI/golet/backend/internal/platform"
 	"github.com/HyperparameterSI/golet/backend/internal/raster"
 	"github.com/HyperparameterSI/golet/backend/internal/scene"
@@ -138,8 +139,9 @@ type windowHost struct {
 	lastFrame time.Time
 	// framing tells that the surface asked for the frame being drawn, and
 	// frameAsked that the content asked the surface for a frame that has
-	// not come yet.
-	framing, frameAsked bool
+	// not come yet; unshown that it asked for it only to show a frame built
+	// outside the surface's, as a capture's, and nothing asked since.
+	framing, frameAsked, unshown bool
 	// told is what accelerated last told the frame being painted, asked
 	// that it did.
 	told, asked bool
@@ -281,10 +283,10 @@ func (h *windowHost) waiter() displayWaiter {
 
 // refreshPresented has the paced frames following one drawn in memory
 // wait for the display's next refresh, where the surface shows it at once
-// (refreshWaiter).
+// (refreshWaiter); uncapped (GOLET_UNCAPPED), they follow it at once.
 func (h *windowHost) refreshPresented() {
 	s, ok := h.conn.Surface.(platform.RefreshSurface)
-	if !ok || h.conn.Post == nil {
+	if !ok || h.conn.Post == nil || pacing.Uncapped {
 		return
 	}
 	if h.refresh == nil {
@@ -351,7 +353,7 @@ func (h *windowHost) event(ev platform.SurfaceEvent) bool {
 			return true
 		}
 		h.waiting, h.waitingOn = false, nil
-		h.frameAsked = false
+		h.frameAsked, h.unshown = false, false
 		h.framing = true
 		defer func() { h.framing = false }()
 	}
@@ -468,6 +470,7 @@ func (h *windowHost) present(s *scene.Scene) {
 		// A frame built outside the surface's, for a capture, is shown by
 		// the surface's next.
 		h.requestFrame()
+		h.unshown = true
 		return
 	}
 	due := !h.retryAt.IsZero() && !time.Now().Before(h.retryAt)
@@ -581,16 +584,28 @@ func (h *windowHost) screenWide() bool {
 // render draws s with the GPU renderer and reports whether it did. One
 // that fails gives way to another made at once, in case the GPU is back
 // already, or another, or Windows' software rasterizer, can draw; when
-// that fails too, frames are drawn in memory until a later try.
+// that fails too, frames are drawn in memory until a later try. A frame
+// the GPU did not finish in time is the exception: the driver is wedged,
+// so it is drawn in memory and the GPU left alone until the wait is over.
 func (h *windowHost) render(s *scene.Scene) bool {
 	for try := 0; h.gpu != nil; try++ {
-		err := h.gpu.Render(s)
+		g := h.gpu
+		err := g.Render(s)
 		if err == nil {
 			return true
 		}
 		log.Printf("golet: drawing without the GPU: %v", err)
-		h.gpu.Release()
+		g.Release()
 		h.gpu = nil
+		if t, ok := g.(interface{ TimedOut() bool }); ok && t.TimedOut() {
+			// A frame submitted now would wait the same timeout through,
+			// and the window would show nothing all the while.
+			if time.Since(h.gpuSince) > time.Minute {
+				h.backoff = 0
+			}
+			h.retryLater()
+			return false
+		}
 		if try > 0 {
 			h.retryLater()
 			return false
@@ -684,10 +699,10 @@ func (h *windowHost) retryLater() {
 }
 
 // capture renders the last frame in memory: built now where none was yet,
-// or where one waits for the window to show (holdFrame), so that a window
-// out of sight shows what it shows now.
+// or where one waits for the window to show (holdFrame, waitsOutOfSight),
+// so that a window out of sight shows what it shows now.
 func (h *windowHost) capture() (int, int, []byte) {
-	if h.last == nil || h.rt.held {
+	if h.last == nil || h.rt.held || h.waitsOutOfSight() {
 		h.rt.runFrame()
 	}
 	s := h.last
@@ -698,6 +713,15 @@ func (h *windowHost) capture() (int, int, []byte) {
 	img.Resize(s.Width, s.Height)
 	raster.Render(&img, s)
 	return img.W, img.H, img.RGBA()
+}
+
+// waitsOutOfSight reports whether nothing of the window shows while a
+// frame waits to build: one held until some of it shows (holdFrame), or one
+// asked for, after input or a change, that has not come, which the surface
+// of a window out of sight may draw only once it shows: macOS draws none
+// for a hidden window, nor for any while the screen is locked.
+func (h *windowHost) waitsOutOfSight() bool {
+	return h.occluded() && (h.rt.held || h.frameAsked && !h.unshown)
 }
 
 // fit builds the frame that waits for the window to show, if one does,
@@ -731,13 +755,18 @@ func (h *windowHost) detach() {
 }
 
 func (h *windowHost) requestFrame() {
-	h.frameAsked = true
+	h.frameAsked, h.unshown = true, false
 	h.conn.Surface.RequestFrame()
 }
 
+// framesAtOnce reports whether the surface's frames come as soon as asked
+// for: Windows', and every desktop surface's uncapped (GOLET_UNCAPPED),
+// whose next frame comes once the last was presented rather than at the
+// display's next refresh. A drawing asking for fewer frames
+// (Painter.AnimationFrameRate) then has the repaint timer keep its pace.
 func (h *windowHost) framesAtOnce() bool {
 	_, ok := h.conn.Surface.(platform.ImmediateFrameSurface)
-	return ok
+	return ok || pacing.Uncapped
 }
 
 func (h *windowHost) setFrameRate(fps float32) {
@@ -837,7 +866,7 @@ func (h *windowHost) writeClipboardThen(s string, done func(error)) {
 	}
 	err := errNoClipboard
 	if c != nil {
-		err = c.WriteData(transfer.TextData(s), nil)
+		err = c.WriteData(transfer.TextData(s), false, nil)
 	}
 	h.post(func() { done(err) })
 }
@@ -859,7 +888,7 @@ func (h *windowHost) readClipboardData(formats []transfer.Format) transfer.Data 
 
 func (h *windowHost) writeClipboardData(d transfer.Data) {
 	if h.conn.Clipboard != nil {
-		h.conn.Clipboard.WriteData(d, nil)
+		h.conn.Clipboard.WriteData(d, false, nil)
 	}
 }
 
@@ -932,7 +961,7 @@ func (h *windowHost) titleBar() TitleBar {
 		return TitleBar{}
 	}
 	t := h.conn.TitleBar()
-	return TitleBar{Height: float32(t.Height), Left: float32(t.Left), Right: float32(t.Right)}
+	return TitleBar{Height: float32(t.Height), Left: float32(t.Left), Right: float32(t.Right), Bottom: float32(t.Bottom)}
 }
 
 func (h *windowHost) vibrancy() bool {

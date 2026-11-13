@@ -45,6 +45,7 @@ let rootStyle: HTMLStyleElement | null = null;
       "--golet-titlebar-height": `${tb.height}px`,
       "--golet-titlebar-inset-left": `${tb.left}px`,
       "--golet-titlebar-inset-right": `${tb.right}px`,
+      "--golet-titlebar-controls-bottom": `${tb.bottom}px`,
     }),
   );
 
@@ -205,6 +206,7 @@ interface TitleBar {
   height: number;
   left: number;
   right: number;
+  bottom: number;
 }
 
 /** Sets Golet's CSS variables of :root, keeping the ones already set. A null

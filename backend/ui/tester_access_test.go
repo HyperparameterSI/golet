@@ -278,3 +278,68 @@ func TestTesterAccessRelations(t *testing.T) {
 	accessOf(t, tt, ui.RoleDeletion, "$40")
 	accessOf(t, tt, ui.RoleInsertion, "$30")
 }
+
+// TestTesterAccessAll checks that Tester.AccessAll lists every element of
+// the last frame in reading order, as Access describes each, and finds a
+// control without a name.
+func TestTesterAccessAll(t *testing.T) {
+	plus := ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor"/></svg>`))
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Children(func() {
+			ui.Button(c.Key("save"), "Save")
+			ui.ButtonBase(c.Key("add")).Children(func() { ui.Icon(c, plus) })
+			ui.ButtonBase(c.Key("close")).Label("Close").Children(func() { ui.Icon(c, plus) })
+		})
+	}, 300, 200)
+	tt.Frame()
+	all := tt.AccessAll()
+	var buttons []string
+	for _, a := range all {
+		if a.Role == ui.RoleButton {
+			buttons = append(buttons, a.Name)
+		}
+	}
+	if !slices.Equal(buttons, []string{"Save", "", "Close"}) {
+		t.Fatalf("buttons %q of %+v", buttons, all)
+	}
+	if save, _ := tt.AccessByRole(ui.RoleButton, "Save"); !slices.ContainsFunc(all, func(a ui.AccessInfo) bool { return reflect.DeepEqual(a, save) }) {
+		t.Errorf("Save as Access reads it, %+v, missing", save)
+	}
+}
+
+// TestTesterAccessTabPanel checks that the content of a tab is a tab
+// panel, which its tab points to as the panel it controls.
+func TestTesterAccessTabPanel(t *testing.T) {
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Children(func() {
+			tab := ui.ButtonBase(c.Key("tab")).Role(ui.RoleTab).Label("Settings").Children(func() { ui.Text(c, "Settings") })
+			tab.Controls(ui.Column(c).Role(ui.RoleTabPanel).Label("Settings panel").Children(func() {
+				ui.Text(c, "Volume")
+			}))
+		})
+	}, 400, 400)
+	if p := accessOf(t, tt, ui.RoleTabPanel, "Settings panel"); p.Role != ui.RoleTabPanel {
+		t.Errorf("Settings panel: %+v", p)
+	}
+	if tab := accessOf(t, tt, ui.RoleTab, "Settings"); !slices.Equal(tab.Controls, []string{"Settings panel"}) {
+		t.Errorf("Settings tab controls %q", tab.Controls)
+	}
+}
+
+// TestTesterAccessLandmarks checks that the main content, the top bar,
+// the footer and the sidebar of a window are landmarks.
+func TestTesterAccessLandmarks(t *testing.T) {
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Children(func() {
+			ui.Row(c).Role(ui.RoleBanner).Label("Mail").Children(func() { ui.Text(c, "Mail") })
+			ui.Column(c).Role(ui.RoleComplementary).Label("Folders").Children(func() { ui.Text(c, "Inbox") })
+			ui.Column(c).Role(ui.RoleMain).Label("Messages").Children(func() { ui.Text(c, "Hello") })
+			ui.Row(c).Role(ui.RoleContentInfo).Label("Status").Children(func() { ui.Text(c, "3 unread") })
+		})
+	}, 400, 400)
+	for r, name := range map[ui.Role]string{ui.RoleBanner: "Mail", ui.RoleComplementary: "Folders", ui.RoleMain: "Messages", ui.RoleContentInfo: "Status"} {
+		if a := accessOf(t, tt, r, name); a.Role != r {
+			t.Errorf("%s: %+v", name, a)
+		}
+	}
+}

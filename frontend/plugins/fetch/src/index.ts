@@ -54,6 +54,7 @@ export async function fetch(input: RequestInfo | URL, init: RequestInit = {}): P
   const base = typeof location !== "undefined" ? location.href : undefined;
   const url = new URL(req ? req.url : input instanceof URL ? input.href : String(input), base);
   if (url.protocol !== "http:" && url.protocol !== "https:") return globalThis.fetch(input, init);
+  if (url.username || url.password) throw new TypeError("fetch: URL must not include credentials");
 
   const signal = init.signal === undefined ? (req?.signal ?? null) : init.signal;
   signal?.throwIfAborted();
@@ -161,15 +162,27 @@ export async function fetch(input: RequestInfo | URL, init: RequestInit = {}): P
     statusText: head.statusText ?? "",
     headers: head.headers ?? [],
   });
-  const own = (name: string, value: unknown) =>
-    Object.defineProperty(res, name, { value, enumerable: true });
-  own("url", head.url ?? url.href);
-  own("redirected", head.redirected ?? false);
-  if (!valid) own("status", status);
-  return res;
+  return withMetadata(res, head.url ?? url.href, head.redirected ?? false, status);
 }
 
 export default fetch;
+
+/** Native clones copy internal response data, not the properties we add. */
+function withMetadata(res: Response, url: string, redirected: boolean, status: number): Response {
+  // Capture the native method before installing the wrapper to avoid recursion.
+  const clone = res.clone;
+  const own = (name: string, value: unknown) =>
+    Object.defineProperty(res, name, { value, enumerable: true });
+  own("url", url);
+  own("redirected", redirected);
+  if (res.status !== status) own("status", status);
+  Object.defineProperty(res, "clone", {
+    value(this: Response): Response {
+      return withMetadata(clone.call(this), this.url, this.redirected, this.status);
+    },
+  });
+  return res;
+}
 
 /** The error a failed request rejects with. */
 function failure(err: unknown): Error {

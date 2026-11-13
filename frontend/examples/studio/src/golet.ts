@@ -33,6 +33,29 @@ export interface Demo {
   source: string;
 }
 
+export interface PerformanceSample {
+  at: number;
+  processCPU: number | null;
+  systemCPU: number | null;
+  rss: number | null;
+  systemUsed: number | null;
+  systemTotal: number | null;
+  heap: number;
+  heapReserved: number;
+  goReserved: number;
+  goroutines: number;
+  gc: number;
+  gcPauseMS: number;
+  errors: string[];
+}
+
+export interface PerformanceSnapshot {
+  samples: PerformanceSample[];
+  cores: number;
+  platform: string;
+  intervalMS: number;
+}
+
 /**
  * Preset is a native palette inspired by Tailwind's color families. These are
  * Golet presets, not a claim to reproduce every upstream shadcn preset.
@@ -113,5 +136,11 @@ export const BrowserDemo = {
   },
   status(): Promise<BrowserStatus> {
     return call("BrowserDemo.Status");
+  },
+} as const;
+
+export const Performance = {
+  snapshot(): Promise<PerformanceSnapshot> {
+    return call("Performance.Snapshot");
   },
 } as const;

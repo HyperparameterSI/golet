@@ -41,7 +41,10 @@ type headless struct {
 	opened        []string
 	// escapes counts the Escapes nothing handled.
 	escapes int
-	openErr error
+	// titleDoubles counts the double clicks a DragWindow handle left to
+	// the window.
+	titleDoubles int
+	openErr      error
 	// clipboardErr fails the writes of text to the clipboard
 	// (FailClipboard).
 	clipboardErr error
@@ -51,8 +54,11 @@ type headless struct {
 	bar    TitleBar
 	access *platform.AccessTree
 	// told are the announcements of the trees, and announced those the
-	// view made.
-	told, announced []string
+	// view made; alerts are what the trees told to read at once, and
+	// screenReader is set once assistive technology is on
+	// (Tester.UseScreenReader).
+	told, announced, alerts []string
+	screenReader            bool
 	// menu is the context menu shown, at menuAt, and chosen takes its
 	// choice.
 	menu   *platform.Menu
@@ -168,7 +174,7 @@ func (h *headless) finishDataDrag(r transfer.Result) {
 		done(r)
 	}
 }
-func (h *headless) titleBarDoubleClicked()            {}
+func (h *headless) titleBarDoubleClicked()            { h.titleDoubles++ }
 func (h *headless) setMaximizeButton(r Rect)          { h.maxButton = r }
 func (h *headless) escape()                           { h.escapes++ }
 func (h *headless) isDark() bool                      { return h.dark }
@@ -217,6 +223,7 @@ func (h *headless) post(func()) { h.requested.Store(true) }
 // announcements.
 func (h *headless) keepAccess(t *platform.AccessTree) {
 	h.access, h.told = t, append(h.told, t.Announcements...)
+	h.alerts = append(h.alerts, t.Alerts...)
 }
 
 func (h *headless) popupMenu(m *platform.Menu, x, y float32, chosen func(int)) {
@@ -355,7 +362,7 @@ func (t *Tester) Advance(d time.Duration) {
 		if t.asked() {
 			// Built anew after invalidate, as a window's.
 			if t.h.invalidated.Swap(false) {
-				t.rt.redraw = false
+				t.rt.buildNext()
 			}
 			t.h.requested.Store(false)
 			t.runLater()
@@ -575,16 +582,30 @@ func (t *Tester) HasText(s string) bool {
 // targetCenter checks the named element before sending any input. Labels
 // include clipped boxes, and a visible box may be covered by another control.
 func (t *Tester) targetCenter(s string, button int) (float32, float32, error) {
-	var n *labelNode
+	var firstErr error
 	for i := range t.rt.labels {
-		if t.rt.labels[i].text == s {
-			n = &t.rt.labels[i]
-			break
+		n := &t.rt.labels[i]
+		if n.text != s {
+			continue
+		}
+		// A rich paragraph can have the same text as its only inline link.
+		// Check each named candidate against the actual input target.
+		x, y, err := t.targetLabelCenter(n, button)
+		if err == nil {
+			return x, y, nil
+		}
+		if firstErr == nil {
+			firstErr = err
 		}
 	}
-	if n == nil {
-		return 0, 0, fmt.Errorf("ui: no element shows %q", s)
+	if firstErr != nil {
+		return 0, 0, firstErr
 	}
+	return 0, 0, fmt.Errorf("ui: no element shows %q", s)
+}
+
+func (t *Tester) targetLabelCenter(n *labelNode, button int) (float32, float32, error) {
+	s := n.text
 	r, z := n.r, t.rt.zoomFactor()
 	cx, cy := r.X+r.W/2, r.Y+r.H/2
 	x, y := cx*z, cy*z
@@ -615,13 +636,12 @@ func (t *Tester) targetCenter(s string, button int) (float32, float32, error) {
 	if button == 0 {
 		for _, id := range hit {
 			st := t.rt.states[id]
-			if st == nil || st.flags&(flagScrollX|flagScrollY) == 0 || !st.barsShown || st.hideScrollbars {
+			if st == nil || !st.barsShown || st.barFlags == 0 {
 				continue
 			}
 			lx, ly := st.local(cx, cy)
 			lx, ly = lx+st.x, ly+st.y
-			g := scrollBars(Rect{st.x, st.y, st.w, st.h}, st.barInset, float32(st.contentW), float32(st.contentH),
-				float32(st.scrollX), float32(st.scrollY), st.flags, st.barWidth, st.rtl)
+			g := st.scrollbarGeometry(st.x, st.y, st.contentW, st.contentH, st.scrollX, st.scrollY)
 			if g.vertical && g.vTrack.Contains(lx, ly) || g.horizontal && g.hTrack.Contains(lx, ly) {
 				return 0, 0, fmt.Errorf("ui: %q is covered by a scroll bar", s)
 			}
@@ -1060,12 +1080,45 @@ func (t *Tester) FailClipboard(err error) { t.h.clipboardErr = err }
 // those no app opens, or opens them again for nil.
 func (t *Tester) FailOpenURL(err error) { t.h.openErr = err }
 
+// UseScreenReader turns assistive technology on, as a screen reader
+// attaching to the window: from then on every frame's accessibility tree
+// goes to it, and live regions read out what changes after it is on, as
+// ARIA's do (a status, a log, an alert); what showed before is not read.
+// Announcements and Alerts return what it would read.
+func (t *Tester) UseScreenReader() {
+	if t.h.screenReader {
+		return
+	}
+	t.h.screenReader = true
+	// What the view announced before is read by nobody.
+	t.h.announced = nil
+	t.send(platform.SurfaceEvent{Kind: platform.AccessibilityOn})
+	t.h.alerts = nil
+}
+
 // Announcements returns what the view asked screen readers to read out
 // (Context.Announce), as a Router the titles of the pages it showed, and
-// forgets it.
+// forgets it. Once UseScreenReader is on it returns what a screen reader
+// reads politely, in order: those announcements, and the text of an ARIA
+// status (RoleStatus) when it changes and of what is added to a log
+// (RoleLog), each once.
 func (t *Tester) Announcements() []string {
 	a := t.h.announced
-	t.h.announced = nil
+	if t.h.screenReader {
+		// Announce texts are in the trees' too.
+		a = t.h.told
+	}
+	t.h.announced, t.h.told = nil, nil
+	return a
+}
+
+// Alerts returns what a screen reader reads at once, interrupting, in
+// order, and forgets it: the text of an ARIA alert (RoleAlert) as it
+// appears and whenever it changes. It is empty unless UseScreenReader is
+// on.
+func (t *Tester) Alerts() []string {
+	a := t.h.alerts
+	t.h.alerts = nil
 	return a
 }
 

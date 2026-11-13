@@ -6,6 +6,8 @@ import (
 	"math"
 	"slices"
 	"time"
+
+	"github.com/HyperparameterSI/golet/backend/internal/scene"
 )
 
 // Animation says how a value goes to a new target: along an easing curve
@@ -458,14 +460,51 @@ func (e *node) Arrived(key any) bool {
 	return false
 }
 
+// viewInputs is what InView, InViewMargin and InViewAmount answer from:
+// the element's box as its transforms place it, what of it the clips
+// around it show, and whether it shows at all.
+type viewInputs struct {
+	world          scene.Affine
+	x, y, w, h     float32
+	vx, vy, vw, vh float32
+	invisible      bool
+}
+
+// viewWatch is what an element that reads whether it is in view keeps:
+// the frame it last read in, and the inputs of that answer as of the last
+// commit. It is allocated once, by the first read.
+type viewWatch struct {
+	read   uint64
+	inputs viewInputs
+}
+
+func (s *state) viewInputs() viewInputs {
+	return viewInputs{s.world, s.x, s.y, s.w, s.h, s.vx, s.vy, s.vw, s.vh, s.invisible}
+}
+
+// watchView notes that the build reads whether the element is in view,
+// which comes from the last commit: commitElement asks for another frame
+// when its inputs changed since, as scrolling does, so that what the view
+// shows follows at once, not at the next input.
+func (e *node) watchView() {
+	s := e.st
+	if s.view == nil {
+		s.view = &viewWatch{inputs: s.viewInputs()}
+	}
+	s.view.read = e.c.rt.frame
+}
+
 // InView reports whether some of the element showed in the window in the
 // frame before, within the scroll containers and clips around it: to
-// animate it in as it scrolls into view, as Motion's whileInView.
+// animate it in as it scrolls into view, as Motion's whileInView. When
+// what it answers from changes, as a scroll brings the element in, Golet
+// builds another frame, so that the view reads the new answer.
 func (e *node) InView() bool {
 	if !e.hasState() {
 		return false
 	}
 	s := e.st
+	e.watchView()
 	return s.seen+1 >= e.c.rt.frame && s.vw > 0 && s.vh > 0
 }
 
@@ -476,7 +515,8 @@ func (e *node) InView() bool {
 // IntersectionObserver's rootMargin and scrollMargin, a margin of 200
 // has the element in view once it is within 200 DIPs of showing, to load
 // what it shows before it scrolls in, and a negative one only once it is
-// that far inside; other clips around it clip it as they do.
+// that far inside; other clips around it clip it as they do. As InView
+// does, it has Golet build another frame when what it answers from changes.
 func (e *node) InViewMargin(margin ...float32) bool {
 	m := edges(margin)
 	in := e.InView()
@@ -487,6 +527,7 @@ func (e *node) InViewMargin(margin ...float32) bool {
 		return false
 	}
 	s, rt := e.st, e.c.rt
+	e.watchView()
 	if s.seen+1 < rt.frame || s.invisible {
 		return false
 	}
@@ -498,7 +539,8 @@ func (e *node) InViewMargin(margin ...float32) bool {
 // from 0 to 1, showed in the frame before, within the window and the
 // scroll containers and clips around it, grown by margin as InViewMargin
 // grows them: as IntersectionObserver's threshold, and Motion's amount
-// for whileInView and useInView. An impression counts once half of a
+// for whileInView and useInView, and builds another frame when what it
+// answers from changes, as InView does. An impression counts once half of a
 // card shows with 0.5, an animation starts at a fifth of it with 0.2,
 // and 1 waits for all of it; 0 is InViewMargin. Its area is that of its
 // box as transforms move it, the box holding them as InView's clips do.
@@ -515,6 +557,7 @@ func (e *node) InViewAmount(amount float32, margin ...float32) bool {
 		return false
 	}
 	s, rt := e.st, e.c.rt
+	e.watchView()
 	if s.seen+1 < rt.frame || s.invisible {
 		return false
 	}

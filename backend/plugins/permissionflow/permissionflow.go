@@ -26,6 +26,9 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/HyperparameterSI/golet/backend/i18n"
+	"github.com/HyperparameterSI/golet/backend/internal/l10n"
 )
 
 // A Permission is something the system lets the user give apps.
@@ -107,12 +110,44 @@ var titles = map[Permission]string{
 }
 
 // Title returns the name of the permission as the system's settings show
-// it, in English: "Screen Recording".
+// it, in the language the app shows: "Screen Recording" in English.
 func (p Permission) Title() string {
-	if t, ok := titles[p]; ok {
-		return title(p, t)
+	if _, ok := titles[p]; ok {
+		return title(p, localizedTitle(p, i18n.Locale()))
 	}
 	return string(p)
+}
+
+func localizedTitle(p Permission, locale string) string {
+	msgs := l10n.In(locale)
+	switch p {
+	case Accessibility:
+		return msgs.PermissionAccessibility()
+	case ScreenRecording:
+		return msgs.PermissionScreenRecording()
+	case InputMonitoring:
+		return msgs.PermissionInputMonitoring()
+	case FullDiskAccess:
+		return msgs.PermissionFullDiskAccess()
+	case AppManagement:
+		return msgs.PermissionAppManagement()
+	case DeveloperTools:
+		return msgs.PermissionDeveloperTools()
+	case Microphone:
+		return msgs.PermissionMicrophone()
+	case Camera:
+		return msgs.PermissionCamera()
+	case Calendars:
+		return msgs.PermissionCalendars()
+	case Reminders:
+		return msgs.PermissionReminders()
+	case Bluetooth:
+		return msgs.PermissionBluetooth()
+	case MediaAppleMusic:
+		return msgs.PermissionMediaAppleMusic()
+	default:
+		return string(p)
+	}
 }
 
 func (p Permission) String() string { return string(p) }

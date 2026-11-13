@@ -69,8 +69,9 @@ type options struct {
 	noScrollbar bool
 	// keepScrollbars shows the thumbs with the pointer away, and
 	// hideScrollbars shows no bars, nor keeps their room (KeepScrollbars,
-	// NoScrollbars).
+	// NoScrollbars). scrollbar is how the bars look (Scrollbar).
 	keepScrollbars, hideScrollbars bool
+	scrollbar                      ui.ScrollbarStyle
 	// minDigits is how many digits the gutter has room for at least.
 	minDigits int
 	// sharedScroll scrolls the sides of a split diff together.
@@ -135,6 +136,9 @@ type editor struct {
 	view  view
 	o     options
 	theme *Theme
+	// barStyle is how the editor's scroll bars look, its Scrollbar with
+	// the theme's zero fields filled in.
+	barStyle ui.ScrollbarStyle
 	// texts are Golet's strings in the window's language, as of the last
 	// frame.
 	texts l10n.Messages
@@ -218,6 +222,13 @@ type editor struct {
 	diags    []Diagnostic
 	gitDiff  *gitDiff
 	brackets bracketCache
+
+	// placed are the elements of replacements the last build placed, at
+	// the scroll of placedScroll, which a frame painting them elsewhere
+	// builds again (replacementsMoved); placeScratch is where they are
+	// found anew.
+	placed, placeScratch []placed
+	placedScroll         [2]float64
 }
 
 // lastClip is what an editor last copied, which pasting its text in any
@@ -259,6 +270,13 @@ type gesture struct {
 // init sets up the editor for a frame.
 func (ed *editor) init(buf *Buffer, o options, t *ui.Theme) {
 	ed.o = o
+	// The editor's bar has always been 10 DIPs wide; its style, or the
+	// theme's, may say otherwise, and the theme fills in the rest.
+	style := o.scrollbar
+	if style.TrackWidth == 0 && (t == nil || t.ScrollbarStyle.TrackWidth == 0) {
+		style.TrackWidth = scrollbarWidth
+	}
+	ed.barStyle = style.Resolve(t)
 	if o.hideScrollbars {
 		// Bars taken away while a thumb is dragged let it go, rather than
 		// scroll on under the pointer (NoScrollbars).
@@ -406,6 +424,8 @@ func (ed *editor) resetForBuffer() {
 	ed.selUndo, ed.selRedo = nil, nil
 	ed.folds, ed.autoclosed, ed.marked, ed.diags = nil, nil, nil, nil
 	ed.view.inlays, ed.suggestion = nil, ""
+	ed.view.repls, ed.view.replCross = nil, nil
+	ed.view.replsChanged()
 	ed.complete.close()
 	ed.hover.close()
 	ed.find.scope, ed.find.stale, ed.find.lowerVer, ed.find.lower = nil, true, 0, ""
@@ -468,6 +488,19 @@ func (ed *editor) hiddenSpans() []lineSpan {
 	return out
 }
 
+// hiddenLines returns every line that shows no rows: those folds hide,
+// those a diff collapses and those replacements hide, merged.
+func (ed *editor) hiddenLines() []lineSpan {
+	hidden := ed.hiddenSpans()
+	if ds, ok := ed.o.decor.(*diffSide); ok {
+		hidden = mergeSpans(append(hidden, ds.hidden()...))
+	}
+	if r := ed.view.replacedLines(); len(r) > 0 {
+		hidden = mergeSpans(append(hidden, r...))
+	}
+	return hidden
+}
+
 // rowTop returns the top of line's rows in the content.
 func (ed *editor) rowTop(line int) float64 { return ed.view.heights.geometry(line).rows }
 
@@ -514,6 +547,44 @@ func (ed *editor) offsetAt(x float32, y float64) int {
 	}
 	d := v.dispAt(l, &l.rows[ri], x)
 	return l.start + l.fromDisp(d)
+}
+
+// overTrailingInlay reports whether a content point is on rendered trailing
+// decoration, rather than in the blank space after it. Such decoration keeps
+// the source caret before it, so caretRect alone cannot hit-test it.
+func (ed *editor) overTrailingInlay(x float32, y float64) bool {
+	v := &ed.view
+	if v.text.LineCount() == 0 {
+		return false
+	}
+	line := v.heights.lineAt(y)
+	if v.heights.isHidden(line) {
+		return false
+	}
+	l := v.line(line)
+	inlays := v.inlaysIn(l.start, l.start+len(l.text))
+	for i, segment := range l.segs {
+		if segment.kind != segInlay || segment.inlay >= len(inlays) || inlays[segment.inlay].kind != inlayTrailing {
+			continue
+		}
+		end := segment.disp + segLen(l, i)
+		for rowIndex := range l.rows {
+			row := &l.rows[rowIndex]
+			from, to := max(segment.disp, row.from), min(end, row.to)
+			if from >= to {
+				continue
+			}
+			top := ed.rowTop(line) + float64(rowIndex)*float64(v.lineHeight)
+			if y < top || y >= top+float64(v.lineHeight) {
+				continue
+			}
+			left, right := v.xOf(l, row, from), v.xOf(l, row, to)
+			if x >= left && x < right {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // verticalMove returns where a caret at off with goal x goes moving rows
@@ -602,7 +673,7 @@ func (ed *editor) doReveal() {
 	// Unfold the line the caret is on.
 	if v.heights.isHidden(line) {
 		ed.unfoldLine(line)
-		v.heights.setHidden(ed.hiddenSpans())
+		v.heights.setHidden(ed.hiddenLines())
 	}
 	cr, ok := ed.caretRect(s.head)
 	if !ok {

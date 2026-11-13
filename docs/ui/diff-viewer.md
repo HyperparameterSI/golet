@@ -32,6 +32,21 @@ diffing again only the lines around it. `New` can be the buffer of an
 editor too, as a file's, so that the diff shows its changes as they are
 typed.
 
+An empty text has no lines, as `git diff` counts them: the side of a file
+added or deleted, or emptied, shows no line numbers, and its gutter selects
+no line and offers no button. A text's lines end at its final newline, as
+git's do: a diff that isn't `Editable` leaves out the empty line an editor
+starts after it, which no separator counts, while an editable one shows it,
+as typing there adds a line.
+
+A diff that isn't `Editable` compares lines with their line feeds, as git
+does, so a last line that gains or loses its newline is a changed line, and
+the last line of a text without a final newline ends with a muted "No
+newline at end of file", git's `\ No newline at end of file`. `SetPatch`,
+whose texts hold only the patch's lines, marks the sides its `\` lines
+name. An editable diff compares lines without them and marks none: adding
+the final newline adds the empty line after it, where typing goes.
+
 ## Layout
 
 - `Layout` shows the old text on the left and the new on the right, their
@@ -261,6 +276,23 @@ for _, f := range files {
     d := &editor.DiffState{}
     d.SetPatch(f)
     app.files = append(app.files, d)
+}
+```
+
+When the app has the files too, as a git client reads them from the
+repository, `SetPatchFiles(f, old, new)` shows the whole files with the
+patch's changes: its runs of `-` and `+` lines, as `git diff` aligned
+them with its options (`--patience`, `--histogram`), not what comparing
+the texts would find. The unchanged lines between them collapse
+into separators that expand, as in any diff. It returns an error, and
+changes nothing, when the patch is binary or doesn't make `new` from
+`old`:
+
+```go
+old := app.fileAt("HEAD", f.OldName) // the app's own git read
+new := app.fileAt("", f.NewName)      // the working tree's
+if err := d.SetPatchFiles(f, old, new); err != nil {
+	d.SetPatch(f) // the files moved on since the patch: show its hunks
 }
 ```
 

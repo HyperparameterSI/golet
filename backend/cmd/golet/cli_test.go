@@ -392,7 +392,7 @@ func TestProductionTags(t *testing.T) {
 	t.Setenv("GOFLAGS", "")
 	t.Setenv("GOLET_INSPECTOR", "")
 	tags := func(debug bool) string { return strings.Join(productionTags(debug), " ") }
-	if got := tags(false); got != "-tags golet_noinspector" {
+	if got := tags(false); got != "-tags golet_nodownload,golet_noinspector" {
 		t.Errorf("a production build has %q", got)
 	}
 	if got := tags(true); got != "" {
@@ -400,11 +400,11 @@ func TestProductionTags(t *testing.T) {
 	}
 	// The tags of GOFLAGS stay: -tags would override them.
 	t.Setenv("GOFLAGS", "-mod=mod -tags=sqlite,fts5")
-	if got := tags(false); got != "-tags sqlite,fts5,golet_noinspector" {
+	if got := tags(false); got != "-tags sqlite,fts5,golet_nodownload,golet_noinspector" {
 		t.Errorf("with GOFLAGS' tags, a production build has %q", got)
 	}
 	t.Setenv("GOLET_INSPECTOR", "1")
-	if got := tags(false); got != "" {
+	if got := tags(false); got != "-tags sqlite,fts5,golet_nodownload" {
 		t.Errorf("GOLET_INSPECTOR=1 leaves %q", got)
 	}
 }

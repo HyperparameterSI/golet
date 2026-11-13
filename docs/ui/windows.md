@@ -37,8 +37,30 @@ ui.Row(c).Height(max(bar.Height, 32)).Padding(0, bar.Right+12, 0, bar.Left+12).D
 })
 ```
 
+`bar.Bottom` is where the controls end, from the top edge: the bottom of
+the traffic lights on macOS, which `TrafficLightPosition` moves, and
+`bar.Height` on Linux and Windows. A sidebar that runs to the top of the
+window, with the traffic lights over it, starts its items below them:
+
+```go
+ui.Column(c).Width(220).Padding(bar.Bottom+8, 8, 8, 8).DragWindow().Children(func() {
+	ui.Text(c, "Inbox")
+})
+```
+
 In a `Frameless` window, `DragWindow` makes an element move the window, and
 a double click on it maximizes the window.
+
+A handle that means something else when double-clicked, as the empty part
+of a sidebar starting something new, takes the double click with
+`WindowDoubleClicked`, and still moves the window:
+
+```go
+side := ui.Scroll(c.Key("sidebar")).Grow(1).DragWindow()
+if side.WindowDoubleClicked() {
+	app.newItem()
+}
+```
 
 To draw the window controls too, where the view wants them, add
 `HideWindowButtons: true` to the hidden title bar: the system's controls go,
@@ -229,6 +251,16 @@ while it is hidden. macOS tells it as the window is minimized, hidden,
 on another space or covered by other windows; browsers as the tab or
 the window is out of sight; Linux (on X11) and Windows as it is
 minimized. `Tester.SetWindowHidden` hides and shows it in tests.
+
+`Window.IsVisible` answers another question: whether `Show` showed the
+window and `Hide` did not hide it since, so a minimized window is still
+visible. Work outside the view, as a goroutine that polls, learns that
+the window went out of sight from the view, which builds again as it
+does:
+
+```go
+paused.Store(c.WindowHidden()) // an atomic.Bool the goroutine reads
+```
 
 ## Closing
 

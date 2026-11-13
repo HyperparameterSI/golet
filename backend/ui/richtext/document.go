@@ -39,12 +39,14 @@ type Document struct {
 	log []change
 	// newID names the paragraphs edits make (IdentifyParagraphs).
 	newID func() string
-	// shownIn is the editor that last showed the document, for
-	// VisibleParagraphs; read is set as the app reads them, which boxes
-	// holds, for the editor's next paint to tell whether it moved them.
-	shownIn weak.Pointer[view]
-	read    bool
-	boxes   []ParagraphBox
+	// shownIn is the editor built last that shows the document, for
+	// VisibleParagraphs and CaretRect: an app that shows it in two
+	// editors reads each one's right after building it. What was read is
+	// kept in that editor, for its next paint to tell whether it moved
+	// what was read; readNone is set when the app read them with no
+	// editor yet, for the first to paint to ask for another frame.
+	shownIn  weak.Pointer[view]
+	readNone bool
 }
 
 // change is a change of a document: the runes from start to oldEnd

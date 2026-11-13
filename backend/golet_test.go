@@ -63,6 +63,12 @@ func TestMain(m *testing.M) {
 	if os.Getenv("GOLET_TEST_STUCK_QUIT") == "1" {
 		stuckQuit()
 	}
+	if dir := os.Getenv("GOLET_TEST_CLEAR_WINDOW_STATES"); dir != "" {
+		clearWindowStatesOnQuit(dir)
+	}
+	if mode := os.Getenv("GOLET_TEST_END_SESSION"); mode != "" {
+		endSession(mode)
+	}
 	if os.Getenv("GOLET_TEST_EVAL_AFTER_QUIT") == "1" {
 		evalAfterQuit()
 	}
@@ -188,6 +194,28 @@ func TestWindowDefaults(t *testing.T) {
 	}
 }
 
+// TestMinimizedWindowIsVisible holds IsVisible to what Show and Hide set,
+// as every backend reports it (#1542): a minimized window is still shown,
+// Show does not show it again, and Hide hides it.
+func TestMinimizedWindowIsVisible(t *testing.T) {
+	w, _ := testWindow(t, WindowOptions{})
+	var shows, hides atomic.Int32
+	w.OnShow(func() { shows.Add(1) })
+	w.OnHide(func() { hides.Add(1) })
+	w.Minimize()
+	if !w.IsMinimized() || !w.IsVisible() {
+		t.Fatalf("minimized: IsMinimized %v, IsVisible %v", w.IsMinimized(), w.IsVisible())
+	}
+	w.ShowInactive()
+	if shows.Load() != 0 {
+		t.Errorf("ShowInactive on a minimized window fired OnShow %d times", shows.Load())
+	}
+	w.Hide()
+	if w.IsVisible() || hides.Load() != 1 {
+		t.Errorf("Hide on a minimized window: IsVisible %v, OnHide %d times", w.IsVisible(), hides.Load())
+	}
+}
+
 // TestGlassWindowOptions passes a floating panel's look to the backend: the
 // glass and the corners of a frameless window, a negative radius none; and
 // its active look, which SetActiveAppearance sets.
@@ -206,6 +234,33 @@ func TestGlassWindowOptions(t *testing.T) {
 	_, fw = testWindow(t, WindowOptions{Frameless: true, CornerRadius: -4})
 	if o := fw.Opts; o.CornerRadius != 0 {
 		t.Errorf("radius %d; want none", o.CornerRadius)
+	}
+}
+
+// TestInputRegion passes a desktop pet's region to the backend, a copy
+// without the rectangles that hold nothing, keeping nil (all of the
+// window) apart from an empty region (none of it).
+func TestInputRegion(t *testing.T) {
+	w, fw := testWindow(t, WindowOptions{Frameless: true, Transparent: true, AlwaysOnTop: true})
+	region := func() []platform.Rect {
+		return onMainValue(func() []platform.Rect { return fw.InputRegion })
+	}
+	if region() != nil {
+		t.Fatalf("a new window has region %v", region())
+	}
+	rects := []Rectangle{{X: 10, Y: 80, Width: 120, Height: 140}, {X: 0, Y: 0, Width: 0, Height: 40}, {X: 5, Y: 5, Width: 160, Height: -1}, {X: 0, Y: 0, Width: 200, Height: 60}}
+	w.SetInputRegion(rects)
+	rects[0].X = 99 // the caller's slice is its own
+	if got, want := region(), []platform.Rect{{X: 10, Y: 80, Width: 120, Height: 140}, {X: 0, Y: 0, Width: 200, Height: 60}}; !reflect.DeepEqual(got, want) {
+		t.Errorf("region %v, want %v", got, want)
+	}
+	w.SetInputRegion([]Rectangle{{Width: 0, Height: 10}})
+	if got := region(); got == nil || len(got) != 0 {
+		t.Errorf("region %#v, want an empty one", got)
+	}
+	w.SetInputRegion(nil)
+	if got := region(); got != nil {
+		t.Errorf("region %v, want nil", got)
 	}
 }
 
@@ -993,35 +1048,35 @@ func TestEventsWaitForDOMReady(t *testing.T) {
 
 func TestHiddenTitleBar(t *testing.T) {
 	// titleBar matches the page event of the room the window controls take.
-	titleBar := func(height, left, right float64) func(m map[string]any) bool {
+	titleBar := func(height, left, right, bottom float64) func(m map[string]any) bool {
 		return func(m map[string]any) bool {
 			p, _ := m["p"].(map[string]any)
-			return m["n"] == "golet:title-bar" && p["height"] == height && p["left"] == left && p["right"] == right
+			return m["n"] == "golet:title-bar" && p["height"] == height && p["left"] == left && p["right"] == right && p["bottom"] == bottom
 		}
 	}
 	w, fw := readyWindow(t, WindowOptions{TitleBarStyle: TitleBarHidden, TitleBarHeight: 52})
 	if fw.Opts.TitleBarHeight != 52 {
 		t.Errorf("TitleBarHeight = %d, want 52", fw.Opts.TitleBarHeight)
 	}
-	received(t, fw, titleBar(52, 0, 138))
+	received(t, fw, titleBar(52, 0, 138, 52))
 
 	// The backend reports a change, such as another button layout.
 	onMain(func() {
-		fw.TitleBarRoom = platform.TitleBar{Height: 46, Left: 80}
+		fw.TitleBarRoom = platform.TitleBar{Height: 46, Left: 80, Bottom: 30}
 		fw.H.TitleBarChanged()
 	})
-	received(t, fw, titleBar(46, 80, 0))
+	received(t, fw, titleBar(46, 80, 0, 30))
 
 	// The page gets CSS pixels, which zoom makes larger.
 	w.Page().SetZoomFactor(2)
-	received(t, fw, titleBar(23, 40, 0))
+	received(t, fw, titleBar(23, 40, 0, 15))
 
 	// A later page hears it once its DOM is ready: the script the backend
 	// runs at document start may be older.
 	onMain(func() { fw.H.NavigationCommitted("https://next.example/") })
 	n := len(fw.Scripts())
 	page(fw, `{"t":"dom-ready"}`)
-	received(t, fw, titleBar(23, 40, 0))
+	received(t, fw, titleBar(23, 40, 0, 15))
 	if len(fw.Scripts()) == n {
 		t.Error("the new page did not hear the title bar")
 	}
@@ -1789,6 +1844,35 @@ func TestQuitCanBeCanceled(t *testing.T) {
 	}
 }
 
+func TestQuitCanceledEvent(t *testing.T) {
+	var canceled int
+	off := App.OnQuitCanceled(func() { canceled++ })
+	defer off()
+
+	offBefore := App.OnBeforeQuit(func(e *QuitEvent) { e.PreventDefault() })
+	if onMainValue(fb.QuitRequested) {
+		t.Fatal("quit was not canceled by OnBeforeQuit")
+	}
+	offBefore()
+
+	w, _ := testWindow(t, WindowOptions{})
+	offClose := w.OnClose(func(e *CloseEvent) { e.PreventDefault() })
+	if onMainValue(fb.QuitRequested) {
+		t.Fatal("quit was not canceled by a window")
+	}
+	offClose()
+
+	offWill := App.OnWillQuit(func(e *QuitEvent) { e.PreventDefault() })
+	if onMainValue(fb.QuitRequested) {
+		t.Fatal("quit was not canceled by OnWillQuit")
+	}
+	offWill()
+
+	if canceled != 3 {
+		t.Errorf("OnQuitCanceled ran %d times, want 3", canceled)
+	}
+}
+
 func TestPaths(t *testing.T) {
 	dir, err := App.Path(PathUserData)
 	if err != nil || !strings.HasSuffix(dir, "GoletTest") {
@@ -2205,6 +2289,78 @@ func TestQuitWhileLoopRuns(t *testing.T) {
 	if got := string(out); !strings.Contains(got, "asked again: 2\n") || !strings.Contains(got, "quit\n") {
 		t.Errorf("output:\n%s", got)
 	}
+}
+
+// TestEndSession: when the OS ends the session, the quit listeners and the
+// windows' OnClose run before OnQuit, synchronously and in a quit's
+// order, and what they prevent is ignored; after a quit that ran them,
+// they do not run again.
+func TestEndSession(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for mode, want := range map[string]string{
+		"fresh": "before true\nclose\nwill true\nquit\nended\n",
+		// The quit ran the sequence; its loop had not stopped yet.
+		"quit": "before false\nclose\nwill false\nquit\nended\n",
+	} {
+		cmd := exec.Command(exe, "-test.run=^$")
+		cmd.Env = append(os.Environ(), "GOLET_TEST_END_SESSION="+mode)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s: %v\n%s", mode, err, out)
+		}
+		if string(out) != want {
+			t.Errorf("%s: output:\n%s\nwant:\n%s", mode, out, want)
+		}
+	}
+}
+
+// endSession is a helper process for TestEndSession: the OS ends the
+// session while the app runs ("fresh"), when every listener tries to
+// cancel, or after a quit ran its sequence and the loop has yet to stop
+// ("quit").
+func endSession(mode string) {
+	fb.IgnoresQuit = true
+	stopGrace = 0
+	App.OnWindowAllClosed(func() { fmt.Println("all closed") })
+	App.OnBeforeQuit(func(e *QuitEvent) {
+		fmt.Println("before", e.SessionEnding)
+		if mode == "fresh" {
+			e.PreventDefault()
+		}
+	})
+	App.OnWillQuit(func(e *QuitEvent) {
+		fmt.Println("will", e.SessionEnding)
+		if mode == "fresh" {
+			e.PreventDefault()
+		}
+	})
+	App.OnQuit(func() { fmt.Println("quit") })
+	App.WhenReady(func() {
+		w := NewWindow(WindowOptions{})
+		w.OnClose(func(e *CloseEvent) {
+			fmt.Println("close")
+			if mode == "fresh" {
+				e.PreventDefault()
+			}
+		})
+		if mode == "quit" {
+			App.Quit() // its loop does not stop (IgnoresQuit)
+		}
+		postMain(func() {
+			fb.EndSession()
+			if !w.IsDestroyed() {
+				fmt.Println("the window is open")
+			}
+			fmt.Println("ended")
+			os.Exit(0)
+		})
+	})
+	App.Run()
+	fmt.Println("the loop stopped")
+	os.Exit(1)
 }
 
 // stuckQuit is a helper process for TestQuitWhileLoopRuns: its event

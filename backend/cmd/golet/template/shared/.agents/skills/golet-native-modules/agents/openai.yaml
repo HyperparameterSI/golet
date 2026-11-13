@@ -1,0 +1,3 @@
+interface:
+  display_name: "Golet Native Modules"
+  short_description: "Write Go interfaces that Swift implements"

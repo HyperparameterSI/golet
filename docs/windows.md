@@ -156,6 +156,25 @@ quits, on the main thread. Windows open with their options when there are
 no states or loading them fails; a save that fails is tried again the next
 time.
 
+In a quit, the states are saved after the `OnBeforeQuit` listeners have
+run, as each window closes, and once more after the event loop has
+stopped, right before the `OnQuit` listeners run. A "Reset settings"
+action that removed `window-state.json`, or the states from its own store,
+would see them written again. `App.ClearWindowStates()` forgets them for
+good instead: it saves no states, an empty map for a `WindowStateStore`,
+and the windows save theirs no more until the app exits. The windows open
+keep their bounds, and those created afterwards, as at the next launch,
+get their options. It can be called at any time, from a quit listener
+too:
+
+```go
+golet.App.OnBeforeQuit(func(*golet.QuitEvent) {
+	if resetRequested {
+		_ = golet.App.ClearWindowStates()
+	}
+})
+```
+
 ### Bring a page back
 
 A window's position comes back with its `StateKey`; its page comes back
@@ -215,6 +234,12 @@ win.Hide()              // Show, ShowInactive (without focusing), IsVisible
 win.Focus()             // Blur, IsFocused
 ```
 
+`IsVisible` tells whether `Show` showed the window and `Hide` did not hide
+it since: a minimized window is still visible, on every platform, as is one
+covered by others or on another desktop. `IsMinimized` tells that it is
+minimized, and in a window of native UI,
+[`Context.WindowHidden`](ui/windows.md#hidden-windows) whether any of it shows on screen.
+
 Sizes and positions are in the window's DIPs, whatever the zoom of its
 page (`Page.SetZoomFactor`) or of its [native UI](ui/windows.md#zoom):
 at a zoom of 1.25, a page area of 1000 DIPs shows 800 of the page's CSS
@@ -248,7 +273,9 @@ Other properties:
   regular apps there, but [panels](#panels).
 - `SetContentProtection(true)` keeps it out of screenshots and screen
   recordings.
-- `SetIgnoreMouseEvents(true)` lets clicks through to what is behind it.
+- `SetIgnoreMouseEvents(true)` lets clicks through to what is behind it,
+  and `SetInputRegion` all of them but those on parts of it (see
+  [click-through windows](#click-through-windows)).
 - `SetActiveAppearance(true)` keeps the window drawn as active while
   another app is in front (macOS), so that the clear Liquid Glass
   (`VibrancyGlassClear`) of a panel floating over it stays clear. It uses a
@@ -383,7 +410,9 @@ neither a border nor rounded corners there).
 
 On macOS, `Popover` gives it the look of the system's popovers instead: it
 shows in an `NSPopover`, which draws its material, rounded corners and an
-arrow pointing at the middle of the anchor, and animates. AppKit places it
+arrow pointing at the middle of the anchor, and animates. The material and
+arrow follow the application's theme, including changes while open; a tray's
+menu-bar contrast appearance does not override them. AppKit places it
 on the side `Placement` names, or the opposite one; the rest of the
 placement, and `Gap`, do not apply. As AppKit's popovers do, it has the
 keyboard while it shows, and with `Focusable` it closes as the user clicks
@@ -648,6 +677,54 @@ keys from the start: it is blurred only as it hides, so close it on
 Escape, which the user presses there. Elsewhere, as on GNOME, which has no
 layer shell, it is a window as others: the compositor decides where it
 shows and what is above it.
+
+## Click-through windows
+
+A desktop pet is a frameless, transparent window always on top, which
+shows a character, and a speech bubble now and then: clicks on them reach
+the app, and clicks anywhere else the window or the desktop under it, as
+if the pet's window were not there. `SetInputRegion` gives the window the
+rectangles that take the mouse, in DIPs from the top-left corner of its
+content; presses, moves and the wheel elsewhere go through to what is
+behind it:
+
+```go
+pet := golet.NewWindow(golet.WindowOptions{
+	Frameless:   true,
+	Transparent: true,
+	AlwaysOnTop: true,
+	SkipTaskbar: true,
+	Width:       320,
+	Height:      240,
+	Content:     ui.View(app.pet),
+})
+character := golet.Rectangle{X: 200, Y: 120, Width: 110, Height: 110}
+pet.SetInputRegion([]golet.Rectangle{character})
+
+// The bubble shows: it takes clicks too, until it goes.
+pet.SetInputRegion([]golet.Rectangle{character, {X: 10, Y: 10, Width: 220, Height: 90}})
+```
+
+Set the region again as what takes clicks moves or changes size: the
+rectangles stay where they were in the window, which may move as a whole
+(`SetPosition`, or `StartDrag` from the character). A page finds its
+rectangles with `getBoundingClientRect` and sends them through a bound
+method; native UI with an element's `Bounds`. `SetInputRegion(nil)` gives
+the window the mouse everywhere again, as it starts, and an empty slice
+lets it all through, as `SetIgnoreMouseEvents(true)` does, which wins
+over the region while it is set. `PassThrough` in native UI is another
+thing: it lets the pointer through an element to what the window shows
+under it, never to another window.
+
+How each platform does it:
+
+| | macOS | Linux | Windows |
+|---|---|---|---|
+| region | the window lets the mouse through (`ignoresMouseEvents`) while the pointer is outside the rectangles, switched as it moves, from monitors of the pointer's moves in the app and in other apps | the window's input shape: X11's SHAPE extension, Wayland's input region | the window lets the mouse through (layered, `WS_EX_TRANSPARENT`) while the cursor is outside the rectangles, which a timer asks at each tick of the system's clock (15.6 ms) while the window shows |
+
+On macOS and Windows a button held keeps the window as it is: a drag that
+started on the character ends there, as one that started on what is
+behind ends there, and the release settles which takes the mouse next.
 
 ## Events
 
@@ -1166,7 +1243,32 @@ win.Page().SetCertificateErrorHandler(func(e golet.CertificateError) bool {
 
 On Linux only the page itself is asked about, not what it loads, and on
 Linux and Windows a certificate allowed for a host stays allowed in every
-window until the app quits. Client certificates are left to the system.
+window until the app quits.
+
+A server, or a proxy, can also ask for the client's certificate before it
+serves the page (mutual TLS). `Page.SetClientCertificateHandler` answers
+with one of the certificates the platform offers, or with an empty
+`ClientCertificateResponse` to refuse, which fails the load as when a
+user dismisses a browser's prompt:
+
+```go
+win.Page().SetClientCertificateHandler(func(req golet.ClientCertificateRequest) golet.ClientCertificateResponse {
+	for _, c := range req.Certificates {
+		if c.Subject == "CN=alice" {
+			return golet.ClientCertificateResponse{Certificate: c}
+		}
+	}
+	return golet.ClientCertificateResponse{}
+})
+```
+
+What is offered is the platform's: WebView2's mutually trusted
+certificates on Windows, the keychain's identities on macOS. WebKitGTK
+lists none, so on Linux `Certificates` is empty and a handler can only
+refuse; without a handler each platform shows its own choice (WebView2's
+dialog, WebKitGTK's chooser; macOS never asks). A refusal on Linux ends
+the load as a cancellation, which `OnDidFinishLoad` reports and
+`OnDidFailLoad` does not.
 
 ### Blocking content
 

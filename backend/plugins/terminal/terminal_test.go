@@ -640,6 +640,11 @@ func TestKeys(t *testing.T) {
 	key(0, ui.KeyA, "a", "a")
 	key(ui.Shift, ui.KeyA, "A", "A")
 	key(ui.Ctrl, ui.KeyC, "", "\x03")
+	// The Control keys fixterms makes CSI u of send their C0 controls,
+	// as in xterm, for shells and editors.
+	key(ui.Ctrl, ui.KeyI, "", "\t")
+	key(ui.Ctrl, ui.KeyM, "", "\r")
+	key(ui.Ctrl, ui.KeyBracketLeft, "", "\x1b")
 	key(0, ui.KeyEnter, "", "\r")
 	key(0, ui.KeyBackspace, "", "\x7f")
 	key(0, ui.KeyUp, "", "\x1b[A")
@@ -657,6 +662,8 @@ func TestKeys(t *testing.T) {
 	term.Feed([]byte("\x1b[>1u"))
 	key(0, ui.KeyEscape, "", "\x1b[27u")
 	key(ui.Ctrl, ui.KeyC, "", "\x1b[99;5u")
+	key(ui.Ctrl, ui.KeyI, "", "\x1b[105;5u")
+	key(ui.Ctrl, ui.KeyBracketLeft, "", "\x1b[91;5u")
 	// Programs in cursor key mode get application keys.
 	term.Feed([]byte("\x1b[<u\x1b[?1h"))
 	key(0, ui.KeyUp, "", "\x1bOA")
@@ -722,6 +729,32 @@ func TestMouse(t *testing.T) {
 	// Focus reports.
 	term.Feed([]byte("\x1b[?1004h"))
 	tt.Frame()
+}
+
+// TestKilledJobModes: a job killed with the mouse's reports on leaves them
+// on, which the terminal turns off as the shell takes it back; the
+// program the terminal runs keeps those it sets.
+func TestKilledJobModes(t *testing.T) {
+	loadLib(t)
+	tracking := func(term *Terminal) bool {
+		term.mu.Lock()
+		defer term.mu.Unlock()
+		return term.term.MouseTracking()
+	}
+	term := shell(t, Options{Command: []string{"/bin/sh", "-i"}})
+	tt := ui.NewTester(func(c *ui.Context) { View(c, term).Fill() }, 300, 200)
+	waitFor(t, tt, "the prompt", func() bool { return strings.Contains(term.Text(), "$") })
+	term.Send([]byte("sh -c 'printf \"\\033[?1000h\\033[?1006h\"; read x; kill -9 $$'\r"))
+	waitFor(t, tt, "the mouse's reports", func() bool { return tracking(term) })
+	term.Send([]byte("\r"))
+	waitFor(t, tt, "the mouse's reports to end", func() bool { return !tracking(term) })
+
+	own := shell(t, Options{Command: []string{"/bin/sh", "-c", "printf '\\033[?1000h'; echo done; sleep 30"}})
+	tt = ui.NewTester(func(c *ui.Context) { View(c, own).Fill() }, 300, 200)
+	waitFor(t, tt, "done", func() bool { return strings.Contains(own.Text(), "done") })
+	if !tracking(own) {
+		t.Error("the terminal's program lost the mouse's reports")
+	}
 }
 
 func TestExit(t *testing.T) {
@@ -3089,5 +3122,38 @@ func TestDropFiles(t *testing.T) {
 	tt.Frame()
 	if got, want := conn.take(term), "\x1b[200~"+want[1]+"\x1b[201~"; got != want {
 		t.Errorf("dropping in bracketed paste pasted %q, want %q", got, want)
+	}
+}
+
+// OnDrop sees dropped files first, and a drop it takes pastes nothing, as
+// when an app uploads the files to the remote machine a program runs on.
+func TestOnDrop(t *testing.T) {
+	loadLib(t)
+	conn := newPipe()
+	var got []string
+	take := true
+	term, err := New(Options{Conn: conn, OnDrop: func(paths []string) bool {
+		got = append(got, paths...)
+		return take
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer term.Close()
+	tt := ui.NewTester(func(c *ui.Context) { View(c, term).Fill() }, 400, 200)
+	tt.Frame()
+	tt.DropFiles(100, 100, "/tmp/shot.png")
+	tt.Frame()
+	if len(got) != 1 || got[0] != "/tmp/shot.png" {
+		t.Errorf("OnDrop saw %q", got)
+	}
+	if s := conn.take(term); s != "" {
+		t.Errorf("a drop OnDrop took pasted %q", s)
+	}
+	take = false
+	tt.DropFiles(100, 100, "/tmp/b.txt")
+	tt.Frame()
+	if s := conn.take(term); !strings.Contains(s, "b.txt") {
+		t.Errorf("a drop OnDrop left pasted %q", s)
 	}
 }

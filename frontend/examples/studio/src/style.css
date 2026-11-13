@@ -459,3 +459,116 @@
     margin-top: 15px;
   }
 }
+
+/* Author: HyperparameterSI — Studio metrics, aligned with omnigo's measurement scope. */
+.insights-page {
+  margin: 24px 0;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+}
+.insights-page .section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.insights-page h1,
+.insights-page h2 {
+  font-weight: 600;
+}
+.insights-page .section-heading p,
+.insights-note,
+.trend-card small {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.insights-page .tool-button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.insights-page .metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+.insights-page .metrics span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.insights-page .metrics strong {
+  display: block;
+  font-size: 22px;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.insights-page .metrics small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.insights-page .trend-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+.insights-page .trend-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  --line: var(--border);
+  --green: var(--brand-mark);
+}
+.insights-page .trend-card > div {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  gap: 12px;
+}
+.insights-page .trend-card svg {
+  width: 100%;
+  height: 100px;
+  margin: 12px 0;
+}
+.insights-page .runtime-panel dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 16px 0;
+}
+.insights-page dt {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.insights-page dd {
+  font-size: 13px;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.insights-page .error-banner {
+  color: var(--destructive);
+  font-size: 12px;
+  margin: 12px 0;
+}
+.insights-note {
+  line-height: 1.8;
+}
+@media (max-width: 1000px) {
+  .insights-page .metrics,
+  .insights-page .runtime-panel dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .insights-page .trend-grid {
+    grid-template-columns: 1fr;
+  }
+}

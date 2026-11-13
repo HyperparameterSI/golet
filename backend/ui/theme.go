@@ -21,6 +21,10 @@ type Theme struct {
 	ControlMaterial Material
 	AccentMaterial  Material
 	PanelMaterial   Material
+	// DisableAutoDimming keeps disabled elements at full opacity. Applications
+	// opting in must provide their own disabled colors; input, focus and
+	// accessibility still use the element's disabled state.
+	DisableAutoDimming bool
 	// Background fills the window.
 	Background Color
 	// Surface is the face of buttons, inputs and other controls;
@@ -76,9 +80,13 @@ type Theme struct {
 	Inverse     Color
 	InverseText Color
 	// Scrollbar colors scroll bar thumbs, ScrollbarWidth DIPs wide (6 by
-	// default; 0 is 6).
+	// default; 0 is 6): the defaults of ScrollbarStyle, which overrides
+	// them where it sets a field. It styles their tracks, hover and drag
+	// colors, the width of their bars and thumbs, their corners and
+	// shortest thumb; a theme that sets neither draws as it always has.
 	Scrollbar      Color
 	ScrollbarWidth float32
+	ScrollbarStyle ScrollbarStyle
 	// Radius rounds the corners of controls.
 	Radius float32
 	// Spacing is the unit of the room widgets leave inside and between
@@ -95,6 +103,16 @@ type Theme struct {
 	// another tip goes, as the pointer moves along a toolbar, the next one
 	// shows at once: 0.4 seconds by default.
 	TooltipDelay time.Duration
+
+	// followed is what WithPreferences changed, nil where it has not.
+	followed *followedTheme
+}
+
+// followedTheme is a theme before and after following the desktop's
+// preferences.
+type followedTheme struct {
+	_        [0]func() // used by pointer, so there is no value equality to link
+	from, to Theme
 }
 
 // Space returns n units of the theme's Spacing, to size elements of your

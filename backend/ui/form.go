@@ -61,6 +61,7 @@ func (fb *formBuild) alignLabels() {
 		}
 	}
 	for _, l := range fb.labels {
+		journalKeep(l.c.rt, &l.width)
 		l.width = px(w)
 		l.parent.forgetIntrinsic()
 	}

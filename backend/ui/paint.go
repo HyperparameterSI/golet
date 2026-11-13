@@ -8,7 +8,9 @@ import (
 	"slices"
 	"sync"
 	"time"
+	"weak"
 
+	"github.com/HyperparameterSI/golet/backend/internal/imagesrc"
 	"github.com/HyperparameterSI/golet/backend/internal/scene"
 	"github.com/HyperparameterSI/golet/backend/internal/text"
 )
@@ -62,6 +64,8 @@ type opaqueBox struct {
 const continuousCorners = runtime.GOOS == "darwin"
 
 func (rt *engine) paint(root *node, w, h, scale float32) {
+	rt.painting = true
+	defer func() { rt.painting = false }()
 	rt.paints++
 	rt.drawn = rt.drawn[:0]
 	s := &rt.scene
@@ -260,12 +264,32 @@ func (p *Painter) element(e *node) {
 	if e.themed != nil {
 		p.theme = e.themed
 	}
-	defer func() { p.transform, p.inline, p.theme = savedTransform, savedInline, savedTheme }()
+	// What its styleFn and Transition change as it paints goes back as it
+	// is painted, so that it holds what the view built, and painting it
+	// again starts from that.
+	r := e.st.trec
+	if r != nil && (r.built != p.rt.frame || r.elem != e) {
+		r = nil
+	}
+	styled := e.styleFn != nil || r != nil
+	var built builtStyle
+	if styled {
+		built = builtStyle{e.bg, e.borderC, e.ts.color, e.opacity, e.opacitySet, e.shadows}
+	}
+	defer func() {
+		p.transform, p.inline, p.theme = savedTransform, savedInline, savedTheme
+		if styled {
+			e.bg, e.borderC, e.ts.color, e.opacity, e.opacitySet, e.shadows = built.bg, built.border, built.text, built.opacity, built.opacitySet, built.shadows
+		}
+	}()
 
+	// Whether its look follows its hover, as this painting tells
+	// (Hovered): an element not painted keeps what its last did.
+	e.st.hoverLook = false
 	if e.styleFn != nil {
 		e.styleFn(e)
 	}
-	if r := e.st.trec; r != nil && r.built == p.rt.frame && r.elem == e {
+	if r != nil {
 		p.rt.animateColors(e, r)
 		if animateShadows != nil {
 			animateShadows(p.rt, e, r)
@@ -310,7 +334,7 @@ func (p *Painter) element(e *node) {
 		e.dropGroupLayer()
 	}
 	saved := p.opacity
-	if e.flags&flagDisabled != 0 && !e.undimmed {
+	if e.flags&flagDisabled != 0 && !e.undimmed && !p.Theme().DisableAutoDimming {
 		p.opacity *= 0.5
 	}
 	// In its layer (paintEffect, paintGroup), the layer takes its fade.
@@ -1323,11 +1347,33 @@ func (p *Painter) image(e *node) {
 		p.drawSVG(s, e.contentBox(), e.fit, e.objectPos, e.radius, e.resolvedText().color, e.gray)
 		return
 	}
+	if e.texture != nil {
+		p.drawTexture(e, e.texture)
+		return
+	}
 	img := e.image
 	if img == nil || img.w == 0 || img.h == 0 {
 		return
 	}
 	p.drawBitmap(img, e.contentBox(), e.fit, e.objectPos, e.radius, e.gray)
+}
+
+// drawTexture draws the frame a native module presented last into a
+// texture; the next it presents asks the window for a frame.
+func (p *Painter) drawTexture(e *node, t imagesrc.Frames) {
+	rt := e.c.rt
+	owner := weak.Make(rt)
+	img := t.Frame(owner, func() { Services{owner: owner}.Invalidate() })
+	if img == nil || img.W == 0 || img.H == 0 {
+		return
+	}
+	iw, ih := float32(img.W), float32(img.H)
+	dst, frac := fitIn(e.contentBox(), iw, ih, e.fit, e.objectPos)
+	if dst.W <= 0 || dst.H <= 0 {
+		return
+	}
+	src := scene.Rect{X: frac.X * iw, Y: frac.Y * ih, W: frac.W * iw, H: frac.H * ih}
+	p.add(scene.Op{Kind: scene.OpImage, Rect: p.snap(dst), Radii: p.radii(e.radius), Continuous: continuousCorners, Image: img, Src: src, Opacity: p.opacity, Grayscale: e.gray})
 }
 
 // fitIn returns where a picture w×h DIPs goes in box as fit says, placed
@@ -1382,7 +1428,6 @@ func (p *Painter) drawBitmap(img *Bitmap, box Rect, fit Fit, pos [2]float32, rad
 func (p *Painter) scrollbars(e *node) {
 	st := e.st
 	rt := e.c.rt
-	theme := p.Theme()
 	hovered := false
 	for _, id := range rt.hover {
 		if id == e.id {
@@ -1392,15 +1437,19 @@ func (p *Painter) scrollbars(e *node) {
 	}
 	dragging := rt.scrollDrag.st == st
 	// A press takes the bars only where the window shows them
-	// (scrollbarPress). Kept, they show as on hover, the same thumb on no
-	// track, so that the pointer coming over changes nothing.
-	hide, keep := e.scrollbars()
+	// (scrollbarPress). Kept, they show as on hover, so that the pointer
+	// coming over changes nothing.
+	hide, keep := st.barFlags == 0, st.barFlags&keepBarsVisible != 0
+	if !hide && !keep {
+		// The bars show on hover (hoverNeeds).
+		st.hoverLook = true
+	}
 	st.barsShown = !hide && (keep || hovered || dragging)
 	if !st.barsShown {
 		return
 	}
-	color := theme.Scrollbar
-	w, h := e.contentW, e.contentH
+	style := st.barStyle
+	w, h := st.contentW, st.contentH
 	x, y := st.scrollX, st.scrollY
 	if dragging {
 		// The thumb keeps its length, and goes as far along the track as
@@ -1410,12 +1459,43 @@ func (p *Painter) scrollbars(e *node) {
 		x = rescale(x, e.contentW-float64(e.w), w-float64(e.w))
 		y = rescale(y, e.contentH-float64(e.h), h-float64(e.h))
 	}
-	g := scrollBars(Rect{e.x, e.y, e.w, e.h}, e.barInset, float32(w), float32(h), float32(x), float32(y), e.flags, theme.scrollbarWidth(), e.rtl())
+	g := st.scrollbarGeometry(e.x, e.y, w, h, x, y)
+	if style.Track.A > 0 {
+		if g.vertical {
+			p.Fill(g.vTrack, style.Track, 0)
+		}
+		if g.horizontal {
+			p.Fill(g.hTrack, style.Track, 0)
+		}
+	}
+	// Hover colors the bar the pointer is over, and both while kept, as
+	// they show as on hover.
+	var overV, overH bool
+	if hovered {
+		lx, ly := st.local(rt.pointerX, rt.pointerY)
+		lx, ly = lx+e.x, ly+e.y
+		overV = g.vertical && g.vTrack.Contains(lx, ly)
+		overH = g.horizontal && g.hTrack.Contains(lx, ly)
+	}
+	vertical, horizontal := style.Thumb, style.Thumb
+	switch {
+	case dragging && !rt.scrollDrag.horizontal:
+		vertical = style.Active
+	case keep || overV:
+		vertical = style.Hover
+	}
+	switch {
+	case dragging && rt.scrollDrag.horizontal:
+		horizontal = style.Active
+	case keep || overH:
+		horizontal = style.Hover
+	}
+	grow := style.ThumbWidth+2 <= style.TrackWidth
 	if g.vertical {
-		p.scrollThumbFill(g.v, false, dragging && !rt.scrollDrag.horizontal, color)
+		p.scrollThumbFill(g.v, false, grow && dragging && !rt.scrollDrag.horizontal, vertical, style.Radius)
 	}
 	if g.horizontal {
-		p.scrollThumbFill(g.h, true, dragging && rt.scrollDrag.horizontal, color)
+		p.scrollThumbFill(g.h, true, grow && dragging && rt.scrollDrag.horizontal, horizontal, style.Radius)
 	}
 }
 
@@ -1436,37 +1516,38 @@ type scrollGeometry struct {
 }
 
 // scrollBars returns the scroll bars of a container box scrolled by
-// (x, y) over content w×h, with thumbs width DIPs wide, moved in from its
-// edges by inset (top, right, bottom, left, ScrollbarInsets): those of the
-// directions its flags scroll that overflow, which leave each other the
-// corner where both show. Right to left (rtl), the vertical bar is on the
-// left, as in Flutter, browsers and GTK, the corner at the bottom left,
-// and x, which counts from the right, puts the horizontal thumb at the
-// right at 0.
-func scrollBars(box Rect, inset [4]float32, w, h, x, y float32, flags uint32, width float32, rtl bool) scrollGeometry {
+// (x, y) over content w×h, as style says, moved in from its edges by inset
+// (top, right, bottom, left, ScrollbarInsets): those of the directions its
+// flags scroll that overflow, which leave each other the corner where both
+// show. Right to left (rtl), the vertical bar is on the left, as in
+// Flutter, browsers and GTK, the corner at the bottom left, and x, which
+// counts from the right, puts the horizontal thumb at the right at 0.
+func scrollBars(box Rect, inset [4]float32, w, h, x, y float32, flags uint32, style ScrollbarStyle, rtl bool) scrollGeometry {
 	var g scrollGeometry
 	g.vertical = flags&flagScrollY != 0 && h > box.H+0.5
 	g.horizontal = flags&flagScrollX != 0 && w > box.W+0.5
+	width, thumb := style.TrackWidth, style.ThumbWidth
 	corner := float32(0)
 	if g.vertical && g.horizontal {
-		corner = width + 3
+		// The bars overlap by 3 DIPs, as the thumb's inset from the edge.
+		corner = max(width-3, 0)
 	}
 	top, right, bottom, left := inset[0], inset[1], inset[2], inset[3]
 	if g.vertical {
 		track := max(box.H-top-bottom-corner, 0)
-		g.vTrack = Rect{box.X + box.W - right - width - 6, box.Y + top, width + 6, track}
-		t := scrollThumb(box.Y+top, track, box.H, h, y)
-		g.v = Rect{box.X + box.W - right - width - 3, t.Y, width, t.H}
+		g.vTrack = Rect{box.X + box.W - right - width, box.Y + top, width, track}
+		t := scrollThumb(box.Y+top, track, box.H, h, y, style.MinLength, style.inset())
+		g.v = Rect{box.X + box.W - right - width + (width-thumb)/2, t.Y, thumb, t.H}
 		if rtl {
 			g.vTrack.X = box.X + left
-			g.v.X = box.X + left + 3
+			g.v.X = box.X + left + (width-thumb)/2
 		}
 	}
 	if g.horizontal {
 		track := max(box.W-left-right-corner, 0)
-		g.hTrack = Rect{box.X + left, box.Y + box.H - bottom - width - 6, track, width + 6}
-		t := scrollThumb(box.X+left, track, box.W, w, x)
-		g.h = Rect{t.Y, box.Y + box.H - bottom - width - 3, t.H, width}
+		g.hTrack = Rect{box.X + left, box.Y + box.H - bottom - width, track, width}
+		t := scrollThumb(box.X+left, track, box.W, w, x, style.MinLength, style.inset())
+		g.h = Rect{t.Y, box.Y + box.H - bottom - width + (width-thumb)/2, t.H, thumb}
 		if rtl {
 			g.hTrack.X += corner
 			// As far from the right of the track as the thumb would be
@@ -1479,16 +1560,20 @@ func scrollBars(box Rect, inset [4]float32, w, h, x, y float32, flags uint32, wi
 
 // scrollThumb returns the thumb's position (Y) and length (H) along a
 // track starting at pos, track long, for a view of content of size content
-// scrolled by offset.
-func scrollThumb(pos, track, view, content, offset float32) Rect {
-	inner := track - 4
-	thumb := min(max(inner*view/content, 24), inner)
+// scrolled by offset, no shorter than minLength, and inset from each end of
+// the track.
+func scrollThumb(pos, track, view, content, offset, minLength, inset float32) Rect {
+	if minLength <= 0 {
+		minLength = 24
+	}
+	inner := max(track-2*inset, 0)
+	thumb := min(max(inner*view/content, minLength), inner)
 	travel := inner - thumb
 	at := float32(0)
 	if content > view {
 		at = max(0, min(travel*offset/(content-view), travel))
 	}
-	return Rect{Y: pos + 2 + at, H: thumb}
+	return Rect{Y: pos + inset + at, H: thumb}
 }
 
 // Fill paints a rounded rectangle.

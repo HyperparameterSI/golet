@@ -29,5 +29,25 @@ func devMarker() bool {
 	return set && production != "1"
 }
 
+// devRelaunchFile is the file in which `golet dev` looks for the arguments
+// of the build that App.Relaunch has it start again, GOLET_DEV_RELAUNCH,
+// which the core takes out of its environment as GOLET_DEV.
+var devRelaunchFile = func() string {
+	f := os.Getenv("GOLET_DEV_RELAUNCH")
+	os.Unsetenv("GOLET_DEV_RELAUNCH")
+	return f
+}()
+
+// devBackground tells that `golet dev -background` launched the app, with
+// GOLET_DEV_BACKGROUND=1: it starts without coming to the front, and its
+// windows show without the focus until it takes it (backgroundShow), so
+// that the rebuild of a save leaves the focus in the editor. Production
+// builds ignore it.
+var devBackground = func() bool {
+	set := os.Getenv("GOLET_DEV_BACKGROUND") == "1"
+	os.Unsetenv("GOLET_DEV_BACKGROUND")
+	return set && production != "1"
+}()
+
 // launchedByDev reports whether `golet dev` launched the app.
 func launchedByDev() bool { return devLaunched }

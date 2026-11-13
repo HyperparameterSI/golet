@@ -149,3 +149,80 @@ func TestNoBreakSpaceText(t *testing.T) {
 		t.Errorf("the space is %v wide", space.w)
 	}
 }
+
+// A box with nothing in it takes the size its parent gives it, and lays
+// out nothing. One that scrolls still has its padding box as the size of
+// its content, as Chrome's scrollWidth and scrollHeight, and one whose only
+// child is placed absolutely still places it.
+func TestEmptyBoxes(t *testing.T) {
+	var plain, scroll, holder, abs *node
+	layoutIn(t, func(c *context) {
+		plain = coreBox(c).Height(30).Padding(4, 4, 4, 4)
+		scroll = coreScroll(c).Height(50).Padding(5, 5, 5, 5)
+		holder = coreBox(c).Height(40).Children(func() {
+			abs = coreBox(c).Absolute().Left(10).Top(5).Size(20, 10)
+		})
+	})
+	wantSize(t, "the plain box", plain, 600, 30)
+	wantSize(t, "the scrolling box", scroll, 600, 50)
+	if scroll.contentW != 600 || scroll.contentH != 50 {
+		t.Errorf("the empty scrolling box's content is %v×%v, want 600×50", scroll.contentW, scroll.contentH)
+	}
+	wantSize(t, "the box of an absolute child", holder, 600, 40)
+	if x, y := abs.x-holder.x, abs.y-holder.y; x != 10 || y != 5 || abs.w != 20 || abs.h != 10 {
+		t.Errorf("the absolute child at %v,%v %v×%v in its box, want 10,5 20×10", x, y, abs.w, abs.h)
+	}
+}
+
+// Items stretching across a row of a known height that does not wrap take
+// its height, clamped by their own minimum and maximum heights, however
+// tall their content: they are not measured first, as nothing in them
+// changes the line. Items with a height or an aspect ratio of their own
+// keep it, and in a row that wraps the stretching items are measured.
+func TestStretchedItemsOfRowTakeItsHeight(t *testing.T) {
+	var plain, tall, short, nested, fixed, pct, ratio, centered, baseline, wrapped *node
+	layoutIn(t, func(c *context) {
+		coreRow(c).AlignItems(Stretch).Height(40).Children(func() {
+			plain = coreBox(c).Width(10)
+			tall = coreBox(c).Width(10).MinHeight(60)
+			short = coreBox(c).Width(10).MaxHeight(25)
+			nested = coreColumn(c).Width(50).Children(func() {
+				for range 4 {
+					coreBox(c).Height(20)
+				}
+			})
+			fixed = coreBox(c).Width(10).Height(20)
+			pct = coreBox(c).Width(10).HeightPercent(25)
+			ratio = coreBox(c).Width(30).AspectRatio(2)
+			centered = coreBox(c).Width(10).Padding(6, 0, 6, 0).AlignSelf(Center)
+			baseline = coreBox(c).Width(10).Padding(8, 0, 0, 0).AlignSelf(Baseline)
+		})
+		coreRow(c).AlignItems(Stretch).AlignContent(Start).Height(40).Wrap().Children(func() {
+			wrapped = coreBox(c).Width(10).Padding(5, 0, 5, 0)
+		})
+	})
+	wantSize(t, "the plain item", plain, 10, 40)
+	wantSize(t, "the item with a minimum", tall, 10, 60)
+	wantSize(t, "the item with a maximum", short, 10, 25)
+	wantSize(t, "the item with taller content", nested, 50, 40)
+	wantSize(t, "the item with a height", fixed, 10, 20)
+	wantSize(t, "the item with a percent height", pct, 10, 10)
+	wantSize(t, "the item with an aspect ratio", ratio, 30, 15)
+	wantSize(t, "the centered item", centered, 10, 12)
+	wantSize(t, "the item by its baseline", baseline, 10, 8)
+	wantSize(t, "the item in a wrapping row", wrapped, 10, 10)
+	for _, it := range []struct {
+		name     string
+		e        *node
+		measured bool
+	}{
+		{"the plain item", plain, false}, {"the item with a minimum", tall, false},
+		{"the item with a maximum", short, false}, {"the item with taller content", nested, false},
+		{"the centered item", centered, true}, {"the item by its baseline", baseline, true},
+		{"the item in a wrapping row", wrapped, true},
+	} {
+		if got := it.e.nmeasure > 0; got != it.measured {
+			t.Errorf("%s: measured %v, want %v", it.name, got, it.measured)
+		}
+	}
+}

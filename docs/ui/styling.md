@@ -258,9 +258,15 @@ its colors in your own elements so they follow too. To change it, set a
 copy:
 
 ```go
-t := *c.Theme() // the default, which follows the system
-t.Accent, t.Radius = ui.Hex("#7c3aed"), 8
+// The default, which follows the system, in an accent of the app's,
+// with its hover, pressed, selection and focus shades.
+t := *c.Theme().WithAccent(ui.Hex("#7c3aed"))
+t.Radius = 8
 t.Spacing = 3 // compact
+// A square bar, as VS Code's editor.
+t.ScrollbarStyle = ui.ScrollbarStyle{
+	TrackWidth: 14, ThumbWidth: 14, Square: true, Flush: true, MinLength: 20,
+}
 c.SetTheme(&t)
 ```
 
@@ -268,7 +274,9 @@ c.SetTheme(&t)
 and the sizes of check boxes, switches, sliders and the rows of tables and
 trees, are multiples of it. It is 4 by default; 3 makes every widget
 compact, 5 roomy. `FontSize` sizes their text, `Radius` rounds their
-corners, and `ScrollbarWidth` sets the width of scroll bars. On macOS,
+corners, and `Scrollbar` and `ScrollbarWidth` color and size scroll bar
+thumbs, which `ScrollbarStyle` styles further: tracks, hover and drag
+colors, widths, corners and the shortest thumb. On macOS,
 rounded corners, the widgets' and your elements', curve continuously as
 AppKit's and SwiftUI's do, and elsewhere as quarter circles, as Windows
 and GTK draw them. Size your own
@@ -348,9 +356,10 @@ ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
 Inside, everything is as in a window of `t`: `c.Theme()` returns it while
 the children build, and `Painter.Theme()` while they paint, so widgets of
 your own follow too; the widgets take its colors and its metrics
-(`Spacing`, `Radius`, `FontSize`, `ScrollbarWidth`, so `t.Space` and
-`t.Rem`); and the popovers, menus, tooltips and dialogs opened from inside
-take it, though they show above the window. The column paints `t`'s
+(`Spacing`, `Radius`, `FontSize`, `ScrollbarWidth`, `ScrollbarStyle`, so
+`t.Space` and `t.Rem`); and the popovers, menus, tooltips and dialogs
+opened from inside take it, though they show above the window. The column
+paints `t`'s
 `Background`, and its text takes `t`'s `Text` color, `FontSize` and
 `Font`, as the root does the window's theme's; `.Background(ui.Transparent)`
 leaves what is behind it showing instead, as for the root. The root, and
@@ -403,3 +412,30 @@ theme follows and a frame follows the changes of:
   there, the touch screen being the primary one in tablet mode; browsers
   answer the media queries. macOS's, and those not known, are a mouse's:
   fine, and hovering.
+
+A theme of your own (`SetTheme`) does not follow them: it is yours. To
+have it follow them as the default theme does, as an app that lets the
+user pick light or dark over the system's appearance would, take them
+with `WithPreferences`, which returns a copy of the theme in the desktop's
+accent, with its contrast and text size:
+
+```go
+t := ui.DarkTheme()
+t.Background = ui.Hex("#18181b")
+c.SetTheme(t.WithPreferences(c.Preferences()))
+```
+
+A theme that already follows them, as `c.Theme()` and what
+`WithPreferences` returns do, follows the settings given in their place:
+what following changed goes back first, so text is not made larger twice
+and a setting the user turned off goes, while colors you set since stay.
+`WithAccent` takes an accent alone, the desktop's or one of
+your own, with the shades the default theme gives it: `AccentHover`,
+`AccentPressed`, `Selection` and `Focus` become shades of the accent,
+lighter in the dark, and `AccentText` white, or near black on an accent as
+light as yellow. An accent with an `A` of 0, as where the desktop has
+none, keeps the theme's own:
+
+```go
+t := ui.LightTheme().WithAccent(ui.Hex("#7c3aed")) // a brand color
+```

@@ -57,6 +57,6 @@ func writeLocaleFile(tag string) {
 		return
 	}
 	if err := os.WriteFile(path+".tmp", []byte(tag+"\n"), 0o644); err == nil {
-		_ = rename(path+".tmp", path)
+		_ = replaceAppFile(path+".tmp", path)
 	}
 }

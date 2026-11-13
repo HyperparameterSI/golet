@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"runtime"
 
@@ -42,6 +43,12 @@ func main() {
 	golet.Bind(Greeter{})
 	golet.Bind(&Showcase{})
 	golet.Bind(browser)
+	monitor := NewPerformance()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); _ = monitor.run(ctx) }()
+	defer func() { cancel(); <-done }()
+	golet.Bind(monitor)
 
 	golet.App.WhenReady(func() {
 		golet.NewWindow(golet.WindowOptions{

@@ -58,8 +58,9 @@ where:
 | `OnDidBecomeActive`, `OnDidResignActive` | the app became, or stopped being, the active app |
 | `OnWindowCreated(func(w *golet.Window))` | a window was created |
 | `OnWindowAllClosed` | the last window closed, unless the app is quitting |
-| `OnBeforeQuit(func(e *golet.QuitEvent))` | a quit started, before the windows close; `e.PreventDefault()` cancels it |
-| `OnWillQuit(func(e *golet.QuitEvent))` | every window has closed and the app is about to quit; it can still be canceled |
+| `OnBeforeQuit(func(e *golet.QuitEvent))` | a quit started, before the windows close; `e.PreventDefault()` cancels it, unless the OS ends the session (`e.SessionEnding`) |
+| `OnWillQuit(func(e *golet.QuitEvent))` | every window has closed and the app is about to quit; it can still be canceled, unless the OS ends the session |
+| `OnQuitCanceled` | a quit that started was canceled by a listener or a window; the app keeps running |
 | `OnQuit` | the event loop stopped, right before `Run` returns |
 
 Each returns a function that removes the listener.
@@ -87,9 +88,33 @@ golet.App.OnActivate(func(hasVisibleWindows bool) {
   then quits; `OnBeforeQuit` and `OnWillQuit` listeners can cancel it too.
   Cmd+Q, the Quit menu item and Ctrl+C in the terminal (SIGINT and SIGTERM)
   quit the same way; a second signal exits at once.
+- When one of them cancels the quit, `OnQuitCanceled` runs: an app that set
+  its own quitting state in `OnBeforeQuit` clears it there, or it would go on
+  running with that state set. The windows a canceled `OnWillQuit` had
+  already closed stay closed.
+- When the OS ends the session (logout, restart, shutdown) on Windows and
+  macOS, the quit listeners and the windows' `OnClose` run all the same,
+  in that order and before `OnQuit`, but can't cancel it: the
+  `QuitEvent`'s `SessionEnding` is set, and the process may end as soon as
+  they and `OnQuit` return. Save what must survive synchronously there,
+  without dialogs or goroutines to wait for. A quit that already ran them
+  only finishes. Linux tells Golet of no session end: shutdown, and a
+  logout that stops the user's processes, send SIGTERM, which quits like
+  `App.Quit()`.
 - `App.Exit(code)` exits right away, without events.
 - `App.Relaunch()` quits, then starts the app again with the same
   arguments, for example after a setting that needs a restart.
+  `App.Relaunch(args...)` passes other arguments instead, which replace
+  those the app started with, so that the new instance knows why it
+  starts, without a file the two would share:
+
+  ```go
+  golet.App.Relaunch("--safe-mode")
+  ```
+
+  They reach the new instance on macOS (through Launch Services, also after
+  an update), Linux and Windows, and under `golet dev`. In browsers
+  `Relaunch` only quits.
 
 ## A single instance
 
@@ -275,8 +300,9 @@ again.
 `GOLET_ENV=production` makes any build behave like one. `App.IsPackaged()`
 reports whether it runs from an app bundle. `App.Locale()` returns the
 language the app shows, such as `"zh-Hans"`, of those it is written in,
-and `App.PreferredLanguages()` the languages the user reads, as the system
-lists them; see [the language the app shows](i18n.md#the-language-the-app-shows).
+`App.PreferredLanguages()` the languages the user reads, as the system
+lists them, and `App.ChosenLocale()` the language `App.SetLocale` chose,
+`""` while the app follows the user's; see [the language the app shows](i18n.md#the-language-the-app-shows).
 Before 0.5, `App.Locale()` returned the user's first preferred language
 whatever the app is written in.
 

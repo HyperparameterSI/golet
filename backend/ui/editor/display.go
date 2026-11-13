@@ -160,6 +160,27 @@ func (w *wrapRows) before(line int) int {
 	return s
 }
 
+// forget has the lines from to to, inclusive, measured again, as what
+// shows in them changed.
+func (w *wrapRows) forget(from, to int) {
+	if !w.on {
+		return
+	}
+	from, to = max(from, 0), min(to, len(w.extra)-1)
+	changed := false
+	for i := from; i <= to; i++ {
+		if w.extra[i] != wrapUnknown {
+			w.extra[i] = wrapUnknown
+			w.known--
+			changed = true
+		}
+	}
+	if changed {
+		w.stale = true
+		w.version++
+	}
+}
+
 // splice follows a change of lines: the lines from at to at+removed
 // replaced by added ones, which are not measured.
 func (w *wrapRows) splice(at, removed, added int) {
@@ -224,12 +245,12 @@ func (h *heights) isHidden(line int) bool {
 }
 
 // update makes the entries again after the hidden lines or the blocks
-// changed.
+// changed, and the first time, as the zero heights has made none.
 func (h *heights) update() {
 	if h.wraps.on && len(h.hidden) > 0 && h.wrapsSeen != h.wraps.version {
 		h.dirty = true
 	}
-	if !h.dirty {
+	if !h.dirty && h.prefix != nil {
 		return
 	}
 	h.dirty = false

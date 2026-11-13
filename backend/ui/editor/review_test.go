@@ -451,6 +451,32 @@ func TestReviewSuggestion(t *testing.T) {
 	}
 }
 
+// Trailing text at the end of a line, as a diagnostic or a blame, keeps the
+// caret and a selection to the end before it; a hint there does not.
+func TestReviewTrailingInlay(t *testing.T) {
+	ct := newEditorTest(t, "", "abc|")
+	ed := &ct.st.ed
+	ct.st.SetInlays([]Inlay{{Offset: 3, Text: "  blame", Trailing: true}})
+	ct.tt.Frame()
+	l := ed.view.line(0)
+	if d := l.toDisp(3, true); d != 3 {
+		t.Fatalf("caret at displayed byte %d, after the trailing text", d)
+	}
+	if d := l.toDisp(3, false); d != 3 {
+		t.Fatalf("range end at displayed byte %d, past the trailing text", d)
+	}
+	ct.st.SetInlays([]Inlay{{Offset: 3, Text: "  hint"}})
+	ct.tt.Frame()
+	if d := ed.view.line(0).toDisp(3, true); d != len("abc  hint") {
+		t.Fatalf("caret at displayed byte %d, before the hint", d)
+	}
+	ct.st.SetSuggestion(3, "def")
+	ct.st.SetInlays(nil)
+	if len(ed.view.inlays) != 1 || ed.view.inlays[0].kind != 1 {
+		t.Fatalf("inlays %+v, want the suggestion alone", ed.view.inlays)
+	}
+}
+
 // Completing at several carets replaces the word typed only where it is.
 func TestReviewCompletionCarets(t *testing.T) {
 	ct := newEditorTest(t, "", "ab x|\nfoo|")
@@ -627,6 +653,29 @@ func TestReviewConcurrentTyping(t *testing.T) {
 	got := strings.ReplaceAll(b.String(), "z", "")
 	if got != typed.String() {
 		t.Fatalf("typed %d letters, the text has %d of them: ...%q", typed.Len(), len(got), got[max(0, len(got)-40):])
+	}
+}
+
+// A caret placed in the text an edit made follows the edits another
+// goroutine makes before the editor looks, even more of them than the
+// buffer's log keeps.
+func TestReviewSelsFollowPastLog(t *testing.T) {
+	for _, n := range []int{3, logMax * 2} {
+		b := NewBuffer("")
+		b.Edit(Edit{Text: "abc"})
+		b.mu.Lock()
+		made, madeText := b.version, b.text
+		b.mu.Unlock()
+		for range n {
+			b.Edit(Edit{Start: 0, End: 0, Text: "z"})
+		}
+		b.mu.Lock()
+		to, toText := b.version, b.text
+		b.mu.Unlock()
+		sels := followSels(b, []sel{{anchor: 3, head: 3, goal: -1}}, made, madeText, to, toText)
+		if want := toText.Len(); sels[0].head != want || sels[0].anchor != want {
+			t.Fatalf("after %d edits: caret at %d, want the end, %d", n, sels[0].head, want)
+		}
 	}
 }
 

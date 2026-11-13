@@ -6,23 +6,26 @@ import (
 	"math"
 	"slices"
 	"sort"
+
+	"github.com/HyperparameterSI/golet/backend/internal/rope"
 )
 
 // diffPrepared is what the blocks and hidden lines were made of.
 type diffPrepared struct {
-	version uint64
-	expandV int
-	layout  DiffLayout
-	context int
-	anns    uint64 // the annotations' sides, lines and heights, hashed
-	wrapsA  uint64
-	wrapsB  uint64
-	lh      float32
-	wrap    bool
-	expAll  bool
-	inline  DiffInline
-	nOld    int
-	nNew    int
+	version  uint64
+	expandV  int
+	layout   DiffLayout
+	context  int
+	anns     uint64 // the annotations' sides, lines and heights, hashed
+	wrapsA   uint64
+	wrapsB   uint64
+	lh       float32
+	wrap     bool
+	expAll   bool
+	inline   DiffInline
+	nOld     int
+	nNew     int
+	editable bool // which shows the line after a final newline (shownLines)
 }
 
 // diffGap is a run of unchanged lines between hunks, from the old line
@@ -41,6 +44,7 @@ const diffSeparatorHeight = 32
 // when what they come of changed.
 func (d *DiffState) prepare() {
 	d.model.update()
+	d.markEnds()
 	unified := d.Layout == DiffUnified
 	edA, edB := &d.eds[0], &d.eds[1]
 	viewA := &edA.view
@@ -50,7 +54,7 @@ func (d *DiffState) prepare() {
 	viewB := &edB.view
 	key := diffPrepared{version: d.model.version, expandV: d.expandV, layout: d.Layout, context: d.context(), anns: annotationsKey(d.Annotations),
 		wrapsA: viewA.heights.wraps.version, wrapsB: viewB.heights.wraps.version, lh: viewB.lineHeight, wrap: d.Wrap,
-		expAll: d.ExpandUnchanged, inline: d.Inline, nOld: viewA.text.LineCount(), nNew: viewB.text.LineCount()}
+		expAll: d.ExpandUnchanged, inline: d.Inline, nOld: viewA.text.LineCount(), nNew: viewB.text.LineCount(), editable: d.Editable}
 	if d.prepared == key {
 		return
 	}
@@ -67,7 +71,8 @@ func (d *DiffState) prepare() {
 		key.wrapsA, key.wrapsB = viewA.heights.wraps.version, viewB.heights.wraps.version
 	}
 	d.prepared = key
-	gaps := d.gaps(viewA.text.LineCount(), viewB.text.LineCount())
+	nA, nB := d.shownLines(viewA.text), d.shownLines(viewB.text)
+	gaps := d.gaps(nA, nB)
 	d.gapList = gaps
 	lh := viewB.lineHeight
 	var hideA, hideB []lineSpan
@@ -93,7 +98,7 @@ func (d *DiffState) prepare() {
 		for _, side := range []struct {
 			blks, late *[]block
 			from, n    int
-		}{{&blkA, &lateA, g.hideA, viewA.text.LineCount()}, {&blkB, &lateB, g.hideB, viewB.text.LineCount()}} {
+		}{{&blkA, &lateA, g.hideA, nA}, {&blkB, &lateB, g.hideB, nB}} {
 			b := sep(gi, side.from, side.n)
 			if b.below {
 				*side.late = append(*side.late, b)
@@ -102,6 +107,8 @@ func (d *DiffState) prepare() {
 			}
 		}
 	}
+	hideA = hideEnd(hideA, nA, viewA.text.LineCount())
+	hideB = hideEnd(hideB, nB, viewB.text.LineCount())
 	// A patch's hunks under their headers: above their first line, or,
 	// for a hunk with no lines left on a side, below its last line, after
 	// what the hunk before puts there (late).
@@ -126,12 +133,22 @@ func (d *DiffState) prepare() {
 	}
 	rowsOf := func(v *view, line int) float32 { return float32(v.heights.wraps.rows(line)) * lh }
 	if unified {
+		// The tops of the deleted lines, which painting them starts at the
+		// first in view with, rather than at the first of a run as long as
+		// a file deleted.
+		d.deletedTops = slices.Grow(d.deletedTops[:0], len(d.model.hunks))[:len(d.model.hunks)]
 		for hi, h := range d.model.hunks {
+			tops := d.deletedTops[hi][:0]
 			if h.A1 > h.A0 {
 				var height float32
+				var top float64
 				for i := h.A0; i < h.A1; i++ {
-					height += rowsOf(viewA, i) + anns[DiffOld][i]
+					tops = append(tops, top)
+					dy := rowsOf(viewA, i) + anns[DiffOld][i]
+					height += dy
+					top += float64(dy)
 				}
+				tops = append(tops, top)
 				b := block{kind: blockDeleted, height: height, from: h.A0, to: h.A1, hunk: hi}
 				if h.B0 < viewB.text.LineCount() {
 					b.line = h.B0
@@ -140,6 +157,7 @@ func (d *DiffState) prepare() {
 				}
 				blkB = append(blkB, b)
 			}
+			d.deletedTops[hi] = tops
 		}
 		// The old text's annotations on unchanged lines go under the same
 		// lines of the new text, as only those show.
@@ -308,7 +326,8 @@ func (d *DiffState) setSide(i int, hide []lineSpan, blks []block) {
 }
 
 // wrapLineNow measures the wraps of a line, if not yet, as laying it out
-// would, with its faces, but without shaping it: a diff measures the lines
+// would, with its faces, but without shaping it (wrapBreaks without fit,
+// which laying it out may find a row more than): a diff measures the lines
 // of all its changes at each width the window is resized through, most of
 // them out of view, and shaping them took most of the time. A line laid
 // out already keeps its rows.
@@ -325,10 +344,77 @@ func (v *view) wrapLineNow(i int) {
 	l.text = v.text.Slice(l.start, v.text.LineEnd(i))
 	l.toks, _ = v.tokens(i, l.text, nil)
 	v.display(l)
-	if v.styled {
+	if v.styled || len(l.reps) > 0 {
 		l.faces = v.facesOf(l, nil)
 	}
-	w.set(i, len(v.wrapBreaks(l.disp, l.faces))+1)
+	w.set(i, len(v.wrapBreaks(l.disp, l.faces, false))+1)
+}
+
+// shownLines returns how many lines of a side's text the diff shows. A
+// diff that cannot be edited ends at the text's final newline, as git
+// diff does, leaving out the empty line the editor starts after it,
+// which its lines, compared with their line feeds, do not count. An
+// editable one shows it, as there is where typing adds a line.
+func (d *DiffState) shownLines(text rope.Text) int {
+	n := text.LineCount()
+	if d.Editable || n < 2 || text.LineStart(n-1) != text.Len() {
+		return n
+	}
+	return n - 1
+}
+
+// markEnds marks the last line of each side whose text does not end
+// with a newline, after its text and muted, as git diff's "\ No newline
+// at end of file" does, where the diff is not editable.
+func (d *DiffState) markEnds() {
+	d.eds[0].view.markEnd(d.noNewlineAtEnd(d.eds[0].view.text, true), d.endMark)
+	d.oldView.markEnd(d.noNewlineAtEnd(d.oldView.text, true), d.endMark)
+	d.eds[1].view.markEnd(d.noNewlineAtEnd(d.eds[1].view.text, false), d.endMark)
+}
+
+// noNewlineAtEnd reports whether the text of a side ends without a
+// newline, which a diff that is not editable marks: a patch's own texts
+// by its "\ No newline at end of file" lines, as they end without one
+// either way. An empty text has no line to mark.
+func (d *DiffState) noNewlineAtEnd(text rope.Text, old bool) bool {
+	switch {
+	case d.Editable || text.Len() == 0:
+		return false
+	case d.partial != nil && old:
+		return d.partial.oldNoEOL
+	case d.partial != nil:
+		return d.partial.newNoEOL
+	}
+	return text.LineStart(text.LineCount()-1) != text.Len()
+}
+
+// markEnd shows mark at the end of the text, or takes it away.
+func (v *view) markEnd(on bool, mark string) {
+	i := slices.IndexFunc(v.inlays, func(in inlay) bool { return in.kind == inlayNoNewline })
+	if i >= 0 && on && v.inlays[i].at == v.text.Len() && v.inlays[i].text == mark || i < 0 && !on {
+		return
+	}
+	if i >= 0 {
+		v.inlays = slices.Delete(v.inlays, i, i+1)
+	}
+	if on {
+		v.inlays = append(v.inlays, inlay{at: v.text.Len(), text: mark, kind: inlayNoNewline})
+		sortInlays(v.inlays)
+	}
+	v.lines.m = nil
+}
+
+// hideEnd hides the lines of a side from shown to its last, total - 1,
+// joining the hidden lines that end right before them.
+func hideEnd(hide []lineSpan, shown, total int) []lineSpan {
+	if shown >= total {
+		return hide
+	}
+	if k := len(hide) - 1; k >= 0 && hide[k].to == shown-1 {
+		hide[k].to = total - 1
+		return hide
+	}
+	return append(hide, lineSpan{shown, total - 1})
 }
 
 // gaps returns the runs of unchanged lines and which of them collapse.

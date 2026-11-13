@@ -14,6 +14,9 @@ on:
 permissions:
   contents: read
 
+env:
+  ZIG_VERSION: 0.16.0
+
 # A push supersedes the runs before it, on main as on a pull request: the
 # newest commit's run covers theirs. A release commit runs on its own, so
 # that it is neither queued behind nor canceled by others, as its tag waits
@@ -28,7 +31,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
-      LINUX_PACKAGES: libwebkit2gtk-4.1-0 libayatana-appindicator3-1 xvfb xauth dbus-x11 libgl1-mesa-dri libglx-mesa0 libegl-mesa0
+      # GStreamer's plugins play the videos of ui/video's tests.
+      LINUX_PACKAGES: libwebkit2gtk-4.1-0 libayatana-appindicator3-1 xvfb xauth dbus-x11 libgl1-mesa-dri libglx-mesa0 libegl-mesa0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav
     strategy:
       fail-fast: false
       matrix:
@@ -41,9 +45,12 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      # setup-bun keeps a pinned Bun in the Actions cache, and downloads the
+      # latest from GitHub's releases, which answer 504 now and then, on
+      # every job.
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.4.4"
+          bun-version-file: .bun-version
       # Ubuntu's mirrors are slow now and then (9 minutes for these packages
       # once), so the packages are kept in the Actions cache, under a key of
       # the files apt would download for them.
@@ -124,7 +131,87 @@ jobs:
             ${{ runner.os == 'Windows' && '~/AppData/Local' || runner.os == 'macOS' && '~/Library/Caches' || '~/.cache' }}/golet/natives
             ${{ runner.os == 'Windows' && '~/AppData/Local' || runner.os == 'macOS' && '~/Library/Caches' || '~/.cache' }}/golet/nsis-*
           key: ${{ steps.downloads.outputs.cache-primary-key }}
-      - run: go test ./...
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      # The SQLite plugin's native module, from its Zig and the SQLite its
+      # build.zig.zon pins, which the plugin's tests and the end-to-end
+      # tests load: built here, so that they test these sources. The build
+      # takes minutes, and the emulated Zig of the Windows ARM64 job runs
+      # past that job's limit now and then, so the library it builds into
+      # .golet/native is kept in the Actions cache, under a key of all the
+      # build reads: the module's files, Zig's version, and the CLI code
+      # that generates the module's Go and Zig and builds them. A hit skips
+      # the build; any change to these misses, and builds.
+      - name: Find where the SQLite plugin's native module goes
+        id: sqlitecore
+        shell: bash
+        run: |
+          case $RUNNER_OS in Windows) lib=Sqlitecore.dll ;; macOS) lib=libSqlitecore.dylib ;; *) lib=libSqlitecore.so ;; esac
+          echo "path=.golet/native/$(go env GOOS)-$(go env GOARCH)/$lib" >> "$GITHUB_OUTPUT"
+      - name: Restore the SQLite plugin's native module
+        id: sqlitecore-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.sqlitecore.outputs.path }}
+          key: sqlitecore-${{ runner.os }}-${{ runner.arch }}-zig${{ env.ZIG_VERSION }}-${{ hashFiles('backend/plugins/sqlite/internal/sqlitecore/**', 'backend/internal/nativegen/**', 'backend/internal/nativelib/**', 'backend/cmd/golet/native*.go', 'go.mod') }}
+      - name: Build the SQLite plugin's native module
+        id: sqlitecore-build
+        if: steps.sqlitecore-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          go run ./backend/cmd/golet native build -target host backend/plugins/sqlite/internal/sqlitecore
+          # The build regenerates the module's Go and Zig first, which a
+          # hit does not: only a build of the files as committed is kept.
+          if [ -z "$(git status --porcelain -- backend/plugins/sqlite/internal/sqlitecore)" ]; then echo "committed=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Save the SQLite plugin's native module
+        if: steps.sqlitecore-cache.outputs.cache-hit != 'true' && steps.sqlitecore-build.outputs.committed == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.sqlitecore.outputs.path }}
+          key: ${{ steps.sqlitecore-cache.outputs.cache-primary-key }}
+      # The module loads a build in .golet/native only if it is newer than
+      # its sources, and the cache restores the time it was built, before
+      # this checkout.
+      - name: Date the restored module after its sources
+        if: steps.sqlitecore-cache.outputs.cache-hit == 'true'
+        shell: bash
+        run: touch "${{ steps.sqlitecore.outputs.path }}"
+      # backend/cmd/golet builds and packages apps, which takes the macOS runners
+      # about six minutes and, on a slow one beside the other packages,
+      # past go test's ten: the same tests, more time.
+      - run: go test -timeout ${{ runner.os == 'macOS' && '20m' || '10m' }} ./...
+      # A Rust crate that the CLI builds and package ffi binds, with the
+      # cargo of the runners' images, which go test ./... skips unbuilt.
+      - name: Test a native library built from its sources
+        env:
+          GOLET_NATIVE_TESTS: 1
+        run: |
+          go run ./backend/cmd/golet native build -target host backend/examples/rust-native
+          go test -count=1 ./backend/examples/rust-native/...
+      # A native module's three implementations, built with the runners'
+      # own Swift (Xcode's, and that of Ubuntu's image) and cargo, and Zig:
+      # every kind of value both ways, which go test ./... skips unbuilt. On
+      # macOS, the examples too, whose Swift uses Apple's frameworks.
+      - name: Test a native module built from its Swift
+        if: runner.os != 'Windows'
+        run: |
+          go run ./backend/cmd/golet native build -target host -lang swift backend/native/internal/roundtrip/uses  # and roundtrip, which it uses
+          go test -count=1 ./backend/native/internal/roundtrip/...
+      - name: Test a native module built from its Rust, and from its Zig
+        shell: bash
+        run: |
+          go test -count=1 -run TestScaffoldBuildsRustZig ./backend/internal/nativegen
+          for lang in rust zig; do
+            go run ./backend/cmd/golet native build -target host -lang $lang backend/native/internal/roundtrip
+            out=$(go test -count=1 -v ./backend/native/internal/roundtrip) || { echo "$out"; exit 1; }
+            if grep -- '--- SKIP' <<<"$out"; then exit 1; fi  # as when the library did not load
+            echo "$lang: $(grep -c -- '--- PASS' <<<"$out") tests passed"
+          done
+      - name: Build the example's native modules
+        if: runner.os == 'macOS'
+        working-directory: backend/examples/native-module
+        run: for m in language motion places; do go run ../../cmd/golet native check modules/$m; done
       - name: Test without the inspector, as production builds
         if: runner.os == 'Linux'
         run: go test -tags golet_noinspector ./backend/ui ./backend
@@ -190,6 +277,50 @@ jobs:
             ${{ runner.os == 'Windows' && '~/AppData/Local' || runner.os == 'macOS' && '~/Library/Caches' || '~/.cache' }}/golet/natives
             ${{ runner.os == 'Windows' && '~/AppData/Local' || runner.os == 'macOS' && '~/Library/Caches' || '~/.cache' }}/golet/nsis-*
           key: ${{ steps.downloads.outputs.cache-primary-key }}
+      # Zig 0.16's aarch64 Windows build crashes running zig build (the
+      # build runner segfaults at once), so this job uses its x86_64
+      # build, which Windows runs emulated and which cross-compiles the
+      # arm64 library just the same.
+      - name: Install Zig (x86_64)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest "https://ziglang.org/download/$env:ZIG_VERSION/zig-x86_64-windows-$env:ZIG_VERSION.zip" -OutFile "$env:RUNNER_TEMP\zig.zip"
+          Expand-Archive "$env:RUNNER_TEMP\zig.zip" -DestinationPath "$env:RUNNER_TEMP"
+          "$env:RUNNER_TEMP\zig-x86_64-windows-$env:ZIG_VERSION" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+      # As in the job above. The emulated build takes five or six minutes,
+      # and twice it ran past 25, until the job's limit canceled it: one
+      # that runs past 15 fails then, naming this step, rather than
+      # leaving the job's limit to cancel it.
+      - name: Find where the SQLite plugin's native module goes
+        id: sqlitecore
+        shell: bash
+        run: |
+          case $RUNNER_OS in Windows) lib=Sqlitecore.dll ;; macOS) lib=libSqlitecore.dylib ;; *) lib=libSqlitecore.so ;; esac
+          echo "path=.golet/native/$(go env GOOS)-$(go env GOARCH)/$lib" >> "$GITHUB_OUTPUT"
+      - name: Restore the SQLite plugin's native module
+        id: sqlitecore-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.sqlitecore.outputs.path }}
+          key: sqlitecore-${{ runner.os }}-${{ runner.arch }}-zig${{ env.ZIG_VERSION }}-${{ hashFiles('backend/plugins/sqlite/internal/sqlitecore/**', 'backend/internal/nativegen/**', 'backend/internal/nativelib/**', 'backend/cmd/golet/native*.go', 'go.mod') }}
+      - name: Build the SQLite plugin's native module
+        id: sqlitecore-build
+        if: steps.sqlitecore-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          go run ./backend/cmd/golet native build -target host backend/plugins/sqlite/internal/sqlitecore
+          if [ -z "$(git status --porcelain -- backend/plugins/sqlite/internal/sqlitecore)" ]; then echo "committed=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Save the SQLite plugin's native module
+        if: steps.sqlitecore-cache.outputs.cache-hit != 'true' && steps.sqlitecore-build.outputs.committed == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.sqlitecore.outputs.path }}
+          key: ${{ steps.sqlitecore-cache.outputs.cache-primary-key }}
+      - name: Date the restored module after its sources
+        if: steps.sqlitecore-cache.outputs.cache-hit == 'true'
+        shell: bash
+        run: touch "${{ steps.sqlitecore.outputs.path }}"
       - run: go test ./...
       - name: Test without the inspector, as production builds
         if: runner.os == 'Linux'

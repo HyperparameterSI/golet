@@ -13,6 +13,8 @@ import "github.com/HyperparameterSI/golet/backend/internal/platform"
 
 func saveWindowStates() {}
 
+func clearWindowStates() error { return nil }
+
 func restoreWindowState(key string, p *platform.WindowOptions) {}
 
 func (w *Window) initState(p *platform.WindowOptions) {}

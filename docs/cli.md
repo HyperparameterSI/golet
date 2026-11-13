@@ -106,7 +106,7 @@ build quits, then the new one starts, so the two never hold the same files,
 locks or web view profile at once. A build that fails to compile keeps the
 running one. Frontend changes are the dev server's to handle. Quitting the app, or
 Ctrl+C, ends golet dev (press Ctrl+C again not to wait for the app to quit),
-and `App.Relaunch` restarts the app.
+and `App.Relaunch` restarts the app, with the arguments it passes.
 
 On a terminal, each step shows a spinner with what it does, such as the Go
 packages being compiled, then how long it took; what the dev server and the
@@ -121,6 +121,18 @@ stay apart from the installed app's. On macOS it is a real app bundle, in
 `.golet/dev`; on Windows its executable carries the icon, manifest and
 version information that `golet build` embeds.
 
+On macOS golet dev signs the development app with an Apple Development
+identity from the user's keychains, as Xcode signs Debug builds: the one of
+the team of `macos.signingIdentity` when there are several. Xcode makes one
+for any Apple ID, free, under Settings > Accounts > Manage Certificates.
+Its signature stays the same from build to build, so macOS keeps what the
+user allowed the development app, such as Accessibility, Screen Recording
+or the camera, and "Always Allow" for the Keychain items it reads through
+[`golet.Secrets`](native.md#secrets). Without one, golet dev signs ad hoc and
+says so: ad hoc signatures change with every build, and macOS takes each
+one for another app. `-sign` uses another identity, which a provisioning
+profile needs, and `-sign -` signs ad hoc.
+
 | Flag | |
 |---|---|
 With `-web`, golet dev develops an app of [native UI in browsers](ui/browsers.md)
@@ -133,11 +145,12 @@ compiles. `o` opens the page again.
 | Flag | |
 |---|---|
 | `-skip-dev-command` | does not run `devCommand`, e.g. when the dev server already runs |
-| `-sign` | the identity that signs the development app on macOS (default: `-`, ad hoc) |
+| `-sign` | the identity that signs the development app on macOS (default: an Apple Development identity, see below, else `-`, ad hoc) |
 | `-web` | develops the app in browsers |
 | `-port` | with `-web`, the port to serve the app at, or the next free one (default: 5174) |
 | `-open` | with `-web`, opens the app in the browser (default: true) |
 | `-lang` | runs the app in a language, such as `de` or `zh-Hant`, or a pseudo locale, `en-XA` or `ar-XB`, without changing the language it keeps; see [trying a language](i18n.md#trying-a-language) |
+| `-background` | starts the app, and again after each rebuild, without bringing it to the front: its windows show without the focus until you click one, so the editor keeps it as you save (a maximized window on Windows still takes it) |
 
 ## golet build
 
@@ -195,6 +208,94 @@ errors, such as messages that do not parse or arguments a translation adds,
 and their warnings, such as missing translations, and exits with status 1
 when there are errors.
 
+## golet native
+
+Experimental, as native modules are: these commands and their flags may
+change in any release. The commands of [native modules](native-modules.md): Go interfaces
+implemented in Swift, Rust or Zig, built into a library per platform, and
+of the C libraries that packages bind with `ffi`
+([bind a C library yourself](native-modules.md#bind-a-c-library-yourself)).
+`[module dir]` defaults to the current directory.
+
+### golet native build
+
+```
+golet native build [flags] [dir]
+```
+
+Builds the [native modules](native-modules.md) in `dir`, each in the
+language of each platform (Swift on macOS where a module has it,
+otherwise Rust, then Zig), and the libraries that the packages in `dir`
+name in their `golet-plugin.json`, from their sources, with swift, cargo
+or zig, for every platform, writes the files to publish into
+`.golet/native/release` of the module, named after their SHA-256, and
+their names, URLs and SHA-256 into `golet-plugin.json`. Swift builds on a
+Mac, universal, as a `.tar.gz` with the frameworks it brings
+(`darwin-universal`). Platforms that do not build here (Rust's and
+Swift's macOS libraries off a Mac) are listed at the end and left as they
+were. Flags go before the directory. `golet dev` and `golet build` build the
+modules and libraries of the app's own packages themselves; this
+publishes those of a package for the apps of others, and for machines
+without the languages' tools.
+
+| Flag | |
+|---|---|
+| `-target` | the platforms, `GOOS-GOARCH` separated by commas, `all` (the default) or `host`, which builds this machine's library for `go run` and `go test` and leaves `golet-plugin.json` alone |
+| `-lang` | builds modules in this language (`swift`, `rust` or `zig`) where they are implemented in it, rather than in each platform's: with `-target host`, to test each implementation |
+| `-release` | the URL of the directory the files are published in, as `https://github.com/<owner>/<repo>/releases/download/<tag>` (default: the library's `release`, else with `-upload` the library's release `native-<name>` of the repository of the git checkout) |
+| `-out` | the directory of the files to publish |
+| `-upload` | uploads the files to the GitHub release of `-release` with the GitHub CLI, creating it if needed |
+| `-force` | builds the platforms whose published files were built from the sources as they are too, which it otherwise skips |
+
+### golet native new
+
+```
+golet native new [-lang <languages>] <module name>
+```
+
+Makes a module in `modules/<module name>`, or at the path given instead of
+a name: the Go package with the interface, its generated Go, an
+`AGENTS.md`, and a directory per language. `-lang` takes the languages,
+separated by commas: `swift` (the default), `rust`, `zig`, or `none` for
+the Go side alone.
+
+### golet native add
+
+```
+golet native add <language> [module dir]
+```
+
+Implements an existing module in another language, `swift`, `rust` or
+`zig`, with a factory for every entry point and methods that say they are
+unsupported, so the module builds at once.
+
+### golet native check
+
+```
+golet native check [-lang <language>] [module dir]
+```
+
+Generates the module, builds its implementation for this machine, or the
+one in `-lang`, and vets the Go package. It lists every problem as
+`file:line: message`, with what to change, and exits with status 1 when
+there are problems.
+
+### golet native call
+
+```
+golet native call [-timeout <duration>] [module dir] <Interface>.<Method> [<arguments>]
+```
+
+Makes the implementation of an entry point, calls one method with
+`<arguments>`, a JSON object of its parameters by their Go names, and
+prints the result as JSON, a line per value of a stream. It makes the
+method's context, which `-timeout` limits, and prints the calls of
+callbacks.
+
+`golet dev` and `golet build` generate and build every native module of the
+app; see
+[build, run and test](native-modules.md#build-run-and-test).
+
 ## golet keygen
 
 ```
@@ -234,6 +335,7 @@ Prints the version of the CLI.
 | `GOLET_WINDOWS_CERTIFICATE_PASSWORD` | the password of `windows.certificate`, for `golet build` |
 | `GOLET_CLI_BINARY` | a build of the CLI for the `golet-cli` package to run |
 | `GOLET_ENV` | `production` makes an app behave like a production build, e.g. without the web inspector |
+| `GOLET_NATIVE_<NAME>` | the file of the [native library](native-modules.md#where-libraries-are-found) `<name>` (in upper case, with `_` for other characters than letters and digits) that package `ffi` loads, over the others |
 | `GOLET_LOCALE` | the language the app runs in, over the one it keeps, which `golet dev -lang` sets |
 
 For an app with dependencies that need cgo:

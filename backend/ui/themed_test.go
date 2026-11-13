@@ -176,8 +176,8 @@ func TestThemedMetrics(t *testing.T) {
 	if text.resolvedText().size != 20 || rem != 20 {
 		t.Errorf("the text inside is %v large and Rem(1) %v, want the scope's 20", text.resolvedText().size, rem)
 	}
-	if scroll.st.barWidth != 11 {
-		t.Errorf("the scroll bars inside are %v wide, want the scope's 11", scroll.st.barWidth)
+	if style := scroll.st.scrollbarStyle(); style.ThumbWidth != 11 {
+		t.Errorf("the scroll bars inside are %v wide, want the scope's 11", style.ThumbWidth)
 	}
 }
 
@@ -247,7 +247,11 @@ func TestThemedOverlays(t *testing.T) {
 	if got := outside.resolvedText().color; got != dark.Text {
 		t.Errorf("an overlay built outside the scope has text %v, want the window's %v", got, dark.Text)
 	}
-	// The tooltip is the scope's theme turned over: light's dark text.
+	// The tooltip is the scope's theme turned over: light's dark text. It
+	// shows once the popover of its button has closed.
+	open = false
+	tt.Frame()
+	tt.Frame()
 	b, _ := tt.Find("Open")
 	tt.Move(b.X+b.W/2, b.Y+b.H/2)
 	tt.rt.tips.hoverSince = tt.now.Add(-time.Second)

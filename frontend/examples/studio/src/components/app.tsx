@@ -14,6 +14,7 @@ import {
   Sun,
 } from "lucide-react";
 import { BrowserDemo, Greeter, Showcase, type Demo, type BrowserStatus } from "@/golet";
+import { PerformancePanel } from "@/components/performance-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import goletMark from "@/assets/golet-mark.svg";
@@ -136,6 +137,7 @@ export function App() {
             {dark ? <Sun /> : <Moon />}
           </Button>
         </header>
+        <PerformancePanel />
         <section className="studio-hero">
           <div>
             <p className="text-xs font-medium tracking-[.25em] text-brand">

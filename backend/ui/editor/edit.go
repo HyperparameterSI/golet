@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/HyperparameterSI/golet/backend/internal/rope"
 )
 
 // apply makes edits to the buffer as one step of undo, and gives the
@@ -33,7 +35,7 @@ func (ed *editor) apply(edits []Edit, kind editKind, after func(move func(int, b
 		ed.snippet = nil
 	}
 	changes := b.edit(edits, kind, ed, before)
-	made := b.version
+	made, madeText := b.version, b.text
 	b.mu.Unlock()
 	if changes == nil {
 		// The edits change nothing, as pasting the text selected over
@@ -63,24 +65,41 @@ func (ed *editor) apply(edits []Edit, kind editKind, after func(move func(int, b
 	if sels != nil {
 		// Placed in the text the edit made, and moved through the edits
 		// made after it before the editor followed.
-		if ed.view.version != made {
-			entries, _, _ := b.entriesSince(made)
-			for _, e := range entries {
-				if e.version > ed.view.version {
-					break
-				}
-				for i := range sels {
-					sels[i] = mapSel(sels[i], e.changes)
-				}
-			}
-		}
-		ed.sels = mergeSels(sels)
+		ed.sels = mergeSels(followSels(b, sels, made, madeText, ed.view.version, ed.view.text))
 	}
 	b.setSelectionsAfter(ed, slices.Clone(ed.sels))
 	ed.reveal = max(ed.reveal, revealFit)
 	ed.blinkStart = ed.frameNow
 	ed.needsBuild = true
 	return true
+}
+
+// followSels moves sels, placed in text of version made, through the
+// buffer's edits up to version to and its text: by the edits themselves,
+// or, when the log no longer reaches back to made, as another goroutine
+// edited the buffer many times meanwhile, by the lines changed between
+// the two texts, as an editor that far behind follows (view.sync).
+func followSels(b *Buffer, sels []sel, made uint64, madeText rope.Text, to uint64, toText rope.Text) []sel {
+	if to == made {
+		return sels
+	}
+	entries, _, ok := b.entriesSince(made)
+	if !ok {
+		cs := changesBetween(madeText, toText)
+		for i := range sels {
+			sels[i] = mapSel(sels[i], cs)
+		}
+		return sels
+	}
+	for _, e := range entries {
+		if e.version > to {
+			break
+		}
+		for i := range sels {
+			sels[i] = mapSel(sels[i], e.changes)
+		}
+	}
+	return sels
 }
 
 // replaceEach replaces each selection with the text of fn and puts the
@@ -445,8 +464,8 @@ func (ed *editor) deleteMove(fn func(sel) int) bool {
 	var edits []Edit
 	for _, s := range ed.sels {
 		if s.empty() {
-			to := fn(s)
-			edits = append(edits, Edit{Start: min(to, s.head), End: max(to, s.head)})
+			a, z := ed.deletion(s, fn)
+			edits = append(edits, Edit{Start: a, End: z})
 			continue
 		}
 		edits = append(edits, Edit{Start: s.start(), End: s.end()})
@@ -469,7 +488,9 @@ func mergeEdits(edits []Edit) []Edit {
 }
 
 // backspace deletes before the carets: back to the previous tab stop in
-// indentation, a pair of brackets just opened, else a character.
+// indentation, a pair of brackets just opened, else a character, all of
+// a replacement as one, from before those next to the caret that show
+// nothing within a line, as hidden marks.
 func (ed *editor) backspace() bool {
 	r := &ed.view.text
 	tab := ed.tabSize()
@@ -479,25 +500,26 @@ func (ed *editor) backspace() bool {
 			edits = append(edits, Edit{Start: s.start(), End: s.end()})
 			continue
 		}
-		line := r.LineOf(s.head)
+		head, _ := ed.view.passHidden(s.head, false)
+		line := r.LineOf(head)
 		a := r.LineStart(line)
-		before := r.Slice(a, s.head)
+		before := r.Slice(a, head)
 		// In the indentation, back to the previous tab stop.
 		if before != "" && strings.TrimLeft(before, " ") == "" && !ed.hardTabs() {
 			col := len(before)
 			to := (col - 1) / tab * tab
-			edits = append(edits, Edit{Start: a + to, End: s.head})
+			edits = append(edits, Edit{Start: ed.overReplacements(head, a+to), End: head})
 			continue
 		}
-		start := graphemeLeft(*r, s.head)
-		end := s.head
+		start := ed.overReplacements(head, graphemeLeft(*r, head))
+		end := head
 		// A pair of brackets just opened, its closer closed by the editor,
 		// goes together, as Zed's.
-		if l := ed.language(); l != nil && ed.o.autoClose {
-			prev := r.Slice(start, s.head)
+		if l := ed.language(); l != nil && ed.o.autoClose && head == s.head {
+			prev := r.Slice(start, head)
 			for _, p := range l.AutoClose {
-				if p.Open == prev && r.Slice(s.head, s.head+len(p.Close)) == p.Close && ed.autoclosedAt(s.head, p.Close) {
-					end = s.head + len(p.Close)
+				if p.Open == prev && r.Slice(head, head+len(p.Close)) == p.Close && ed.autoclosedAt(head, p.Close) {
+					end = head + len(p.Close)
 					break
 				}
 			}

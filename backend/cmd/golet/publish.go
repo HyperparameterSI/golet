@@ -65,7 +65,7 @@ func uploads(artifacts []string) (files, manifests []string, err error) {
 				files = append(files, a)
 			}
 		case strings.HasSuffix(name, ".dmg"), strings.HasSuffix(name, ".exe") && strings.Contains(name, installerMark),
-			strings.HasSuffix(name, ".deb"), strings.HasSuffix(name, ".tar.gz"), strings.HasSuffix(name, ".delta"):
+			strings.HasSuffix(name, ".deb"), strings.HasSuffix(name, ".rpm"), strings.HasSuffix(name, ".tar.gz"), strings.HasSuffix(name, ".delta"):
 			files = append(files, a)
 		}
 	}
@@ -250,6 +250,7 @@ var contentTypes = map[string]string{
 	".dmg":  "application/x-apple-diskimage",
 	".exe":  "application/vnd.microsoft.portable-executable",
 	".deb":  "application/vnd.debian.binary-package",
+	".rpm":  "application/x-rpm",
 	".gz":   "application/gzip",
 	".json": "application/json",
 	".sh":   "text/plain; charset=utf-8", // readable in a browser before piping it to sh

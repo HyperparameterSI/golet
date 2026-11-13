@@ -127,9 +127,13 @@ func TestUIATreeAnnouncer(t *testing.T) {
 // own, a region the custom one.
 func TestUIALandmarks(t *testing.T) {
 	for role, want := range map[platform.AccessRole]uint64{
-		platform.RoleNavigation: 80003, // UIA_NavigationLandmarkTypeId
-		platform.RoleSearch:     80004, // UIA_SearchLandmarkTypeId
-		platform.RoleRegion:     80000, // UIA_CustomLandmarkTypeId
+		platform.RoleNavigation:    80003, // UIA_NavigationLandmarkTypeId
+		platform.RoleSearch:        80004, // UIA_SearchLandmarkTypeId
+		platform.RoleRegion:        80000, // UIA_CustomLandmarkTypeId
+		platform.RoleMain:          80002, // UIA_MainLandmarkTypeId
+		platform.RoleBanner:        80000,
+		platform.RoleContentInfo:   80000,
+		platform.RoleComplementary: 80000,
 	} {
 		e := &uiaElement{n: platform.AccessNode{Role: role, Label: "Landmark"}}
 		var v variant
@@ -158,6 +162,63 @@ func TestUIAArticle(t *testing.T) {
 	v = variant{}
 	if e.property(uiaLandmarkTypeProperty, &v); v.VT != vtEmpty {
 		t.Errorf("an article's landmark type %+v, want none", v)
+	}
+}
+
+// A tab panel is a pane that says it is one, no landmark.
+func TestUIATabPanel(t *testing.T) {
+	e := &uiaElement{n: platform.AccessNode{Role: platform.RoleTabPanel, Label: "Settings panel"}}
+	var v variant
+	if e.property(uiaControlTypeProperty, &v); v.Val != 50033 {
+		t.Errorf("control type %d, want Pane", v.Val)
+	}
+	for id, want := range map[int]string{uiaLocalizedControlProperty: "tab panel", uiaAriaRoleProperty: "tabpanel"} {
+		v = variant{}
+		if e.property(id, &v); v.VT != vtBSTR || bstrString(uintptr(v.Val)) != want {
+			t.Errorf("property %d %+v, want %q", id, v, want)
+		}
+	}
+	v = variant{}
+	if e.property(uiaLandmarkTypeProperty, &v); v.VT != vtEmpty {
+		t.Errorf("a tab panel's landmark type %+v, want none", v)
+	}
+}
+
+// The landmarks of a window's main content, bar, footer and sidebar are
+// groups: the main one with its own type, the others the custom one with
+// the name they are called.
+func TestUIAWindowLandmarks(t *testing.T) {
+	for role, c := range map[platform.AccessRole]struct {
+		landmark        uint64
+		localized, aria string
+	}{
+		platform.RoleMain:          {80002, "", "main"},
+		platform.RoleBanner:        {80000, "banner", "banner"},
+		platform.RoleContentInfo:   {80000, "content information", "contentinfo"},
+		platform.RoleComplementary: {80000, "complementary", "complementary"},
+	} {
+		e := &uiaElement{n: platform.AccessNode{Role: role, Label: "Landmark"}}
+		var v variant
+		if e.property(uiaControlTypeProperty, &v); v.Val != 50026 {
+			t.Errorf("role %d: control type %d, want Group", role, v.Val)
+		}
+		v = variant{}
+		if e.property(uiaLandmarkTypeProperty, &v); v.VT != vtI4 || v.Val != c.landmark {
+			t.Errorf("role %d: landmark type %d, want %d", role, v.Val, c.landmark)
+		}
+		v = variant{}
+		e.property(uiaLocalizedLandmarkType, &v)
+		if c.localized == "" {
+			if v.VT != vtEmpty {
+				t.Errorf("role %d: localized landmark type %+v, want none", role, v)
+			}
+		} else if v.VT != vtBSTR || bstrString(uintptr(v.Val)) != c.localized {
+			t.Errorf("role %d: localized landmark type %+v, want %q", role, v, c.localized)
+		}
+		v = variant{}
+		if e.property(uiaAriaRoleProperty, &v); v.VT != vtBSTR || bstrString(uintptr(v.Val)) != c.aria {
+			t.Errorf("role %d: AriaRole %+v, want %q", role, v, c.aria)
+		}
 	}
 }
 

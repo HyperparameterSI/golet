@@ -55,6 +55,7 @@ framework safely. Read it before changing anything under `internal/`.
 │   ├── cmd/golet/        CLI and embedded scaffold payloads
 │   ├── internal/         platform backends, rendering, bridge.js, generators
 │   ├── ui/               pure-Go native UI toolkit
+│   ├── native/ ffi/      opt-in native modules and dynamic library interop
 │   ├── audio/            audio APIs and codecs
 │   ├── i18n/ locales/    Go localization
 │   ├── netproxy/         opt-in system proxy settings for Go HTTP clients
@@ -190,6 +191,25 @@ purego gives three primitives, used everywhere:
   window id, a request id) identifies the target. Never create callbacks per
   window, per request or per call.
 
+Package `ffi` gives apps and plugins the same for their own libraries (a
+Rust crate, a Zig package, C): `ffi.New(name, manifest)` finds the library
+of the package's embedded `golet-plugin.json` (`$GOLET_NATIVE_<NAME>`, the
+app's resources, the executable's directory and, outside packaged apps,
+the CLI's builds in `.golet/native/<goos>-<goarch>` of the working
+directory's module, then the published file in the user's cache,
+downloaded when missing), loads it once (`dlopen` with `RTLD_LOCAL`,
+`LoadLibrary` on Windows), and `Bind` sets a struct's function fields with
+`purego.RegisterFunc`, by tag or by the field's name in snake case, turning
+purego's panics on unsupported signatures into errors. `Bind` and
+`BindFunc` bind a pointer once, under the library's mutex, and remember
+the result in a `sync.Map`, so that functions can call `Bind` before each
+use from any goroutine without locking. The terminal and SQLite plugins
+find their libraries through it. Elsewhere than macOS, Linux and Windows
+on amd64 and arm64 it reports `errors.ErrUnsupported`. Apps that do not
+import it link none of it, and production builds (`golet_nodownload`, set
+by `golet build` with `golet_noinspector`) leave out its downloader and
+`net/http` with it, about 1.9 MB, as packaged apps never download.
+
 ### macOS (`internal/darwin`)
 
 - `objc.go` loads the frameworks, caches selectors and classes, and wraps
@@ -264,6 +284,12 @@ purego gives three primitives, used everywhere:
 - The main thread is the one that called `gtk_init_check`; `IsMainThread`
   compares `gettid`. `Step` is `g_main_context_iteration(NULL, TRUE)` and
   `Wake` is `g_main_context_wakeup`.
+- `Init` names the program after its executable (`g_set_prgname`) before
+  `gtk_init_check`, which would name it after `argv[0]`: GTK names the
+  class of the windows and the app id after the program, as the desktop
+  entry does (`StartupWMClass`), and WebKitGTK the directories of the
+  pages' data. Started through a link of another name, as `linux.command`
+  puts in `/usr/bin`, the app is then the same program.
 - `Bounds` are those of the frame a reparenting X11 window manager puts
   around the window (`gdk_window_get_frame_extents`): GTK positions the
   frame (NORTH_WEST gravity) and sizes the window inside it, without the
@@ -508,8 +534,8 @@ features GTK 4 lacks become X11-only code beside it.
   mixed content, so pages reach `ws://` and `http://` URLs as with the
   custom schemes of the other backends. The backend maps URLs both ways, so
   the core only sees `<scheme>://<host>/`.
-  Responses are buffered: WebView2 takes a whole stream. `LoadHTML` with a
-  base URL serves the document from that URL the same way.
+  See "Custom protocols" for how responses reach WebView2. `LoadHTML`
+  with a base URL serves the document from that URL the same way.
 - **Eval** goes through the DevTools protocol (`Runtime.evaluate` with
   `awaitPromise`), which reports syntax errors and ignores the page's CSP.
   Edit roles run `document.execCommand` with a user gesture, except Paste:
@@ -1200,16 +1226,22 @@ build` like golet-runtime and released with the same version.
   in another language than the window. The page reports the width its
   buttons need too, as translations can be long.
 
-- **sqlite** compiles SQLite's pinned C amalgamation with Zig 0.16 and
-  loads it through purego. A C shim passes doubles as bits on every ABI,
-  binds a per-operation atomic cancellation token to progress and busy
-  handlers, and authorizes SQL without Go callbacks. Connections serialize
-  operations; transactions hold one connection through BEGIN IMMEDIATE,
-  COMMIT or rollback. The page client preserves int64 and BLOB values with
-  tagged cells and confines database files to the Go-configured directory.
+- **sqlite** runs SQLite in a native module, `internal/sqlitecore`,
+  whose Zig compiles SQLite's C amalgamation, which `zig/build.zig.zon`
+  pins by its hash, with SQLite's symbols hidden in the library (WebKit
+  loads the system SQLite globally on Linux). The module's `Engine` opens
+  a `Conn`, which runs one statement a call, prepared with the rest of the
+  SQL compiled first so that extra SQL never runs, and returns its rows in
+  one reply. An authorizer denies transaction control, ATTACH and VACUUM
+  INTO outside the calls that allow it. Package sqlite's connections
+  serialize operations and validate values in Go; canceling an operation,
+  or closing the connection, calls `Conn.Interrupt` (`sqlite3_interrupt`,
+  which the busy handler checks too) and waits for it before the next one.
+  Transactions hold one connection through BEGIN IMMEDIATE, COMMIT or
+  rollback. The page client preserves int64 and BLOB values with tagged
+  cells and confines database files to the Go-configured directory.
   Connections belong to their page and close on navigation or app quit.
-  `golet-plugin.json` names the six native-library assets, which the CLI
-  bundles like libghostty-vt, with checksums for the library assets. Go and native UI apps can also open connections directly.
+  Go and native UI apps can also open connections directly.
 - **watch** gives pages `golet.WatchFiles` watches of the directories and
   files the app names, by their names (`Roots`, or `Resolve` for those
   granted while it runs). `Watch` streams a part per batch through a
@@ -1292,11 +1324,16 @@ build` like golet-runtime and released with the same version.
     it) is queued instead: the binding holds the library's own refusal
     back, and the view, on the main thread, reads the clipboard and
     writes the answer, which the reader's lock makes safe.
-  - *Shipping the library.* `golet-plugin.json` names its build for each
-    platform, published as release assets with their SHA-256 checksums.
-    The CLI puts them into apps
-    (see the CLI's resources); other programs download theirs into the
-    user's cache once, which packaged apps never do.
+  - *Shipping the library.* `native/` is a Zig package whose
+    `build.zig.zon` pins Ghostty at a commit and whose `build.zig` installs
+    its `ghostty-vt` artifact (`emit-lib-vt`, stripped), built like any
+    native library with `build` (needing macOS 13, `"macOS": "13.0"`).
+    `golet-plugin.json` names its build for each platform, published as
+    release assets with their SHA-256 and source hashes. The CLI puts them
+    into apps (see the CLI's resources); other programs download theirs
+    into the user's cache once, which packaged apps never do.
+    `internal/themes` writes `ghostty_themes.go` from the themes archive
+    the pinned Ghostty names.
 - **game** has what games need beyond what apps do, opt-in, out of core
   `ui`, on its public API only. `View` is a focusable box that keeps its
   loop in `ui.Local`: its input handler gathers keys (by `PhysicalKey`),
@@ -1448,7 +1485,9 @@ pages loaded later), menus (`relabelMenus`: items whose label is still
 their role's take `internal/l10n`'s), the backend (`SetLanguages`: the app's
 language, then the user's others) and the listeners. `SetLocale` calls the
 main thread may not have reached yet show the last tag only (a
-generation counter). A backend's `LocaleChanged` reports changes of the
+generation counter). `ChosenLocale` reads the choice (`override`, after
+`loadLocale`) on the main thread, behind the `SetLocale` calls queued
+before it. A backend's `LocaleChanged` reports changes of the
 system's languages or formats, which `updateLocale` compares.
 
 The text engine takes a language per style and span (`text.Style.Lang`),
@@ -1458,7 +1497,20 @@ DirectWrite's locale of text formats and of ranges
 (`IDWriteTextLayout::SetLocaleName`), Pango's language attributes. Han
 characters in a language that does not write them get the engine's own
 choice (`langRuns`), as Chromium's `LocaleForHan` does; Core Text does so
-by itself.
+by itself. DirectWrite's choice goes by the locale of the user's regional
+formats (`GetUserDefaultLocaleName`), whose fallback for English mixes Yu
+Gothic UI and Microsoft JhengHei UI in one Chinese text: where that locale
+writes no Han characters, they take the first of the user's preferred
+languages that does (`userHanRuns`, `userHanLanguage`), read once, the
+first time a text has Han characters in no language that writes them
+(`dwrite.userHan`), so that apps without them read nothing: the display
+languages (`GetUserPreferredUILanguages`), else the languages of the
+user's profile, which list languages without their language pack too, as
+Chinese below English on English Windows (`resolveUserHanLanguage`). The
+profile's are read from the registry (`HKCU\Control Panel\International\User
+Profile`, value `Languages`), where Windows keeps what
+`GlobalizationPreferences.Languages` returns, in microseconds and on any
+thread, rather than through the Windows Runtime.
 
 WebView2's environment takes the language through
 `ICoreWebView2EnvironmentOptions`, a COM object of ours
@@ -1600,6 +1652,24 @@ Backends turn responses into native ones:
   pipe (`WriteBody`), waiting while it is full, so the main loop never
   blocks and a response WebKit reads slowly does not pile up in memory.
   Custom schemes are registered as secure and CORS-enabled.
+- Windows: the handler's goroutine writes the body into a pipe
+  (`internal/schemestream`, `WriteBody`) that holds at most 1 MiB not
+  read. A body that ends within it is answered whole at `Finish`
+  (`SHCreateMemStream`), as WebView2's documentation asks of a response
+  whose deferral completes. A larger one is answered as the pipe fills,
+  with an `IStream` of Go's (`bodyStream`, `scheme_stream.go`) whose
+  `Read` waits for the handler: WebView2 reads response streams on a
+  background thread of its own (one for all of them, as reported in
+  WebView2Feedback#3519), and the stream is agile (`IAgileObject`, and
+  the free-threaded marshaler aggregated for `IMarshal`) so that it is
+  called there, not through a proxy on the UI thread. A `Read` that comes
+  on the UI thread anyway waits at most a second, then breaks the response
+  off. The final `Release` cancels the request's context; the window's
+  closing cancels those of handlers still running. WebView2 seems to give
+  a response to the page only once it read all of it, and asks open
+  ranges for media, so the backend narrows `Range: bytes=X-` of media
+  requests to 4 MiB (`schemestream.ClampRange`): the element asks for
+  what follows (#1502).
 
 Schemes are registered per webview at creation time, so call
 `Protocol.Handle` before creating windows. `FileServer(fsys)` serves an
@@ -1657,6 +1727,13 @@ as in Tauri:
   `App.Run` returns → `OnQuit`. It is used for `App.Quit`, Cmd+Q, quit
   Apple Events, and SIGINT/SIGTERM alike (`signal_unix.go`; a second signal
   exits immediately).
+  When the OS ends the session instead (`AppHandler.Terminating`:
+  `WM_ENDSESSION` on Windows, `applicationWillTerminate:` on macOS), the
+  loop does not stop first: `Application.endSession` calls the same
+  listeners, with `QuitEvent.SessionEnding` set and what they prevent
+  ignored, then `finish`; it skips them when a quit's sequence ran or is
+  running (`quitting`, `stopping`). Linux has no such path: the session's
+  end arrives as SIGTERM.
 - Taskbar state on Windows (`taskbar.go`) lives on the window and is
   applied when Explorer sends `TaskbarButtonCreated` (first show, Explorer
   restarts), so progress and a hidden button set before showing stick.
@@ -1669,7 +1746,10 @@ as in Tauri:
   window on the way, and the normal bounds only change in the normal
   state) and when the window closes; it is saved when a window closes
   and when the app quits, if it changed, and kept for the next save when
-  saving fails. A saved window that would not show on any
+  saving fails. `App.ClearWindowStates` saves an empty map and sets
+  `windowStates.cleared`, after which windows capture nothing for the rest
+  of the run, so the quit's saves (as windows close, and in `finish`
+  before `OnQuit`) cannot bring the states back. A saved window that would not show on any
   display keeps its size and is centered. On Windows, where a window's
   position in DIPs changes with the displays' scales (`dipSpace`), and
   earlier versions' could not tell displays of different scales apart,
@@ -1707,9 +1787,16 @@ as in Tauri:
   `keyAELaunchedAsLogInItem` in the launch Apple Event instead.
 - `Relaunch` runs the quit sequence, then (after `OnQuit`, which releases
   the single instance lock) starts the executable again with the same
-  arguments and working directory. A development build exits with code 75
-  instead, and `golet dev` starts the same build again, also when that
-  happens before it was ready.
+  arguments, or those passed to `Relaunch` in their place
+  (`relaunchArguments`), and the working directory it started in: on macOS
+  through `open -n <bundle> --args …`, or, with an update staged, through
+  the update's helper, which reads `open`'s arguments from the
+  `relaunch` file of its work directory (a `set --` line of the shell,
+  quoted), written only then. A development build exits with code 75
+  instead, after writing `Relaunch`'s arguments, each ended with a NUL
+  byte, in the file that `GOLET_DEV_RELAUNCH` names
+  (`.golet/dev/relaunch-args`), and `golet dev` starts the same build again
+  with them, also when that happens before it was ready.
 - Updates (`updater.go`, `internal/update`, `cmd/golet/updates.go`), in pure
   Go on every platform. `golet keygen` creates an Ed25519 key pair; with
   `updates` in the configuration (the public key, and a GitHub repository or a base
@@ -1822,7 +1909,16 @@ as in Tauri:
   allows them; macOS checks certificates itself
   (`SecTrustEvaluateAsyncWithError`) only while
   `HandlesCertificateErrors` is true, and Linux and Windows extract the
-  certificate only then. Client certificates are left to the platform.
+  certificate only then. Client certificates go to
+  `WindowHandler.ClientCertificateRequested`, which
+  `SetClientCertificateHandler` answers with one of the offered
+  certificates or an empty response to refuse; without a handler the
+  answer is `Default`, the web view's own handling. Linux lists no
+  certificates to offer (WebKitGTK has none), so a handler there can
+  only refuse, and a refusal ends the load as a cancellation, which
+  `OnDidFailLoad` does not report. macOS lists the keychain's identities
+  only while `HandlesClientCertificates` is true, for the keychain asks
+  the user for them.
 - Active windows (`active.go`): a window is drawn as active, the one the
   user's input goes to, while it or a flyout of it (through flyouts'
   parents) has the keyboard (`windows.focused`), always while
@@ -2061,7 +2157,10 @@ token is rejected by clipboard writes.
 `clipboard.go` owns validation, main-thread dispatch, provider reentry guards,
 and deferred, exactly-once release hooks. `platform.Clipboard` accepts a
 snapshot, returns materialized reads, discovers formats without rendering,
-and flushes/closes native ownership. Clipboard providers belong to the app,
+and flushes/closes native ownership. A concealed write
+(`ClipboardOptions.Concealed`) carries each platform's mark for clipboard
+managers next to its data, on write and on flush, and macOS writes it for
+the current host only. Clipboard providers belong to the app,
 not a source window. Quit flushes them before stopping the loop, and finish
 releases remaining providers. Linux requires a clipboard manager for data
 to remain after exit; a failed provider prevents flushing its offer.
@@ -2093,10 +2192,29 @@ voices (`audio/mixer.go`) under one mutex. Each reads frames from a source,
 an in-memory sound or a stream that a goroutine of its own decodes about a
 second ahead into a ring (`audio/source.go`); the mixer never waits on a
 stream, playing silence for one that is late. Voices resample to 48 kHz
-stereo with a Catmull-Rom spline at their rate times their speed, and ramp
-their gains (a 2×2 matrix of volume and pan) over 5 ms on every change,
-pause and resume. Looping happens in the source, so a loop has no gap; the
-voice counts frames past it modulo the length for `Position`.
+stereo at their rate times their speed, and ramp their gains (a 2×2 matrix
+of volume and pan) over 5 ms on every change, pause and resume. Looping
+happens in the source, so a loop has no gap; the voice counts frames past
+it modulo the length for `Position`.
+
+Up to one source frame an output frame, a voice interpolates with a
+Catmull-Rom spline. Faster (a sound above 48 kHz, or one sped up), a spline
+would fold what is above 24 kHz back below it, so the voice interpolates
+with a Kaiser-windowed sinc (`audio/resample.go`), a low-pass at the
+output's rate: 32 output frames either side, -6 dB at 22 kHz, flat to
+20 kHz and 80 dB down from 24 kHz, as many times wider in source frames,
+and its cutoff as many times lower, as the source is faster. Its weights
+are a bank the voice computes when its step changes, for 128 phases an
+output frame (fewer source frames apart, the faster), from a table of the
+kernel made once; it interpolates between the two phases either side, so a
+frame costs two multiply-adds a source frame and channel, about 1% of a
+core at 96 kHz. Past 8 source frames an output frame, the kernel stops at
+256 frames either side: its window narrows to those, and its cutoff comes
+down so that its stopband still starts at 24 kHz, as far as it can (to
+48× it does). The voice keeps the frames around where it is in a ring of
+512, stored twice over so that its kernel's are in a row, and reads its
+source as far ahead as the interpolation reaches; `Position` stays where
+the output is, not where the voice read to, and a seek clears the ring.
 
 A player that preserves pitch (`SetPreservesPitch`) gets a stretcher
 (`audio/stretch.go`) between its source and its resampler, which then
@@ -2154,7 +2272,17 @@ Where `openDevice` fails, a null device takes the frames on the wall
 clock and fails after two seconds, so the output tries the device again;
 `audio.Err` reports the failure. Formats register a magic prefix and a
 constructor as `image` does: WAV is built in, `audio/vorbis` and
-`audio/mp3` wrap pure Go decoders.
+`audio/mp3` wrap pure Go decoders, and so do `audio/aac` and `audio/flac`.
+A file that starts with an ID3 tag is matched by what follows it.
+`audio/mp4` reads the container and leaves its packets to a codec
+registered by the sample entry's type (`mp4.RegisterCodec`): ALAC, an
+in-package port of Apple's decoder, `mp4a` from `audio/aac`, `fLaC` from
+`audio/flac`, so that the LGPL of go-aac stays with the apps that import
+`audio/aac`. It places packets from the sample table, or, of a fragmented
+file, from each `moof`'s `trun` as playing reaches it, with the length
+from the `sidx`; AAC's packets it places 1024 frames apart whatever their
+durations say, since that is what each decodes to, and a seek decodes one
+packet before the one it lands in, whose sound overlaps it.
 
 ## Watching files (`watch.go`)
 
@@ -2592,7 +2720,11 @@ either.
   `RoleInsertion` (ARIA's deletion and insertion) are `AXGroup` with
   `AXDeleteStyleGroup` and `AXInsertStyleGroup`, ATK's content deletion
   and content insertion with `xml-roles`, and UIA's Text named
-  "deletion" and "insertion"; `HasPopup`
+  "deletion" and "insertion". `RoleTabPanel` (ARIA's tabpanel, the
+  content a tab's `Controls` points to) is `AXGroup` with the role
+  description "tab panel", ATK's scroll pane with
+  `xml-roles:tabpanel`, and UIA's Pane with "tab panel" and the
+  tabpanel AriaRole; `HasPopup`
   (`AccessNode.HasPopup`, aria-haspopup) is `AXPopupValue`, answered as
   `AXInvalid` is, with `AXShowMenu` pressing the element, ATK's
   has-popup state and `haspopup` attribute, and UIA's ExpandCollapse
@@ -2616,6 +2748,12 @@ either.
   landmark with `xml-roles:region`, and UIA's custom LandmarkType;
   `RoleSearch` is `AXGroup` with `AXLandmarkSearch`, ATK's landmark
   with `xml-roles:search`, and UIA's Group with the search LandmarkType;
+  `RoleMain`, `RoleBanner`, `RoleContentInfo` and `RoleComplementary`
+  are `AXGroup` with `AXLandmarkMain`, `AXLandmarkBanner`,
+  `AXLandmarkContentInfo` and `AXLandmarkComplementary`, ATK's landmark
+  with `xml-roles` main, banner, contentinfo and complementary, and UIA's
+  Group with the main LandmarkType, or the custom one named "banner",
+  "content information" and "complementary";
   `RoleArticle`, no landmark, is `AXGroup` with `AXDocumentArticle`,
   ATK's article, and UIA's Group named "article";
   `RoleLog`, `RoleTimer` and `RoleAlert` are `AXGroup` with
@@ -2657,7 +2795,18 @@ either.
   `get_minimum_increment`, as purego's callbacks return no floats for
   `get_increment`; AppKit has none, and its increments go through the
   keys. A read-only text input is
-  `AccessReadOnly`, without `ActionSetValue`. AppKit finds an element's
+  `AccessReadOnly`, without `ActionSetValue`; a text box of your own (`Role(RoleTextField)`
+  with no editor of Golet's) says so through `ReadOnly` and `Multiline`
+  (aria-readonly, aria-multiline). `ReadOnly` is reported by the roles
+  aria-readonly is for, on elements without a widget of Golet's behind them:
+  text box, combo box, check box, switch, slider, stepper, radio group,
+  list box, grid and tree grid, and the cells and headers inside a grid or
+  tree grid (`reportsReadOnly`, the nearest `tabular` ancestor decides; a
+  table's cells do not have it). Such a node has no `ActionSetValue`,
+  `ActionIncrement`, `ActionDecrement` (nor `ActionPress` on a check box
+  or switch); ATK adds `read-only` to the states of any role with
+  `AccessReadOnly`, UI Automation's `IsReadOnly` follows the state, and
+  AppKit's `AXValue` is not settable. AppKit finds an element's
   value settable when its class overrides the setter, whatever
   `isAccessibilitySelectorAllowed:` says, so elements answer the older
   `accessibilityIsAttributeSettable:` themselves, as AppKit would but for
@@ -2752,14 +2901,29 @@ either.
   their grid areas, as auto while the tracks are sized), laying out again
   only what changed since the last frame (see below); commits the boxes to the elements'
   states with the hit list in paint order, the focus order and the labels;
-  paints a `scene.Scene`; and presents it. Input between frames goes to the
+  paints a `scene.Scene`; and presents it. The pointer finds what it is
+  over in the hit list, last first (`appendHitChain`, `contains`): an
+  element whose visible part, clipped as commit found it (`state.vx`..),
+  does not hold the point is passed by before its transform is inverted,
+  unless its scroll containers moved or a pose moved it since
+  (`state.reposed`), so that a move over a large tree costs little;
+  `TestHitFilterMatches` compares with every box tested
+  (`engine.noHitFilter`). Input between frames goes to the
   states of the last frame's elements. A release that comes with moves no
   pass read waits in the element's state (`releaseLater`) for the pass
   that reads them, which applies it as it ends (`forgetInput`): the view
   sees the element still pressed where the pointer let go, and released
   in the pass after. An element's identity hashes its
   parent's with its position or `Key`, so focus, scroll offsets, editors and
-  animations survive rebuilding. `prune` drops the states the frame did
+  animations survive rebuilding. Each pass lists the states it looks up
+  (`engine.built`, `nbuilt` of them, `lookState`, less those `unlook`
+  gives back): `forgetInput` visits those alone, `prune` looks for states
+  to drop only when the pass built fewer than there are, and the formats
+  of native drop targets are gathered only in a pass that made one
+  (`noteTarget`), so that what a frame costs past building follows what
+  it built rather than every state of a map; ui's tests check the lists
+  each frame (`checkFrames`, `checkBuilt`), its benchmarks do not.
+  `prune` drops the states the frame did
   not build (but those of pages Routers keep) and recycles them; a state
   with `Local` values that are `io.Closer`s (`state.closes`, which
   `Local` fills as it makes one, so that other states cost nothing) hands
@@ -2768,12 +2932,18 @@ either.
   or an ancestor's, leaves with an `Exit` wait in `engine.exits` until
   the transition's record is gone or no longer holds that copy (the
   exit ended, or the element came back), and the engine's `close` closes
-  every state's as the window closes. `Context` is stable for the window; `Element` values expire between build
+  every state's as the window closes. An element's `OnUnmount` keeps its
+  function in such a `Local`, under a key of its own (`unmount`,
+  `ui/local_close.go`), whose `Close` runs the function given last.
+  `Context` is stable for the window; `Element` values expire between build
   passes and validate their owner, slot and generation before accessing storage. `ListState` resolves
   its focus owner only for the current context, frame and pass, exposing
   focus and shortcuts without retaining an element in app state. Scroll
   offsets move in the layout too
-  (`ui/scroll.go`): elements that asked to `ScrollIntoView`, and the focus,
+  (`ui/scroll.go`): elements that asked to `ScrollIntoView`, and the focus
+  as the keyboard or the app moved it (`node.focus`; a click does not,
+  nor the app while a pointer button is held or with
+  `FocusOptions.PreventScroll`),
   come into view before the boxes are placed, lined up as its options say
   (or glide there as a wheel's notches do, by what they went each frame,
   `glideScroll`), and placing keeps each offset within its content; a
@@ -2840,14 +3010,58 @@ either.
   glyphs, stops and words than `partsGrowth` past what the whole frame
   held. `TestRepaintPartsMatchWhole` compares the frames with those
   painted whole (`engine.noParts`). Such a frame is asked for with
-  `redraw` set, which every event of the surface clears, so that the frame
-  builds anew in case the event changed what the view shows; anything
-  asking for a frame clears it too, and the frame `Painter.After` has due
-  with it, which the frame asked for replaces: `requestFrame`,
-  `Conn.Changed` (`Window.Update`, `Invalidate`, and `After`'s timer
-  through them) and a change of the appearance. An event that asks for no
-  frame, as the pointer moving over elements that do not look at it,
-  leaves that frame due. A frame of another size, or after the text
+  `redraw` set, which every event of the surface clears (`buildNext`), so
+  that the frame builds anew in case the event changed what the view
+  shows; anything asking for a frame built anew clears it too (`askBuild`),
+  and the frame `Painter.After` has due with it, which the frame asked
+  for replaces: `requestFrame`, `Conn.Changed` (`Window.Update`,
+  `Invalidate`, and `After`'s timer through them) and a change of the
+  appearance. An event that asks for no frame, as the pointer moving over
+  elements that do not look at it, leaves that frame due.
+  A hover that only changes looks paints the last frame's elements again,
+  whole, rather than building the view (`lookDue`, `askLook`), as browsers
+  restyle and repaint for `:hover` without running a page's scripts: a
+  button the pointer comes over in a window of thousands of elements costs
+  a paint, not the whole view. `Hovered` notes who reads it: the view, as
+  it builds (`state.hoverBuilt`, reset as the pass looks the state up), or
+  painting (`hoverLook`, reset as `Painter.element` paints it), as the
+  controls' styleFns pick hovered backgrounds and borders and scroll
+  containers show their bars. `hoverNeeds` looks at the elements that
+  came under the pointer or left it alone (those hovered still see no
+  change): one read as built, showing a tip, with a `Transition` (whose
+  colors move in frames built anew), or looking at its hover
+  (`flagHover`) without having told how, builds anew, as do elements
+  following the pointer (`flagTrackPointer`) anywhere in either chain and
+  a window the inspector shows; one read only as painted paints. A frame
+  built anew asked for since (`buildAsked`) shows the hover, so none is
+  asked then, and asking for one clears `lookDue`; a move bringing other
+  modifier keys builds anew, as views may show what they do. The frame
+  that builds a scroll's rows under a still pointer paints their looks
+  already (`rehover(false)`); after it presents, a hover moved by `prune`
+  asks for a frame painting (`rehover(true)`). A styleFn, and a
+  `Transition` moving colors or shadows, change the element's colors,
+  opacity and shadows as it paints; `Painter.element` puts back those it
+  was built with once it painted (`builtStyle`), so that painting it again
+  starts from them, not from what the last painting chose (a moving
+  shadow points to the transition's own array, never into the built one).
+  `TestHoverLookPaintsAsBuilt` compares each frame painted for a hover
+  with the frame built anew, over many controls.
+  What the frame writes after the build into fields the view builds goes
+  in the journal (`ui/journal.go`): a table's, a form's and a toolbar's
+  fits, a List's offset, an attached element's origin and hiding, the
+  spans a paragraph merges from the texts inside it, the parent of exit
+  copies, and whole elements before a transition, a magic move or the
+  inspector's edits change them (`journalKeepNode`). The journal goes
+  as the next build begins, its elements built anew; it is what lets an
+  element kept to a later frame without being built again go back to
+  what it was built with (`rollback`) before that frame lays it out
+  (#1599). What the frame computes in fields of its own needs none: the
+  boxes, `world`, `ink`, the measures and layout records, the inline
+  fragments and the tree's links. ui's tests (`TestMain`) check after each
+  frame that the other fields, the journal rolled back, are what the view
+  built (`checkBuilt`, `builtcheck_test.go`, comparing their bytes and the
+  elements of their slices); `GOLET_BUILT_COLLECT=1` checks after each
+  phase and lists what changed rather than failing, to find the writer. A frame of another size, or after the text
   system forgot its layouts (`text.System.Generation`, as it lets go of
   fonts the elements' layouts hold), builds anew all the same. The timers
   the last frame built armed stay; the host arms them (`afterTimer`,
@@ -2869,9 +3083,13 @@ either.
   rate unknown (browsers), frames come at each refresh.
   While nothing of the window shows (`platform.OccludableSurface`: a macOS
   window hidden, minimized or covered by other windows, whose display link
-  still ticks, at the display's rate for half a minute, then at about 40
-  Hz; a minimized window on Linux, as GDK's `window-state-event` tells
-  on X11, and on Windows, as `WM_SIZE` does), what moves asks for no frame, and a frame asked for by a change of
+  still ticks while it is covered, at the display's rate for half a
+  minute, then at about 40 Hz, but not while it is hidden or minimized,
+  where a timer draws the frames `RequestFrame` asks for instead, a
+  refresh after the last, and the backend's queue (`drawSoon`) the one
+  after a pause; a minimized window on Linux, as GDK's `window-state-event` tells
+  on X11, and on Windows, as `WM_SIZE` does, where no `WM_PAINT` comes
+  and `RequestFrame` draws the frame from the queue as well), what moves asks for no frame, and a frame asked for by a change of
   the state waits (`holdFrame`; both `held`), as browsers draw nothing for
   windows out of sight and as Apple asks of Mac apps: the view function,
   `Draw` and the work `After` drives wait until some of the window shows.
@@ -2884,12 +3102,19 @@ either.
   decode into again; the view takes the last frame due, passing over the
   others, has the bitmap show it (`Bitmap.Update`), and asks for the next
   with `After`, or waits for the goroutine to wake the window (`waiting`)
-  when it has no frame due yet. The window shows its last
+  when it has no frame due yet. A video of the system's media framework
+  (`ui/video`, below) moves on by the framework's clock instead; a muted
+  one holds still out of sight, as a decoder's does. The window shows its last
   frame until then, about a refresh: captures of it meanwhile, as sharing
   its window in a video call, see that frame. A frame still builds after
   input (`input`, as keys typed into a key window another app's covers),
   as assistive technology turns on, and for `CapturePage`, which builds
-  the frame waiting; and none waits before the window's first frame
+  the frame waiting, held or asked for and not come
+  (`windowHost.waitsOutOfSight`), as the surfaces of macOS draw none for
+  a hidden window, nor for any behind the locked screen, whose display
+  link does not tick (a frame built outside the surface's asks for one
+  to show it, `unshown`, which builds nothing more); and none waits
+  before the window's first frame
   reached its surface (`windowHost.occluded`), which a window made hidden
   waits for to become ready to show. `Context.WindowHidden` reads
   `occluded`; once a view asked (`hiddenAsked`), `SurfaceHidden`, which
@@ -2923,6 +3148,94 @@ either.
   `GOLET_FRAME_STATS` set, frames slower than its threshold log how long
   each part took, which path drew them, what the process allocated and
   whether the collector ran (`ui/framestats.go`).
+  With `GOLET_UNCAPPED=1`, which `internal/pacing` reads once (`Uncapped`),
+  frames wait for no refresh, for benchmarks, profiling and the least
+  latency (#1496): the next frame asked for starts once the last was
+  presented. Only the frames asked for come sooner, so an idle window
+  still draws nothing. The host holds no frame drawn in memory to the
+  refreshes (`refreshPresented`) and counts every surface's frames as
+  coming at once (`framesAtOnce`), so `Painter.AnimationFrameRate` keeps
+  its pace with the repaint timer; the backends and renderers each skip
+  their own wait: Direct3D's swap chain has no frame latency object, three
+  buffers and, where DXGI allows it, tearing, and presents every frame
+  with sync interval 0, without `waitComposed` or `waitRefresh`
+  (`internal/gpu/d3d11/uncapped.go`); macOS draws each frame from a
+  timer firing at once (`surface.frameSoon`), not the display link, into
+  a CAMetalLayer whose `displaySyncEnabled` is off; Linux tells GTK's frame
+  clock a refresh interval of a microsecond (`paceFrameClock`) and, on X11,
+  sets the GLX swap interval of the window GDK paints to 0
+  (`gl.UnsyncGLXSwaps`); browsers keep requestAnimationFrame's pace. On
+  Windows a live resize presents paced, from the window's first change of
+  size until the swap chain settles (`presentsUncapped`): no tearing, a
+  frame of a new size waiting for DWM to show it and the others for the
+  composition that shows each, as uncapped frames queued for DWM while it
+  resized the window, and one present took 2 s. Each of those waits is
+  bounded, the frame of a new size's at two refreshes, with DwmFlush called
+  on another thread (`waitShown`): called on the main thread within
+  `SetWindowPos`, it was the one wait with no bound when a present took
+  2 s at the start or end of a resize the app made. Nor does Present wait
+  long then: with no frame latency object to tell when the swap chain has
+  room, Present waited for it on the main thread, and a frame redrawn in
+  part still took 2 s in 2 resizes of 12, most likely queued behind
+  buffers DWM held. While resizing, frames present with
+  `DXGI_PRESENT_DO_NOT_WAIT`, tried for a refresh at most (`showSoon`);
+  one Present still refuses waits, unpresented, for the next composition
+  while the main thread takes its messages, or gives way to the next frame
+  drawn (`holdFrame`, `presentHeld`). One still not taken after `maxHeld`
+  (100 ms) presents without the flag, waiting as long as DXGI has it, on
+  another goroutine (`presentAside`, `goAside`), and until DXGI takes a
+  frame at once with the swap chain settled (`gaveUp`), frames stay paced
+  with the flag and the buffers resize, to settle or to grow, on another
+  goroutine too (`resizeAside`). Meanwhile the main thread makes no call
+  to the context nor the swap chain: a frame drawn then is put off, the
+  frame after waits (`Ready`), `Release` waits for the call (2 s at
+  most), and once it returned the frame after draws, or the window is
+  asked for one (`askFrame`). A resize's last frame held for good otherwise left nothing
+  drawing; dropping it and drawing on had the settle frame take 994 ms on
+  the main thread, in `ResizeBuffers` or a plain Present; and putting such
+  frames off until DXGI took one with the flag and an event query said the
+  GPU was done, waiting on nothing (0338404), put every frame off for good
+  in 4 resizes of 70: nothing the app did without waiting ended DXGI's
+  refusal, while the call that waited did, so such a call is now made, off
+  the main thread. Uncapped, the refresh period is read from DWM on
+  another goroutine (`readPeriodAside`).
+  With `GOLET_FRAME_STATS` too, the engine logs how many frames came each
+  second (`frameStats.rate`), counted anew after a pause or a frame as long
+  (250 ms), and each frame's path says uncapped.
+- **Video of the system's media framework** (`ui/video`,
+  `ui/engine_video.go`, `internal/media`, `scene.Surface`). A
+  `media.Engine` plays one video: AVFoundation's `AVPlayer` with an
+  `AVPlayerItemVideoOutput` on macOS, Media Foundation's `IMFMediaEngine`
+  in frame-server mode on Windows, GStreamer's `playbin` with an `appsink`
+  on Linux, a video element in browsers, each reached without cgo
+  (purego, COM vtables through `syscall`, `syscall/js`) and loaded with
+  the first video opened. The engine decodes, plays the sound and keeps
+  the clock; `VideoPlayer` (`videoEngine`) asks it, as each frame builds,
+  for the picture due at the frame's time (`Engine.Frame`) and shows it
+  in its bitmap as a `scene.Surface` (`Bitmap.showPicture`), which
+  renderers sample where the decoder left it: Metal wraps a
+  `CVPixelBuffer`'s IOSurface planes with a `CVMetalTextureCache` and
+  keeps the `CVMetalTexture`s until the frames in flight that read them
+  completed; Direct3D opens the engine's shared texture (an NT handle,
+  BGRA, which the engine converts into on its own device) once by its
+  `NativeID` and reads it under its keyed mutex (key 0) within the frame;
+  GL uploads NV12 planes, 1.5 bytes a pixel, or in browsers the element,
+  GPU to GPU. NV12 is converted in the shaders' YUV image class (the
+  matrix in the instance's params, the chroma in texture slot 10 or 11),
+  which the CPU renderer samples the same way (`raster.sampleNV12`).
+  `Bitmap.UpdateYUV` shows an app's own frames so (`YUVImage.surface`):
+  NV12's planes as they are, and I420's with its Cb and Cr interleaved
+  into a plane of NV12's chroma that the bitmap keeps, a quarter of the
+  frame's bytes, so that the renderers and their shaders know one layout
+  of planes. The
+  window asks for the next picture with `After` at the engine's interval,
+  or an engine that knows when one comes (GStreamer's appsink, the
+  element's `requestVideoFrameCallback`) wakes it (`Engine.SetWake`),
+  as it does for a change of state. A muted video holds its engine paused
+  while out of sight, under less motion, and once a frame that built the
+  view did not show it (`engine.sweepVideos`); one with sound plays on.
+  On Windows, arm64's doubles go through two thunks of machine code, as
+  `syscall` passes and returns only integers there.
 - **Visual transforms and motion** (`ui/transform.go`, `ui/motion.go`). An
   element's transform, 2D, or 3D in a 4×4 matrix (`mat4`) that it flattens
   into its parent's plane as CSS's flat transform-style does, composes
@@ -2959,7 +3272,14 @@ either.
   than move (`scene.Reshaped`), or a clip reaching into their rounded
   corners (`scene.ClipCorners`, which the scissor rectangles of outer
   clips would not cut); hard clips in the drawing's coordinates,
-  and clips around content only moved, evaluate on the GPU. Backdrop
+  and clips around content only moved, evaluate on the GPU. Stationary
+  clips reducible to one rounded rectangle also evaluate on the
+  GPU, even around scaled, rotated or perspective content, as a sidebar
+  against the side of a rounded frame does (#1511). A fractional
+  hard edge can remove whole corners; overlapping antialiased edges,
+  transformed clips and image/gradient masks retain their existing mask
+  path, as do continuous corners on the renderers whose shaders don't
+  draw them (all but Metal's, `gpu.Builder.SplitCorners`). Backdrop
   effects map local samples into the frame. With a GPU, every frame draws
   there, including resting changes to transformed content.
   Metal retains wide colors under transforms. See
@@ -3167,8 +3487,12 @@ either.
   `AttachContent` (`windowHost.automate`, empty under
   `golet_noinspector`) hands it each window's `surface.Conn` and a
   `surface.Automated`, which reads the last frame's access tree with
-  the elements' keys (`node.key`, which `rekey` sets too) and tells
-  whether a frame was asked for and has not come (`windowHost.frameAsked`).
+  the elements' keys (`node.key`, which `rekey` sets too), tells
+  whether a frame was asked for and has not come (`windowHost.frameAsked`),
+  and in a window out of sight builds the frame that waits to build there
+  (`Settle`, `windowHost.waitsOutOfSight`), which the surface may draw only
+  once the window shows: the plugin settles before it reads the tree and
+  after it acts or sends input, so that a press reaches the view.
   Only the plugin calls `Automated`'s methods through the interface, so
   apps that don't link it don't link them. Actions and input go to
   `Conn.Event` on the main thread, as the backend's events do; menu items
@@ -3548,6 +3872,14 @@ either.
   absolute offsets. Paragraph layout and height caches remain with the
   widget; newline-count changes update those indexes. Full text is produced
   for explicit export/value queries, never as a binding update per edit.
+- **Charts** (`ui/chart`) use ui's public API alone: scales return
+  fractions, the plot places marks in percentages, and paths turn those
+  into DIPs while drawing. Log and SymLog (`nonlinear.go`) add only
+  standard-library math: log domains stay on one side of zero, symlog's
+  `log1p`/`expm1` keep a linear region around it. Reversed domains and
+  clamping share the same normalized-coordinate contract. A separately
+  generated D3 fixture checks mappings, inverses, ticks and nice domains;
+  constant log domains intentionally keep one tick even where D3 omits it.
 - **Code editor and diff viewer** (`ui/editor`, `internal/diff`). Package
   `editor` is built on ui's public API, as `ui/chart` is, with four hooks
   for it: `Painter.TextLine` paints a shaped line with a color per
@@ -3560,10 +3892,22 @@ either.
     highlighter and the diff follow a buffer by the versions they last
     saw (`sync`): selections, folds, diagnostics and caches move through
     the changes since, with a bias at insertions, so that one buffer is
-    shown by several editors and both sides of a diff. Undo keeps the
-    texts before and after each step, grouped while typing of one kind
-    by one editor goes on within 300 ms, and each step the selections of
-    the editor that made it.
+    shown by several editors and both sides of a diff. A step of undo
+    keeps the edits that take it back, a list for each version it made,
+    grouped while typing of one kind by one editor goes on within 300 ms,
+    and the selections of the editor that made it. Taking a step back
+    applies its lists from the last, logging a version for each, whose
+    text is its changes' as tree-sitter needs, and keeps the edits taking
+    each back as the step of redo. `EditRemote` makes a version outside
+    the history and moves both stacks past it, from the top
+    (`rebase`): the edit's ranges (`span`) and a step's lists are of one
+    text, so each moves past the other (`rebaseEdits`), and the ranges go
+    on down. A step that overlaps them leaves the history, the text
+    staying as it is, so the steps under it move past that step and the
+    ranges together (`composeSpans`). The cost is a few integers for
+    each edit of the history, whatever the size of the text; a step's
+    replaced text is a string, so undoing `Set` builds the text again
+    where it used to swap versions.
   - *Display* (`display.go`, `view.go`). Every line is a row, several
     when it wraps, none when folded or collapsed by a diff; blocks are
     rows between lines (a diff's deleted lines, spacers, separators,
@@ -3574,12 +3918,34 @@ either.
     for two frames as Zed's line layout cache is. Wraps are measured with
     cached advances of characters (monospaced ASCII is arithmetic) near
     the view first, a frame's budget at a time, and estimated elsewhere.
+    A character shaped alone misses the room the text engine leaves
+    around it in context, as Core Text does between Han and Latin
+    letters and around CJK punctuation in the app's language when it is
+    Chinese or Japanese (`System.SetLanguage`): laying a line out shapes
+    each row as it is painted, and ends it at an earlier place to break
+    while it is wider than the editor (`fitRow`), so lines out of view
+    may count a row too few until they show. Closing CJK punctuation
+    starts no row, nor opening punctuation ends one (`canBreak`). A new
+    generation of the text system measures and shapes everything anew.
+  - *Replacements* (`replace.go`). A range shown as something else is a
+    segment of a line's displayed text, as a tab or an inlay is: its Text,
+    nothing, or for an element an object replacement character the text
+    system gives the element's width (`faceRun.obj`, `Span.ObjectWidth`),
+    so that shaping, carets, selections and wraps need no case of their
+    own, lines not laid out yet counting it too. Their elements are built
+    over the text at the places the lines laid out give, a frame painting
+    them elsewhere building again (`replacementsMoved`). Lines covered
+    through their newline join the hidden spans. Replacements move as
+    selections do, and a change lays out again only the lines of those
+    that differ, so that an app can set them every frame.
   - *Highlighting* (`syntax.go`). A `Highlighter` follows the buffer's
     edits and gives tokens per line; the default tokenizes lines from the
     state the line above ended in (`lexer.go`, `lexers.go`), keeping the
     states, and after an edit goes on below it only until a line starts
     as it did before. A patch's texts start each hunk in state 0, at
-    lines the buffer moves with its edits (`setRestarts`). Optional
+    lines the buffer moves with its edits (`setRestarts`) and its
+    snapshots carry (`Snapshot.Restarts`), for a `Language.Highlighter`
+    to start them as well. Optional
     interfaces give a parser's structure to Select Larger, folding,
     brackets and indentation, so that tree-sitter can plug in as a
     `Language.Highlighter` without the editor changing.
@@ -3704,10 +4070,10 @@ either.
     Attachments are inline objects of the text system; a first line's
     indent is the layout's (`TextShape.Indent`), on the side the
     paragraph starts at, the right of one reading right to left.
-    `Document.VisibleParagraphs` lays out what is in view as it is read,
-    as painting does, and the paint that finds the paragraphs elsewhere
-    than read asks for a frame (`Services.Invalidate`), as
-    `ListState.Visible` builds another.
+    `Document.VisibleParagraphs` and `Document.CaretRect` lay out what is
+    in view as they are read, as painting does, and the paint that finds
+    the paragraphs or the caret elsewhere than read asks for a frame
+    (`Services.Invalidate`), as `ListState.Visible` builds another.
   - *Formats out of the process.* The clipboard carries the editor's JSON,
     HTML (`golang.org/x/net/html` reads what is pasted) and plain text;
     browsers carry each text format through the clipboard events. The
@@ -4325,10 +4691,14 @@ either.
   `languageShapes` leaves the attribute out where it changes nothing. A
   number, new in each frame on a dashboard, is put together from the glyphs
   and kerning of its characters, measured once for each font and checked
-  against Core Text from time to time (`numbers_darwin.go`). Latin text
-  kept across widths is shaped into one line that its lines take their glyphs
-  from, breaking at the spaces before plain words and asking Core Text for
-  every other break, checked in the same way (`wrap_darwin.go`). Korean text
+  against Core Text or DirectWrite from time to time (`numbers.go`). Latin
+  text kept across widths is shaped into one line that its lines take their
+  glyphs from, breaking at the spaces before plain words, checked in the same
+  way (`wrap.go`): Core Text is asked for every other break, and DirectWrite,
+  which shapes a whole text before breaking it, lays out a text with any other
+  break, keeping the one line 8 frames after the last, or as windows go idle,
+  and drawing the spaces ending a line as a run of their own, as DirectWrite
+  does. Korean text
   breaks between words, as CSS's `word-break: keep-all` (`keepWordsWhole`
   takes the breaks between two letters or digits out of Unicode's): Core Text
   moves the break it suggests back to the last one left in the line; Pango
@@ -4709,7 +5079,21 @@ either.
     the general shader's 3,627. A set of classes draws with the first of
     `classShaders` holding them, made as first drawn: each class, the sets that
     small batches join most, and all of them, which still costs less than the
-    general shader, which only transformed instances and effects need. It draws
+    general shader, which only transformed instances and effects need. The
+    renderers of a process share one Direct3D 11 device and its immediate
+    context (`shared.go`), with the shaders, input layout and states, which
+    never change: a device costs the driver tens of megabytes, which a
+    window each would multiply (#1517). Each keeps its swap chain and what
+    its frames change, and the device goes with the last of them. They draw
+    on the main thread, each frame binding all it draws with; the device is
+    multithread protected (`ID3D10Multithread`) all the same, so that DXGI's
+    calls on a swap chain from another thread are serialized with the
+    context's. A renderer made after the device was removed makes a new
+    one; those holding the old one fail their next frame (`Render`), and
+    their windows make them again on the new one, as after any failed
+    frame. A device made with WARP gives way the same way to one on the GPU
+    once a renderer made can make one, as a window drawing in software
+    tries from time to time. It draws
     into a flip-model swap
     chain on the surface's window, or, over a material, one for
     DirectComposition shown on it, with WARP when no hardware device
@@ -4754,7 +5138,12 @@ either.
     or a second after it was shown without one (a timer, which only an
     idle main thread lets fire); a refresh of DWM between the present and
     its frame showing shows the background under the surface
-    (`fillUnder`). A window made hidden gets no `WM_PAINT`: its first frame is
+    (`fillUnder`). A window whose frames show through DirectComposition
+    (no redirection bitmap, as a flyout's, or web views over the frames)
+    has no pixels of its own there, and DWM would show it black for a
+    refresh or more: it stays cloaked until DWM composed the frame
+    (`DwmFlush` on a goroutine, within four refreshes at 60 Hz), then
+    uncloaks on the main thread (#1591). A window made hidden gets no `WM_PAINT`: its first frame is
     drawn while it is hidden (`drawHidden`), which makes it ready to
     show, and it uncloaks after its first `WM_PAINT` once shown; a
     present that DXGI reports occluded leaves the next frame to draw
@@ -4803,7 +5192,9 @@ either.
     that took back the drawables given back when idle: drawn in AppKit's
     display of the view, presented with the transaction too, it did not
     show, and the window kept the last frame stretched to its new size
-    (#1044). The main thread never
+    (#1044). So does one asked for after a pause, which would otherwise
+    draw from the backend's queue (`drawSoon`) in a pass of its own, and
+    not show either. The main thread never
     waits for the display: after each frame presented as soon as drawn, a
     goroutine on a thread of its own (`present.go`) takes the next frame's
     drawable, which `nextDrawable` holds back while the display holds the
@@ -4833,7 +5224,11 @@ either.
     Waiting for a drawable remains separate from waiting for an instance
     buffer, so offscreen encode timings do not establish presentation latency.
     Opaque fill cores use an unblended pipeline in BGRA8; float16 keeps
-    blending to preserve its interpolation rounding. Fragment functions are
+    blending to preserve its interpolation rounding, and GPUs outside the
+    Mac2 family keep to the blended one: one such GPU, an Intel Haswell
+    whose driver OpenCore Legacy Patcher backported, hung in the unblended
+    pipeline (#1566), and blending them costs only that GPU's tile-based
+    win of writing without blending. Fragment functions are
     specialized by batch class and continuous corners, with general shaders
     as an identical fallback. Runs of small batches of different classes
     (each covering at most 128×128 pixels, as a box's shadow then its
@@ -4843,7 +5238,12 @@ either.
     cached per device, outside the frame path. Renderer release stops and
     joins that worker before releasing its shader library. Float16 shadows
     stay general, and fills with fractional opacity avoid the plain class,
-    because specialization otherwise changes rounding. Function constant
+    because specialization otherwise changes rounding. GPUs outside
+    Metal's Mac2 family (`supportsFamily:`), as Intel's Haswell, draw every
+    batch with the general pipeline, compiling and warming none, and keep
+    their batches together: one such GPU, on a driver backported by
+    OpenCore Legacy Patcher, hung while specialized pipelines compiled
+    (#1566). Function constant
     indices 0 through 7 belong to the renderer; effects start their own at 8.
     Two seconds after the last frame, as the
     driver frees its own memory of frames, a timer shrinks the drawables,
@@ -5107,6 +5507,180 @@ gets a test with `Tester`. A new GPU renderer draws the instances of
 has a test that compares its drawing of `gputest.Scene` with the CPU
 renderer's (`gputest.Compare`).
 
+## Native modules (`native`, `internal/nativegen`)
+
+A native module ([the guide](native-modules.md)) is a Go package whose
+interfaces Swift, Rust or Zig implement, each in a directory named after
+the language (`swift/`, `rust/`, `zig/`), all behind one C ABI. Three parts
+make it work:
+
+- **`internal/nativegen`** reads the package with `go/ast` alone (no type
+  checking, so it is fast and needs no dependency built): the interfaces
+  marked `//golet:native` and everything they reach, structs, enums (a
+  named string or integer type and its constants, read from literals and
+  simple `iota` expressions) and the errors made with `native.NewError`.
+  What crosses is a closed set of types (`Type.Kind`); anything else is a
+  `Diag` at its line, with what to write instead. An interface the module
+  returns is the platform's, one it only takes is Go's (`ByGo`). It writes
+  `<package>_native.go` (constructors and proxies, `gogen.go`) and
+  `<Module>.golet.swift` (protocols, structs, enums, `<Module>Error`, the
+  `@_cdecl` entry points and the glue in `support.go`), and on both sides
+  the functions that encode the composite types the methods cross
+  (`wire.go`: `_enc_<T>`/`_dec_<T>` in Go, `_goletWrite_<T>`/`_goletRead_<T>`
+  in Swift, `<T>` named after the type, as `slice_map_int`, and a type of
+  another module, whose struct fields name its types relative to it, as
+  `<Module>_<T>`). For `rust/` and `zig/` it writes
+  `src/golet.rs` (`rustgen.go`: a trait per interface, `Send + Sync`,
+  structs, enums, `<Module>Error`, `#[no_mangle] extern "C"` entry points,
+  and the runtime of `rustsupport.go`: threads for calls with a context
+  and for streams, `catch_unwind` at every entry) or `src/golet.zig`
+  (`ziggen.go`: a struct of a pointer and a vtable per interface, whose
+  `of` checks at compile time that the implementation has each method,
+  `export` entry points, an arena per call, and the runtime of
+  `zigsupport.go`), the library's root, which imports the implementation
+  as `impl`. Both refuse what only Swift implements (`portable`: views,
+  textures, windows, other modules' interfaces, returned buffers). All
+  carry `golet:native <version> <hash>`, the hash of the
+  package's type, const and error declarations with their comments, which
+  `golet build` compares (`Stale`). The generated Go names its own
+  identifiers with a leading underscore (`_x`, `_ctx`, `_err`, `_r`, `_h`,
+  `_fN`, `_gN`, and the packages it calls, imported as `_native`,
+  `_runtime`, `_context`, `_fmt`, `_filepath`), and the parser rejects
+  parameters named so, so that no parameter clashes with them; the
+  signatures keep the interface's names. An argument that stands for
+  memory or an object of the platform's (a buffer, a module's object, a
+  view) is kept reachable until the platform is done with it: the call
+  returns, or, for a stream, the stream ends. A stream's arguments are
+  made as its loop starts, and the callbacks and values of Go's among
+  them forgotten if it does not start (`native.Stream`'s `prepare`). The
+  scaffolds of `golet native new` and `add` are in `write.go`.
+- **`native`** is the runtime the generated Go calls, imported only by
+  modules, so apps without one link none of it. It loads
+  `lib<Module>.dylib` as package `ffi` loads any library (`ffi.New(name,
+  nil).From(dir)`: `GOLET_NATIVE_<NAME>`, the bundle's
+  `Contents/Frameworks`, next to the executable, then `.golet/native` of
+  the module of the package's directory, which `runtime.Caller` of the
+  generated file finds in builds without `-trimpath`, go test and go run,
+  checked against the sources' times of the module's languages
+  (`lib_ffi.go`); on Linux and Windows the same, Rust and Zig everywhere
+  and Swift on Linux for go test only (`Module.supported`). `golet_<m>_init`
+  takes, beside the callback, the C runtime's `malloc` and `free` (libc's,
+  ucrtbase's on Windows), with which every implementation allocates the
+  blocks it gives Go and frees Go's, whatever its own allocator.
+  Every entry point has one C signature, `(obj, args, len, call) ->
+  block`: arguments go in the binary encoding (`codec.go`: integers as 8
+  bytes little-endian, floats as float64, lengths before bytes and
+  elements, a flag before a pointer's value, structs as their fields in
+  order, an empty one as a zero byte so that every element takes one and
+  a length is never more than the bytes left), from a pooled `Encoder`;
+  results come back in a block `malloc`ed by the side that made it
+  (status, length, bytes) and freed by the other, which Go's `Decoder`
+  reads in place and frees on `Close`. Errors cross as a kind, code,
+  domain, number and message, both ways. A method of numbers and bools
+  that returns no error (`direct`) has a `_direct` entry point instead,
+  `(obj, a0, a1 …) -> UInt64`, called with them as registers: integers as
+  their bits, floats as a float64's, bools as 0 or 1. One purego callback, created once for all modules, carries
+  everything the platform tells Go (`kind*` in `call.go`): results of
+  asynchronous calls and values of streams, by call id; notifications and
+  questions of callbacks, by the handle of a Go function; calls of methods
+  of Go values, at once, or on a goroutine answered through
+  `golet_<m>_resume`, by a continuation that `status` carries, so that Go
+  answers it, with an error, even where it has no method to call; and
+  releases. Continuations' ids are unique in the process: their high bits
+  are the module's index (`contBits`), which Go gives each module as it
+  loads it (`golet_<m>_init`). A stream is pulled: Go calls
+  `golet_<m>_next` for each value, so a lent `NativeBuffer` stays valid
+  until the loop continues, and canceling the call cancels the Swift task.
+  Objects are `Unmanaged` retains on the Swift side, released by `Close`
+  or a `runtime.AddCleanup`; objects of the main thread are released
+  there, posted through `App.WhenReady`, never waited for on the
+  runtime's one goroutine of cleanups. Notifications run in order on one goroutine,
+  through `golet.RunOnMain` once the app runs. Main-thread methods run
+  through `RunOnMain`, or directly on the main goroutine before `App.Run`,
+  and in Swift under `MainActor.assumeIsolated`.
+- **The CLI** (`cmd/golet/native.go`) finds the app's modules among the
+  packages it is built from (a package with a generated `_native.go`),
+  listed once per build and target with the native libraries' packages
+  (`Config.packageDirs`), so that apps without a module list nothing
+  more, regenerates
+  them in `generate` and `dev` or refuses stale ones in `build`, runs
+  `swift build` (debug for the host, or release for the target's
+  architectures, both at once for universal), copies the dylib and the
+  frameworks its package brings into `Contents/Frameworks`, which
+  `codesign --deep` signs, and merges the modules' `Info.plist` and
+  `Entitlements.plist` (`mergePlist`) under the app's own keys, which
+  settle the modules' conflicts. A module's language for a platform is
+  `moduleLang` (`native_module.go`): Swift on macOS when it has `swift/`,
+  else Rust, then Zig; Rust and Zig modules are libraries like those
+  packages name, as resources (`nativesOf`, `Config.nativePackages` adding
+  each module's library to its package's manifest, with no `build`, as
+  `nativePackage.library` gives the language's per platform). `golet dev`
+  watches each language's directory and the plists, but not the
+  generated files. `golet native call` writes a small typed program
+  into the module's directory that decodes the arguments into the
+  method's parameters, and runs it.
+- **Views.** An interface embedding `native.View` is a view of the
+  platform (an `NSView` in `swift/`), its methods on the main thread; on
+  platforms without an implementation its constructor returns
+  `errors.ErrUnsupported`, and `ui.NativeView` of nil is a plain box.
+  `native.View` has one method, `NativeView() uintptr`, the platform's
+  view (0 once closed), which `ui.PlatformView` asks for, so the public
+  API names no internal type. `ui.NativeView` is `ui.WebView`'s element
+  around a `platformView` of the window's engine, which stands for the
+  view as a `surface.WebView` and has the surface host it as it hosts an
+  embedded web view, through `viewhost.Embed`, which package native sets
+  as it initializes, so that only apps with a module link the hosting
+  (`platform.ViewSurface`, `EmbedView`: a `window`
+  whose `web` is the view, `foreign`), so placing, clipping to the
+  hole's corners, stacking, hiding and the pointer's way through the
+  surface are the web view's. A `platformView` holds the view by its
+  handle, never its Go value, so a view the app lets go of is released;
+  `native` tells the windows hosting a view as it closes or is released
+  (`viewGone`, the function `Embed` was given), which drop it
+  (`pruneViews`). Closing one also takes the `NSView` out of its
+  superview, and a view another window took is put back as its window
+  places it. Objects of the main thread close and release there.
+- **Modules that use modules.** `nativegen` loads the native modules a
+  module imports (`go list -find`), qualifies their types with their Swift
+  modules, and makes generated declarations `public`. Generated packages
+  register with `native.Register`, which loads a module's dependencies
+  before it (dyld then finds their libraries loaded, by install name, when
+  it links them) and wraps another module's objects by name (`Wrap`). The
+  CLI builds dependencies first and passes `-I`, `-L` and `-l` to the
+  dependent's `swift build`; `.golet/native` is for editors only.
+- **Textures.** `native.Texture` is `internal/texture.Texture`. `ui.Image`
+  takes it through `imagesrc.Frames`, and `ui.ImageSource` is sealed by
+  `imagesrc.Mark`, which `Bitmap`, `SVG` and textures embed, so that `ui`
+  links no texture code. Swift presents an `IOSurface` through the
+  callback (`kindPresent`, the surface retained); the texture holds the
+  surface presented last, the one shown and those of frames in flight
+  (`inFlight`), each in use so that pixel buffer pools never hand them
+  back to be drawn on screen, and asks the windows that drew it for a
+  frame, those that drew it within the last `staleAfter` presents: the
+  others no longer show it, until they draw it again. A frame's `scene.Image` wraps the shown surface: GPU renderers
+  ask its `GPU`, a `scene.GPUSource` the texture implements, for a
+  texture of their API (`scene.Metal` on macOS, which wraps the surface
+  with no copy), and draw its pixels, which `Restore` reads, where it
+  gives none, as the CPU renderer does, into a texture of their own: the
+  Metal renderer marks the textures a source gave (`texture.gpu`) and
+  never uploads pixels into one.
+- **Published implementations** (`native_swift.go`, `publishSwift` in
+  `native_lib.go`): a module is a native library of its own, named as its
+  Swift module and built per platform in that platform's language
+  (`moduleTargets`, `moduleLibrary`), so `golet native build` publishes its
+  Rust and Zig builds as any library's, by `GOOS-GOARCH`, and its Swift as
+  a universal release build packed as `.tar.gz` with its frameworks, named after its
+  SHA-256, uploaded with `gh` to the module's release `native-<name>` of the
+  checkout's repository unless `-release` or the library names another
+  (`uploadNatives`, which never replaces a file: a name there already is
+  the same bytes), recorded under `darwin-universal` of the module's
+  `golet-plugin.json` with the hash of its Swift package's sources, LF line
+  endings, and those of the modules it uses (`moduleSourceHash`); it skips
+  a module whose record matches, unless `-force`. `swiftBuild` takes it
+  while the hash matches, in release builds and wherever Swift is missing,
+  through the cache of native libraries (`fetchNative`), unpacked with no
+  path or link that leads out of its directory (`untar`).
+
 ## CLI (`cmd/golet`)
 
 - Browsers (`web.go`): `build -platform web` (or `js/wasm`) compiles the
@@ -5169,7 +5743,13 @@ renderer's (`gputest.Compare`).
   directory and renamed into place, so the running build keeps its files.
   - Builds run with `GOLET_DEV=1`, which the core takes out of its
     environment (`dev.go`): `App.Relaunch` then exits with code 75, which
-    has `golet dev` start the same build again. Production builds ignore it.
+    has `golet dev` start the same build again, with the arguments
+    `Relaunch` wrote in the file of `GOLET_DEV_RELAUNCH`. Production builds ignore it.
+    `-background` adds `GOLET_DEV_BACKGROUND=1`, taken out the same way:
+    the app does not come to the front as it launches
+    (`AppOptions.Background`, macOS), and its windows show as
+    `ShowInactive` would (`backgroundShow`) until a window takes the
+    focus or the app becomes active.
     A build counts as started once its process is: one that crashes on
     start is reported as it exits.
   - *Reload.* A change (polling every 250 ms, debounced) rebuilds;
@@ -5218,8 +5798,9 @@ renderer's (`gputest.Compare`).
   (redrawn two lines up with the cursor saved, until a line moves it).
 - `build` generates the client, runs `buildCommand`, then compiles each
   target with `-trimpath -ldflags "-s -w -X …production=1"` (`-H=windowsgui`
-  on Windows) and `-tags golet_noinspector`, which leaves the inspector of
-  native UI out (unless `GOLET_INSPECTOR=1`), into a staging directory, so a
+  on Windows) and `-tags golet_nodownload,golet_noinspector`, which leave
+  out package ffi's downloader and the inspector of native UI (unless
+  `GOLET_INSPECTOR=1`), into a staging directory, so a
   failed build keeps the previous artifacts. `frontendDist` is embedded without touching the project
   (`embed.go`): `go build -overlay` adds a generated `golet_frontend_gen.go`
   to the main package, with `//go:embed all:golet_frontend` and a call to
@@ -5276,12 +5857,46 @@ renderer's (`gputest.Compare`).
   signatures stay. Windows builds sign the PE images among the resources
   that have no certificate table, with the app's certificate or command.
   The packages of the app may name native libraries in a
-  `golet-plugin.json` (`natives.go`), with a file per platform, its URL and
-  its SHA-256, as the terminal plugin names libghostty-vt: `go list -deps`
-  of the target finds them, the CLI downloads each once into
-  `<user cache>/golet/natives/<sha256>/`, checking its SHA-256, and installs
-  it at the top of the resources like a listed resource, both
-  architectures of a universal app combined. The CLI and the plugins
+  `golet-plugin.json` (`natives.go`, the format in `internal/nativelib`),
+  with how to build each from its sources (`build`: a Rust crate for
+  cargo, a Zig package for zig build) and its published files, one per
+  platform with its URL and SHA-256, as the terminal plugin names
+  libghostty-vt: `go list -deps` of the target finds them. A library with
+  `build` in a package outside the module cache and `vendor` (the app's
+  own, or a module replaced by a directory) whose sources are there is
+  built for the target (`nativebuild.go`), unless its published file for
+  the target was built from these sources (its `sourceHash`, the
+  SHA-256 of the build directory's files but `nativelib.Skipped` ones,
+  with LF line endings, its `args` and `macOS`) or the tool is missing, into `.golet/native/<goos>-<goarch>` of its module,
+  cargo with `CARGO_TARGET_DIR` and zig with `--prefix` and `--cache-dir`
+  under `.golet/native` too, so that builds write nothing into the sources
+  but cargo's `Cargo.lock`. cargo-zigbuild, when installed with Zig, links
+  Linux (against glibc 2.28, as Zig does) and other platforms' libraries
+  but macOS's, which need Apple's SDK and so a Mac, and Windows' on
+  Windows (MSVC). macOS libraries get the app's minimum version or the
+  library's `macOS`, the later (`MACOSX_DEPLOYMENT_TARGET`, Zig's
+  `-macos.<version>` target, without which Zig asks for the latest macOS).
+  The CLI empties the debug sections of the Linux libraries it builds
+  (`stripELF`, as `strip --strip-debug`), as Zig can keep them even when
+  `build.zig` asks to strip (libghostty-vt's). cargo's JSON messages name the crate's
+  cdylib; zig's prefix is searched for the one library it installed. Both
+  build incrementally, so `golet dev` builds on every rebuild, and watches
+  the sources (but `target`, `zig-out` and hidden directories). Other
+  libraries are downloaded once into
+  `<user cache>/golet/natives/<sha256>/`, checking their SHA-256. Each is
+  installed at the top of the resources like a listed resource, both
+  architectures of a universal app combined. `golet native build`
+  (`native.go`) builds the libraries of a package for every platform (or
+  `-target`'s, adding to the files already named, skipping those whose
+  file was built from the sources as they are unless `-force`, and
+  listing the platforms that failed at the end) into `.golet/native/release`, named
+  `<name>-<goos>-<goarch>-<sha256[:12]><ext>` so that a release never
+  replaces a file a published version of the package names, copies them
+  into the cache, where apps on the machine find them before they are
+  published, with `-upload` puts them on a GitHub release with `gh`, not
+  as the repository's latest, and then writes their entries into
+  `golet-plugin.json`. Package `ffi` (below) finds them
+  at run time. The CLI and the plugins
   download into that cache with `internal/download`: a 5xx, 408 or 429
   response, or a connection that fails or breaks off, is tried again
   after 1, 2 and 4 s (GitHub's release downloads answer 502 and 504 now
@@ -5340,7 +5955,9 @@ renderer's (`gputest.Compare`).
   of the app: the app in `/opt/<name>`, a `/usr/bin` link for each name
   of `linux.command`, the desktop entry (categories,
   comment, URL schemes; `Exec` is the app's path) and hicolor icons,
-  depending on GTK 3 and WebKitGTK 4.1. It also gets a `PKGBUILD`
+  depending on GTK 3 and WebKitGTK 4.1. It also gets an RPM package
+  (`rpm.go`), built with `go.digitalxero.dev/rpm`, with the same files
+  and metadata, and a `PKGBUILD`
   (`pkgbuild.go`), from which `makepkg -si` packages the archive for
   Arch Linux (`source` is its file name, with its SHA-256): its
   `package()` installs what the Debian package holds, with the same
@@ -5352,10 +5969,13 @@ renderer's (`gputest.Compare`).
   Debian do. `pkgver` is the version without the hyphen of a
   pre-release (`1.2.0beta.1`; vercmp sorts `1.2.0_beta.1` after
   `1.2.0`, as a remainder starting with a separator wins), `depends`
-  maps the Debian dependencies through `archPackages`, warning about
-  those it lacks, and `options` keeps the executable unstripped. Every
+  takes per-format `deb`, `rpm` and `arch` lists, or maps a list of
+  Debian dependencies through `archPackages` and `rpmPackages`, warning
+  about those they lack, and `options` keeps the executable unstripped. Every
   value is quoted for the shell, and `-upload` leaves it out (`uploads`
-  takes only known kinds). Packages hold the same files as
+  takes only known kinds). `linux.formats` chooses which of the three
+  packages a build writes (`writeLinuxPackages`), all by default; the
+  archive is always written. Packages hold the same files as
   the update archive; apps installed by a package manager do not update
   themselves (`Updater.Enabled` checks that the app can write where it is
   installed). Every Linux build also gets `install.sh`
@@ -5857,12 +6477,13 @@ which npm allows only for packages that exist: the first release uses an
 | sessions (`PageOptions.Session`) | a `WKWebsiteDataStore` set on each web view's configuration: `dataStoreForIdentifier:` of a UUID made of the name (macOS 14+; before, `nonPersistentDataStore` kept until the app quits), `nonPersistentDataStore` for an ephemeral one, released when its last page closes; `window.open` hands the opener's configuration over | a `WebKitWebContext` per session, made with `webkit_web_context_new_with_website_data_manager` of a manager with base data and cache directories in `Sessions/<UUID>` of the user data and cache directories, or `webkit_website_data_manager_new_ephemeral`; web views made with `g_object_new` and `web-context`, which keeps a reference to it; custom schemes, languages and downloads set up on each context; unreferenced when an ephemeral one's last page closes | a WebView2 profile per session (`ICoreWebView2Environment10`'s controller options: `put_ProfileName` `golet-<UUID>`, or `golet-private-<n>` with `put_IsInPrivateModeEnabled` for an ephemeral one, a new name for each of its stores); windows, web views in native UI and the cookie calls' hidden web views made with those options |
 | HTTP sign-in (`SetAuthHandler`) | `webView:didReceiveAuthenticationChallenge:completionHandler:`, `NSURLCredential` for the session; none: no prompt, the 401 page; empty answer: `RejectProtectionSpace` | `WebKitWebView::authenticate`, `webkit_credential_new` for the session; none: WebKitGTK's dialog; empty answer: authenticates without credentials | `ICoreWebView2_10`'s `BasicAuthenticationRequested`, scheme and realm parsed from its challenge, no proxy flag; none: WebView2's dialog; empty answer: `Cancel` |
 | certificate errors (`SetCertificateErrorHandler`) | the server trust challenge of every connection, checked with `SecTrustEvaluateAsyncWithError` while a handler is set, allowed with `credentialForTrust:` for that connection | `load-failed-with-tls-errors`, the main frame only; allowed with `webkit_web_context_allow_tls_certificate_for_host` (app-wide) and loaded again | `ICoreWebView2_14`'s `ServerCertificateErrorDetected`, every request, after `NavigationCompleted` failed; allowed with `ALWAYS_ALLOW` (app-wide) |
+| client certificates (`SetClientCertificateHandler`) | the client certificate challenge, identities of the keychain (`SecItemCopyMatching`, `kSecClassIdentity`), which the keychain asks the user for, answered with `credentialWithIdentity:certificates:persistence:`; none: WebKit never asks; empty answer: reject | scheme `CLIENT_CERTIFICATE_REQUESTED` on `WebKitWebView::authenticate`; WebKitGTK lists no certificates, so none are offered and a handler can only cancel (`webkit_authentication_request_cancel`), which ends the load as a cancellation `OnDidFailLoad` does not report; none: WebKitGTK's certificate chooser | `ICoreWebView2_5`'s `ClientCertificateRequested`, the mutually trusted certificates; none: WebView2's dialog; empty answer: the challenge is canceled, as a user's dismissal of the dialog is; a runtime without `_5` never asks |
 | a page's context menu (`OnContextMenu`) | `-[NSView willOpenMenu:withEvent:]` of `GoletWebView`, on a menu with an item of `forwardContextMenuAction:` or a `WKMenuItemIdentifier*`: items named by their identifier, else WebKit's tag or AppKit's action, emptied and filled again in place; the target from the bridge alone, matched by the event's point; the app's items are `buildItem`'s, sent to `goletContextItemClicked:` and the menu's window | `WebKitWebView::context-menu`: items named by their stock action, labels from their `GtkAction`, state from their `GAction`; the hit test tells all but the selection; renamed stock items are new ones of the same action; the app's items wrap a `GSimpleAction` (`webkit_context_menu_item_new_from_gaction`) | `ICoreWebView2_11`'s `ContextMenuRequested`, with the whole target (`Complete`); a changed menu is `Handled`, built by `buildMenu` and tracked after a deferral, and a WebView2 item chosen is its `SelectedCommandId`; a runtime without `_11` never asks |
 | permissions | `WKUIDelegate` media capture (camera, microphone) | `permission-request` (camera, microphone, geolocation, notifications) | `PermissionRequested` (the same four; WebView2 asks about others) |
 | user agent | `customUserAgent`; `UserAgentSuffix` is the configuration's `applicationNameForUserAgent`, which a `window.open()` window does not inherit | `WebKitSettings:user-agent`; `UserAgentSuffix` appends application details, split at the first "/" | `ICoreWebView2Settings2`'s user agent, and a suffix appended to the settings' own user agent; a runtime without `Settings2` ignores both |
 | swipes and pinches (`SwipeNavigation`, `PinchZoom`) | `allowsBackForwardNavigationGestures` and `allowsMagnification` of the `WKWebView`, both off unless asked for | `WebKitSettings:enable-back-forward-navigation-gestures`; WebKitGTK has no setting for pinches, so the web view's `GtkGestureZoom`, which it keeps in its data as `wk-view-zoom-gesture` (2.38+), is given `GTK_PHASE_NONE` unless `PinchZoom`: it then sees neither a touchpad's pinch nor a touchscreen's | `ICoreWebView2Settings6`'s `IsSwipeNavigationEnabled` and `ICoreWebView2Settings5`'s `IsPinchZoomEnabled`, both on in WebView2 and put to the options' values in `setUp`, before the first navigation |
 | the browser's keys (reload, print, find, zoom) | none | none | WebView2's (F5, Ctrl+R, Ctrl+P, Ctrl+F, Ctrl+Plus, ...) only with the inspector (`ICoreWebView2Settings3`'s `AreBrowserAcceleratorKeysEnabled`); `AcceleratorKeyPressed` still gives the menus every key |
-| file associations | `CFBundleDocumentTypes`; files arrive with `application:openURLs:` | desktop entry `MimeType` (`%U`), a shared-mime-info package in the .deb for types the app defines (`x-`) | ProgIDs and `OpenWithProgids` written by the installer |
+| file associations | `CFBundleDocumentTypes`; files arrive with `application:openURLs:` | desktop entry `MimeType` (`%U`), a shared-mime-info package in the .deb and .rpm for types the app defines (`x-`) | ProgIDs and `OpenWithProgids` written by the installer |
 | document windows | `representedURL` (proxy icon, Command-click folder menu) and `setDocumentEdited:` (the dot), then the traffic lights are laid out again | the core puts `*` before the title | the core puts `*` before the title |
 | replacing a document's file | `-[NSFileManager replaceItemAtURL:withItemAtURL:…]` (permissions, dates, extended attributes, ACLs, identity) | rename after `chmod` and `lchown` to the target's | `ReplaceFileW`, retried on sharing violations; when it stops halfway, having removed the target, the replacement is renamed into place |
 | recent documents | `noteNewRecentDocumentURL:` / `clearRecentDocuments:` of the shared `NSDocumentController` (the Dock menu) | `gtk_recent_manager_add_item`, removing the items of `g_get_application_name()` | `SHAddToRecentDocs` (`SHARD_PATHW`), `IApplicationDestinations::RemoveAllDestinations`; the process keeps the AppUserModelID the shell derives from its path, which the installer's shortcuts have too |
@@ -5872,11 +6493,14 @@ which npm allows only for packages that exist: the first release uses an
 | power events | NSWorkspace sleep/wake, `com.apple.screenIsLocked` distributed notifications | logind `PrepareForSleep` (system bus), screen saver `ActiveChanged` (GNOME, freedesktop) | `WM_POWERBROADCAST`, `WM_WTSSESSION_CHANGE` |
 | Now Playing and media keys | `MPNowPlayingInfoCenter` (its `nowPlayingInfo` and `playbackState`; artwork as an `MPMediaItemArtwork` decoding the bytes it holds when asked) and the targets of `MPRemoteCommandCenter`'s commands, enabled as the info offers them; MediaPlayer.framework loads with the first `Set` | an MPRIS player (`org.mpris.MediaPlayer2` and `.Player` at `/org/mpris/MediaPlayer2`, exported with `g_dbus_connection_register_object`), whose bus name `org.mpris.MediaPlayer2.<app>.instance<pid>` is owned only while it shows something; `PropertiesChanged` on each change, `Seeked` when the position jumps; the artwork goes to a file in `$XDG_RUNTIME_DIR` for `mpris:artUrl` | the `SystemMediaTransportControls` of the application window (`ISystemMediaTransportControlsInterop::GetForWindow`), with agile event handlers, a `RandomAccessStreamReference` over a memory stream for the thumbnail, and the timeline properties for position and seeking |
 | KeepAwake | `NSProcessInfo` activity (shows in `pmset -g assertions`) | XDG portal `Inhibit`, else `org.freedesktop.ScreenSaver.Inhibit` | `PowerCreateRequest` |
+| KeepRunning | `NSProcessInfo` activity `NSActivityUserInitiatedAllowingIdleSystemSleep`: no App Nap, idle sleep allowed (not in `pmset -g assertions`) | nothing: desktops don't slow apps out of sight | nothing yet (power throttling, EcoQoS, would be `SetProcessInformation`'s `ProcessPowerThrottling`) |
 | IsOnBattery, IdleTime | IOKit power sources, `CGEventSourceSecondsSinceLastEventType` | `/sys/class/power_supply`; Mutter idle monitor or `GetSessionIdleTime` | `GetSystemPowerStatus`, `GetLastInputInfo` |
 | network status | `nw_path_monitor` on a queue of its own, the first `Status` waiting (up to a second) for its first path; online when the path is satisfied, metered when it is expensive or constrained | `GNetworkMonitor`, `network-available` (a default route) and `network-metered` | `GetNetworkConnectivityHint`, `NotifyNetworkConnectivityHintChange`; online from local access up (not none or hidden), metered for a fixed or variable cost, roaming, over or near the data limit |
 | window position | honored | ignored by Wayland compositors | honored |
 | resize borders without a title bar | the window's own | the outer 5 px of the page | invisible, outside the window; along the top of a frameless window or a hidden title bar, a child window |
-| content protection, click-through | yes | ignored | yes |
+| content protection | yes | ignored | yes |
+| click-through (`SetIgnoreMouseEvents`) | `ignoresMouseEvents` | an empty input shape | layered, `WS_EX_TRANSPARENT` |
+| input region (`SetInputRegion`) | `ignoresMouseEvents` switched as the pointer comes into the region or leaves it, from a global and a local monitor of its moves and releases, while a window has one, and a tracking area active always (`input_region.go`) | the input shape, after GTK's own, on size-allocate (`gdk_window_input_shape_combine_region`) | layered, `WS_EX_TRANSPARENT` switched as a timer at each tick of the system's clock (15.6 ms) finds the cursor in the region or out of it (`input_region.go`) |
 | panels | `NSPanel` with the nonactivating style, floating, on all Spaces as a full-screen auxiliary | sticky utility window, kept above, out of the taskbar and the pager; a gtk-layer-shell overlay surface on Wayland where it can be | topmost `WS_EX_TOOLWINDOW` owned by the hidden application window, rounded |
 | flyouts | borderless nonactivating `NSPanel` child window, or an `NSPopover`; placed in the visible frame | `GTK_WINDOW_POPUP` (override-redirect, placed in the work area, on X11; `xdg_popup` with `gdk_window_move_to_rect` on Wayland); focusable ones grab the seat | owned `WS_POPUP` + `WS_EX_TOOLWINDOW`, `WS_EX_NOACTIVATE` unless focusable, `CS_DROPSHADOW` for a shadow, with corners rounded by DWM on Windows 11 |
 | custom scheme origin | `<scheme>://<host>` | `<scheme>://<host>` | `http://<scheme>.localhost`, or `http://<host>.<scheme>.localhost` for another host (the page's `location`) |
@@ -5885,6 +6509,7 @@ which npm allows only for packages that exist: the first release uses an
 | keys held (`Context.KeyDown`) | `keyDown:` and `keyUp:`; a local monitor of key ups hands the surface those let go of while Command is held, which `sendEvent:` keeps from the key window; resigning first responder or key window lets go of all | key presses and releases, and a release the input method filters (`HeldKeys.Lift`): IBus and Fcitx hand back those they leave, which `HeldKeys` keeps from the content | `WM_KEYUP` and `WM_SYSKEYUP`; a `VK_PROCESSKEY` release lets go of the key at its scancode; `WM_ENTERMENULOOP` lets go of all (`HeldKeys.LiftAll`), whose releases the menu's loop takes; `WM_KILLFOCUS` all |
 | native UI surface | layer-backed NSView, frames from `CADisplayLink` (a timer at the display's rate before macOS 14), input methods through NSTextInputClient | GtkGLArea (GtkDrawingArea without a GPU), GtkIMMulticontext | `GoletSurface` child window, IMM32 |
 | native UI data drags | NSDraggingSession, NSPasteboardItemDataProvider, NSDraggingDestination | GTK drag contexts, MIME selections, text/uri-list | OLE IDataObject, IDropSource, IDropTarget, Shell drag images |
+| concealed clipboard writes (`ClipboardOptions.Concealed`) | `org.nspasteboard.ConcealedType` on every item, `prepareForNewContentsWithOptions:` with `NSPasteboardContentsCurrentHostOnly` | the `x-kde-passwordManagerHint` target, `secret` | the `ExcludeClipboardContentFromMonitorProcessing` format |
 | native UI accessibility | `NSAccessibilityElement` subclasses | ATK objects (GObject types registered through purego), bridged to AT-SPI by GTK | UI Automation fragments (COM objects; assembly thunks for the methods taking doubles) |
 | native UI rendering | Metal, into a CAMetalLayer presenting as soon as drawn, or with the Core Animation transaction for frames that resize it or show web views | OpenGL 3.3 or ES 3.0 in the GtkGLArea's render signal; on the CPU, painted with cairo, where OpenGL runs on the CPU | Direct3D 11 (WARP without a GPU), flip-model swap chain presenting dirty rectangles |
 | web views in native UI | WKWebView in a clip view under the surface; `hitTest:` lets the pointer through | WebKitWebView in a `GtkLayout` under the area in a `GtkOverlay`; an input shape lets the pointer through | WebView2 composition controller in a DirectComposition target under the frames'; the surface sends it the mouse |

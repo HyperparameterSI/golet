@@ -6,14 +6,17 @@ package darwin
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/HyperparameterSI/golet/backend/transfer"
+	"github.com/ebitengine/purego/objc"
 )
 
 func TestClipboardNativeAliasesAndFileList(t *testing.T) {
@@ -79,4 +82,58 @@ func TestClipboardFileReferenceURL(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestClipboardConcealedItem(t *testing.T) {
+	load()
+	registerClipboardClass()
+	withPool(func() {
+		for _, concealed := range []bool{false, true} {
+			s := &macClipboardSource{items: map[id]transfer.Item{}, concealed: concealed}
+			s.obj = send(send(class("GoletClipboardProvider"), "alloc"), "init")
+			macClipboardProviders[s.obj] = s
+			pb := s.pasteboardItem(transfer.NewItem(transfer.Bytes(transfer.Text, []byte("hunter2"))))
+			var types []string
+			for _, typ := range arrayItems(send(pb, "types")) {
+				types = append(types, goString(typ))
+			}
+			if slices.Contains(types, macConcealedType) != concealed || !slices.Contains(types, utString) {
+				t.Fatalf("concealed %t: types %q", concealed, types)
+			}
+			if mark := send(pb, "dataForType:", uintptr(nsString(macConcealedType))); (mark != 0) != concealed {
+				t.Fatalf("concealed %t: mark data %d", concealed, mark)
+			}
+			s.release()
+		}
+	})
+}
+
+// testPasteboardCalls records what prepareMacClipboard sent to a
+// GoletTestPasteboard, a class registered once for every run of the test.
+var testPasteboardCalls []string
+
+func TestClipboardConcealedWritesForCurrentHostOnly(t *testing.T) {
+	load()
+	if objc.GetClass("GoletTestPasteboard") == 0 {
+		classDef("GoletTestPasteboard", "NSObject", nil, []objc.MethodDef{
+			method("clearContents", func(self id, _ objc.SEL) int {
+				testPasteboardCalls = append(testPasteboardCalls, "clearContents")
+				return 0
+			}),
+			method("prepareForNewContentsWithOptions:", func(self id, _ objc.SEL, options uint) int {
+				testPasteboardCalls = append(testPasteboardCalls, fmt.Sprintf("prepareForNewContentsWithOptions:%d", options))
+				return 0
+			}),
+		})
+	}
+	testPasteboardCalls = nil
+	withPool(func() {
+		board := autorelease(send(send(class("GoletTestPasteboard"), "alloc"), "init"))
+		prepareMacClipboard(board, false)
+		prepareMacClipboard(board, true)
+	})
+	// 1 is NSPasteboardContentsCurrentHostOnly.
+	if want := []string{"clearContents", "prepareForNewContentsWithOptions:1"}; !slices.Equal(testPasteboardCalls, want) {
+		t.Fatalf("pasteboard calls %q, want %q", testPasteboardCalls, want)
+	}
 }

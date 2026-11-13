@@ -5,8 +5,10 @@
 package e2e
 
 import (
+	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/HyperparameterSI/golet/backend"
 	win "github.com/HyperparameterSI/golet/backend/internal/windows"
@@ -69,4 +71,53 @@ func TestContentWindowCloakedUntilFirstFrame(t *testing.T) {
 func firstFrameRevealed(w *golet.Window) bool {
 	c, drawn := cloaked(w)
 	return !c && drawn
+}
+
+// TestShownFlyoutCloakedUntilComposed checks that a flyout of native UI
+// made hidden and shown before it drew a frame, whose frames show through
+// DirectComposition, stays out of sight after the WM_PAINT that drew its
+// first frame until DWM composed it: uncloaked at once, it showed black for
+// a refresh or more, as the frame reached DWM after the window (#1591).
+func TestShownFlyoutCloakedUntilComposed(t *testing.T) {
+	work := golet.Screen.PrimaryDisplay().WorkArea
+	parent := newWindow(t, golet.WindowOptions{Width: 300, Height: 200, X: work.X + 100, Y: work.Y + 100})
+	var fl *golet.Window
+	var release func()
+	var composed bool
+	golet.RunOnMain(func() {
+		release = win.TestHoldReveal()
+		fl = golet.NewFlyout(golet.FlyoutOptions{Parent: parent, Hidden: true, Shadow: true, Width: 220, Height: 240, Content: ui.View(func(c *ui.Context) {
+			c.Root().Background(ui.RGB(30, 30, 30))
+			for i := range 10 {
+				ui.Text(c, "Row "+strconv.Itoa(i))
+			}
+		})})
+		fl.Show()
+		composed = win.TestSurfaceComposed(fl.NativeHandle())
+	})
+	released := false
+	unhold := func() {
+		if !released {
+			released = true
+			golet.RunOnMain(release)
+		}
+	}
+	defer unhold()
+	defer fl.Destroy()
+	eventually(t, "the flyout's first frame drawn", func() bool {
+		_, drawn := cloaked(fl)
+		return drawn
+	})
+	if !fl.IsVisible() {
+		t.Fatal("the flyout is not visible")
+	}
+	if composed {
+		// Some refreshes later, DWM has still not composed it, as held.
+		time.Sleep(150 * time.Millisecond)
+		if c, _ := cloaked(fl); !c {
+			t.Fatal("shown after its first frame's WM_PAINT, before DWM composed the frame")
+		}
+	}
+	unhold()
+	eventually(t, "the flyout uncloaked once its first frame was composed", func() bool { return firstFrameRevealed(fl) })
 }

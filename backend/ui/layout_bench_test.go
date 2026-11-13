@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"testing"
+	"unsafe"
 )
 
 // The layout benchmarks lay out trees of boxes shaped as Taffy's flexbox
@@ -115,6 +116,10 @@ var layoutBenches = []layoutBench{
 	}},
 	{"Wide/1000", func() []*benchBox { return newBenchTree(randomBox).flat(1000) }},
 	{"Wide/10000", func() []*benchBox { return newBenchTree(randomBox).flat(10000) }},
+	// A wide tree of many leaves: the walk over the children of every box
+	// in it, which the layout does for the ones out of the flow, is what
+	// makes it slower than the others.
+	{"Wide/100000", func() []*benchBox { return newBenchTree(randomBox).flat(100000) }},
 	{"DeepRandom/4000", func() []*benchBox { return newBenchTree(randomBox).deep(4000, 2) }},
 	{"DeepRandom/10000", func() []*benchBox { return newBenchTree(randomBox).deep(10000, 2) }},
 	{"DeepAuto/4000", func() []*benchBox {
@@ -197,5 +202,13 @@ func TestLayoutBenchTrees(t *testing.T) {
 		} else {
 			t.Log(lb.name, fmt.Sprint(n))
 		}
+	}
+}
+
+// A flex item stays within a cache line: one larger made the deep trees
+// above take longer to lay out.
+func TestFlexItemFitsCacheLine(t *testing.T) {
+	if n := unsafe.Sizeof(flexItem{}); n > 64 {
+		t.Errorf("a flexItem is %d bytes, more than 64", n)
 	}
 }

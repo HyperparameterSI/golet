@@ -868,13 +868,35 @@ func (g *gallery) controls(c *ui.Context) {
 					}
 				}
 			})
+			share := ui.SplitButton(c, "Share")
+			share.Arrow.Menu(func(m *ui.Menu) {
+				if m.Item("Copy Link").Chosen() {
+					c.Toast("Copied the link")
+				}
+				if m.Item("Share by Email…").Chosen() {
+					c.Toast("Shared by email")
+				}
+			})
+			if share.Button.Clicked() {
+				c.Toast("Shared")
+			}
 			ui.Link(c, "Open golet.dev", "https://github.com/HyperparameterSI/golet")
 		})
 		ui.Text(c, "Tab moves the focus; Enter or Space presses the focused button.").TextColor(t.TextMuted)
 	})
 	card(c, "Toolbar", func() {
 		ui.Toolbar(c, func() {
-			ui.Button(c, "New")
+			create := ui.PrimarySplitButton(c, "New")
+			create.Arrow.PopoverMenuButton(func(m *ui.Menu) {
+				for _, from := range []string{"Letter", "Report", "Résumé"} {
+					if m.Item("New " + from).Chosen() {
+						c.Toast("New " + from)
+					}
+				}
+			})
+			if create.Button.Clicked() {
+				c.Toast("New document")
+			}
 			ui.Button(c, "Open")
 			ui.ToggleGroup(c, func() {
 				ui.Toggle(c, &g.bold, "Bold")

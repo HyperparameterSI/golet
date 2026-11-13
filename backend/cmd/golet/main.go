@@ -32,6 +32,8 @@ Commands:
 	i18n check [dir]     check the app's catalogs of messages
 	dev                  run a development build with live reload
 	build                build production apps (a .app and a .dmg on macOS)
+	native <command>     make, check, call and build native modules in Swift, Rust
+	                     or Zig, experimental (golet native help)
 	keygen               create the key pair that signs updates
 	doctor               check that the development environment is ready
 	version              print the Golet version
@@ -39,7 +41,7 @@ Commands:
 Run "golet <command> -h" for the flags of a command.
 `
 
-const version = "0.1.17"
+const version = "0.1.18"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -53,7 +55,7 @@ func main() {
 	}
 	// Ctrl+C leaves the line of a step in progress, not its spinner. golet dev
 	// stops its app first.
-	if cmd == "build" || cmd == "generate" || cmd == "gen" || cmd == "init" {
+	if cmd == "build" || cmd == "native" || cmd == "generate" || cmd == "gen" || cmd == "init" {
 		go func() {
 			sig := make(chan os.Signal, 1)
 			signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -80,6 +82,8 @@ func main() {
 		err = runI18n(args)
 	case "build":
 		err = runBuild(args)
+	case "native":
+		err = runNative(args)
 	case "doctor":
 		err = runDoctor(args)
 	case "keygen":

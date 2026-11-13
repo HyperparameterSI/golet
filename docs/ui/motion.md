@@ -446,7 +446,10 @@ plays, timed by `c.Now()`.
 
 `InView()` reports whether some of an element showed in the frame before,
 within the scroll containers around it, to bring it in as it scrolls into
-view. A `ScrollState` (see [Scrolling](scroll.md)) gives how far its
+view. When what it answers from changes, as a scroll brings the element in,
+Golet builds another frame, so the view reads the new answer without waiting
+for the next input; `InViewMargin` and `InViewAmount` do the same, and an
+element that reads none of them costs no frame. A `ScrollState` (see [Scrolling](scroll.md)) gives how far its
 container scrolled, for effects that follow the scrolling:
 
 ```go
@@ -569,16 +572,18 @@ animate from their `Draw` only paint.
 
 While nothing of a window shows (on macOS: hidden, minimized, on another
 Space, or entirely covered by other windows; in a browser: a tab in the
-background), Golet draws no frames for it, as browsers draw nothing for
-pages out of sight and as Apple asks of Mac apps. The view does not run,
+background; on Windows, and on Linux under X11: minimized), Golet draws no
+frames for it, as browsers draw nothing for pages out of sight and as
+Apple asks of Mac apps. The view does not run,
 `Draw` is not called, and the frames `After` and `Painter.After` ask for
 wait. As soon as some of the window shows, it draws once, with everything
 that changed meanwhile; until then the screen shows its last frame, for
 about a refresh. A frame still builds after input (keys typed into a key
 window another app's window covers), when assistive technology turns on,
 and for `Window.CapturePage`, so that a capture shows the window as it is
-now. Windows and Linux do not tell Golet when a window is out of sight, so
-there it draws as it always did.
+now. Windows and X11 tell Golet of a window minimized and of no more, and
+Wayland of nothing, so a window that others cover, or one on another
+desktop, draws there as it always did.
 
 What this means for motion:
 

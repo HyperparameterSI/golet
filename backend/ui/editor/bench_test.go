@@ -3,6 +3,7 @@
 package editor
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -219,5 +220,119 @@ func BenchmarkDiffFitFrame(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; b.Loop(); i++ {
 		tt.Move(700, float32(400+i%2))
+	}
+}
+
+// BenchmarkDiffDeletedFileScroll scrolls near the end of a unified diff of
+// a deleted Go file of 20,000 lines: one run of deleted lines, most of
+// it above the view.
+func BenchmarkDiffDeletedFileScroll(b *testing.B) {
+	d := &DiffState{Old: NewBuffer(bigGo(20_000)), New: NewBuffer(""), Layout: DiffUnified}
+	d.Old.SetLanguage(LanguageNamed("go"))
+	tt := ui.NewTester(func(c *ui.Context) {
+		DiffView(c, d).Fill()
+	}, 1400, 800)
+	tt.SetScale(2)
+	tt.Frame()
+	d.SetScrollY(math.MaxFloat64)
+	tt.Frame()
+	tt.Move(700, 400)
+	b.ReportAllocs()
+	for i := 0; b.Loop(); i++ {
+		dy := float32(-61)
+		if i%2 == 1 {
+			dy = 61
+		}
+		tt.Scroll(700, 400, 0, dy)
+	}
+}
+
+// bigChinese is Chinese prose of n lines, with Latin words, numbers and
+// punctuation, each a few rows wide.
+func bigChinese(n int) string {
+	var b strings.Builder
+	for i := range n {
+		b.WriteString("这是第" + strconv.Itoa(i) + "行，用于测试软换行的中文文本：每一行都含有若干标点符号、English words 和数字 42。逗号、顿号和句号在中文排版中占一个全角字宽；分号与冒号同样如此。\n")
+	}
+	return b.String()
+}
+
+// BenchmarkCodeEditorWrapChinese measures the soft wraps of all the
+// lines of Chinese prose of 20,000 lines, as each width of a resize does.
+func BenchmarkCodeEditorWrapChinese(b *testing.B) {
+	st, _ := newBenchEditor(b, bigChinese(20_000), true)
+	v := &st.ed.view
+	width := v.wrapWidth
+	b.ReportAllocs()
+	for i := 0; b.Loop(); i++ {
+		v.setWrap(true, width-float32(i%2*10))
+		for !v.measureWraps(0, time.Hour) {
+		}
+	}
+}
+
+// BenchmarkCodeEditorScrollWrapChinese scrolls Chinese prose of 20,000
+// lines with soft wraps, whose rows are shaped to fit as they show.
+func BenchmarkCodeEditorScrollWrapChinese(b *testing.B) {
+	_, tt := newBenchEditor(b, bigChinese(20_000), true)
+	b.ReportAllocs()
+	for b.Loop() {
+		tt.Scroll(600, 400, 0, 61)
+	}
+}
+
+// benchNote is a Markdown note of n lines, and what its live preview
+// replaces: the marks of emphasis on every line, and a link's on every
+// fourth.
+func benchNote(n int) (string, []Replacement) {
+	var b strings.Builder
+	var rs []Replacement
+	for i := range n {
+		start := b.Len()
+		b.WriteString("Some **bold** words")
+		rs = append(rs, Replacement{Start: start + 5, End: start + 7}, Replacement{Start: start + 11, End: start + 13})
+		if i%4 == 0 {
+			at := b.Len()
+			b.WriteString(" and a [link](https://example.com)")
+			rs = append(rs, Replacement{Start: at + 7, End: at + 8}, Replacement{Start: at + 12, End: at + 34})
+		}
+		b.WriteString(" on line " + strconv.Itoa(i) + ".\n")
+	}
+	return b.String(), rs
+}
+
+// BenchmarkCodeEditorTypeReplacements types a character in the middle of
+// a note of 10,000 lines and renders the frame: with no replacements, as
+// its source shows; with those of a live preview, which the edits move;
+// and with the app setting them again after each key press.
+func BenchmarkCodeEditorTypeReplacements(b *testing.B) {
+	for _, mode := range []string{"source", "moved", "set"} {
+		b.Run(mode, func(b *testing.B) {
+			text, rs := benchNote(10_000)
+			st := &State{Buffer: NewBuffer(text)}
+			tt := ui.NewTester(func(c *ui.Context) {
+				View(c, st).Fill().AutoFocus()
+			}, 1200, 800)
+			tt.SetScale(2)
+			tt.Frame()
+			if mode != "source" {
+				st.SetReplacements(rs)
+			}
+			mid := st.Buffer.Offset(Pos{Line: 5_000})
+			st.Select(mid, mid)
+			tt.Frame()
+			b.ReportAllocs()
+			for i := 0; b.Loop(); i++ {
+				if i%2 == 0 {
+					tt.Type("x")
+				} else {
+					tt.Key(0, ui.KeyBackspace)
+				}
+				if mode == "set" {
+					st.SetReplacements(st.Replacements())
+				}
+				tt.Frame()
+			}
+		})
 	}
 }

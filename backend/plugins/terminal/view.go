@@ -173,6 +173,17 @@ type view struct {
 	scrollbar vt.Scrollbar
 	lines     []rowCache
 	shaped    lru
+	// spare holds the rows of the frame before, whose slices the next
+	// frame's rows take (updateRows); taken marks the rows of the last
+	// frame the next has taken, and key, keyStyles and graphemes hold a
+	// row's key as it is written (rowKey).
+	spare     []rowCache
+	taken     []bool
+	key       []byte
+	keyStyles []uint16
+	graphemes []rune
+	// shapeKey holds the key of text to shape as it is written (shape).
+	shapeKey []byte
 	// images are the placements of images that show, and bitmaps their
 	// images' (readImages).
 	images  []shownImage
@@ -205,7 +216,10 @@ type view struct {
 	// the bar, as of its last move, and barHover as of the last build;
 	// inView that the pointer was over the terminal, which shows the bar.
 	barHeld, overBar, barHover, inView bool
-	barGrab                            float32
+	// barStyle is how the scroll bar looks, the theme's as of the last
+	// paint.
+	barStyle ui.ScrollbarStyle
+	barGrab  float32
 	// hover is the link Command is held over, which a click opens and
 	// which shows underlined, hoverLink what it opens and hoverPath
 	// whether that is a file path (HoveredLink); linkPress: the primary
@@ -270,7 +284,9 @@ type pendingKey struct {
 func (v *view) build(c *ui.Context, e ui.Element) {
 	t := v.t
 	if files := e.DroppedFiles(); len(files) > 0 {
-		t.dropFiles(files)
+		if on := t.opts.OnDrop; on == nil || !on(files) {
+			t.dropFiles(files)
+		}
 	}
 	v.lang = c.Locale()
 	dark := c.Theme().Dark
@@ -909,6 +925,9 @@ func (v *view) encodeKey(k vt.KeyEvent, press bool) bool {
 	v.keys.Sync(t.term, t.opts.OptionAsAlt)
 	b := v.keys.Encode(k)
 	if len(b) == 0 {
+		b = controlKey(k)
+	}
+	if len(b) == 0 {
 		return false
 	}
 	t.in.push(append([]byte(nil), b...))
@@ -917,6 +936,25 @@ func (v *view) encodeKey(k vt.KeyEvent, press bool) bool {
 		t.term.SetSelection(nil)
 	}
 	return true
+}
+
+// controlKeys are the Control keys Ghostty's legacy encoding leaves to
+// fixterms' CSI u, which it makes of a key's text only: these keys come
+// without text, as Control keys do, and it sends nothing for them. xterm
+// and most terminals send their C0 controls, which shells and editors
+// read: Ctrl+I is Tab, Ctrl+M Enter and Ctrl+[ Esc.
+var controlKeys = map[vt.Key]string{vt.KeyI: "\t", vt.KeyM: "\r", vt.KeyBracketLeft: "\x1b"}
+
+// controlKey returns the C0 control of a Control key the encoder sent
+// nothing for, as other Control keys send theirs (Ctrl+C is ^C). The
+// Kitty keyboard protocol encodes these keys itself, so they never come
+// here with it.
+func controlKey(k vt.KeyEvent) []byte {
+	c, ok := controlKeys[k.Key]
+	if !ok || k.Action == vt.KeyRelease || k.Mods != vt.ModCtrl || k.Text != "" {
+		return nil
+	}
+	return []byte(c)
 }
 
 // sendText sends text that is no key, as of an input method.
@@ -1205,8 +1243,12 @@ func (v *view) overScrollbar(x, y float32) bool {
 	if v.barHeld {
 		return true
 	}
+	width := v.barStyle.TrackWidth
+	if width <= 0 {
+		width = scrollbarStrip
+	}
 	w, h := v.size[0], v.size[1]
-	if x < w-scrollbarStrip || x >= w || y < 0 || y >= h {
+	if x < w-width || x >= w || y < 0 || y >= h {
 		return false
 	}
 	sb := v.t.term.Scrollbar()
@@ -1229,7 +1271,9 @@ func (v *view) scrollbarEvent(ev ui.InputEvent) bool {
 	case v.barHeld:
 		v.dragScrollbar(ev.Y)
 	case v.overBar && ev.Kind == ui.InputPointerDown && ev.Button == 0:
-		y, h := bar(v.t.term.Scrollbar(), ui.Rect{H: v.size[1]}).Thumb()
+		b := bar(v.t.term.Scrollbar(), ui.Rect{H: v.size[1]})
+		b.Style = v.barStyle
+		y, h := b.Thumb()
 		v.barGrab = h / 2
 		if ev.Y >= y && ev.Y < y+h {
 			v.barGrab = ev.Y - y
@@ -1250,7 +1294,9 @@ func (v *view) dragScrollbar(y float32) {
 	if sb.Total <= sb.Len {
 		return
 	}
-	to := int(math.Round(float64(bar(sb, ui.Rect{H: v.size[1]}).OffsetAt(y - v.barGrab))))
+	b := bar(sb, ui.Rect{H: v.size[1]})
+	b.Style = v.barStyle
+	to := int(math.Round(float64(b.OffsetAt(y - v.barGrab))))
 	if d := to - int(sb.Offset); d != 0 {
 		term.ScrollBy(d)
 		v.services.Invalidate()
